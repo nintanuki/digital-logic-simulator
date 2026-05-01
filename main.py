@@ -4,6 +4,7 @@ import pygame
 import sys
 from elements import Component
 from settings import *
+from ui import ComponentBank
 
 class GameManager:
     def __init__(self):
@@ -21,6 +22,8 @@ class GameManager:
 
         # -------- Sprite groups --------
         self.components = [Component(100, 100)] # Start with one on screen
+        self.bank = ComponentBank()
+        self.components = [] # Start empty now!
 
     # -------------------------
     # BOOT / LIFECYCLE
@@ -66,6 +69,14 @@ class GameManager:
 
     def _handle_mouse(self, event: pygame.event.Event) -> None:
         """Pass mouse events to the component manager or components directly."""
+        # Try the bank first since it has priority for clicks in its area. If it returns True,
+        # it handled the event and we can skip the rest.
+        # Returns True if a new game was spawned
+        if self.bank.handle_event(event, self.components):
+            return # If the bank handled it, we're done.
+        
+        # If the bank didn't handle it, pass it to all components.
+        # (Eventually we might want to optimize this by only sending to components near the mouse or something.)
         for comp in self.components:
             comp.handle_event(event)
 
@@ -79,6 +90,8 @@ class GameManager:
     def _draw(self):
         for comp in self.components:
             comp.draw(self.screen)
+        # Draw the bank last so it stays on top of everything
+        self.bank.draw(self.screen)
 
     def _render_frame(self):
         self.screen.fill(ScreenSettings.BG_COLOR)

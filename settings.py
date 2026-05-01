@@ -1,3 +1,5 @@
+import pygame
+
 class ColorSettings:
     WORD_COLORS = {
         "BLACK": (0, 0, 0),
@@ -20,7 +22,11 @@ class FontSettings:
     TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
 
 class UISettings:
-    pass
+    BANK_HEIGHT = 100
+    BANK_COLOR = (30, 30, 30)  # Darker than the background
+    BANK_LINE_COLOR = (100, 100, 100)
+    # The area at the bottom of the screen
+    BANK_RECT = pygame.Rect(0, ScreenSettings.HEIGHT - BANK_HEIGHT, ScreenSettings.WIDTH, BANK_HEIGHT)
 
 class ComponentSettings:
     COLOR = ColorSettings.WORD_COLORS["GRAY"]
