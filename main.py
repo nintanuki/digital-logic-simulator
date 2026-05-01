@@ -21,9 +21,8 @@ class GameManager:
         # -------- Managers --------
 
         # -------- Sprite groups --------
-        self.components = [Component(100, 100)] # Start with one on screen
         self.bank = ComponentBank()
-        self.components = [] # Start empty now!
+        self.components = [] # Start with an empty workspace. Components will be added by the user.
 
     # -------------------------
     # BOOT / LIFECYCLE
@@ -75,10 +74,16 @@ class GameManager:
         if self.bank.handle_event(event, self.components):
             return # If the bank handled it, we're done.
         
-        # If the bank didn't handle it, pass it to all components.
-        # (Eventually we might want to optimize this by only sending to components near the mouse or something.)
-        for comp in self.components:
-            comp.handle_event(event)
+        # Check components (backwards for proper layering/removal)
+        for i in range(len(self.components) - 1, -1, -1):
+            comp = self.components[i]
+            
+            # Catch the return value from the component
+            action = comp.handle_event(event)
+            
+            if action == "DELETE":
+                self.components.pop(i) # This is the "What then?"—we remove it!
+                break # Stop checking others so one click only deletes one gate
 
     # -------------------------
     # PER-FRAME UPDATE / RENDER

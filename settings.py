@@ -18,6 +18,11 @@ class ScreenSettings:
     FPS = 60
     TITLE = "Mr. Navarro's Logic Circuit Builder"
 
+class InputSettings:
+    LEFT_CLICK = 1
+    MIDDLE_CLICK = 2
+    RIGHT_CLICK = 3
+
 class FontSettings:
     TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
 
