@@ -17,3 +17,15 @@ class ScreenSettings:
     RESOLUTION = (WIDTH, HEIGHT)
     FPS = 60
     TITLE = "Mr. Navarro's Logic Circuit Builder"
+
+class FontSettings:
+    pass
+
+class UISettings:
+    pass
+
+class AudioSettings:
+    pass
+
+class AssetPaths:
+    pass
