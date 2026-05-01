@@ -8,21 +8,24 @@ class ColorSettings:
         "BLUE": (0, 0, 255)
     }
 
-    BG_COLOR = WORD_COLORS["BLACK"]
-    TEXT_COLOR = WORD_COLORS["WHITE"]
-
 class ScreenSettings:
     WIDTH = 800
     HEIGHT = 600
     RESOLUTION = (WIDTH, HEIGHT)
+    BG_COLOR = ColorSettings.WORD_COLORS["BLACK"]
     FPS = 60
     TITLE = "Mr. Navarro's Logic Circuit Builder"
 
 class FontSettings:
-    pass
+    TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
 
 class UISettings:
     pass
+
+class ComponentSettings:
+    COLOR = ColorSettings.WORD_COLORS["GRAY"]
+    BORDER_THICKNESS = 2
+    BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
 
 class AudioSettings:
     pass

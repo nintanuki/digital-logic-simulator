@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pygame
 import sys
+from elements import Component
 from settings import *
 
 class GameManager:
@@ -17,6 +18,9 @@ class GameManager:
         # -------- Subsystems --------
 
         # -------- Managers --------
+
+        # -------- Sprite groups --------
+        self.components = [Component(100, 100)] # Start with one on screen
 
     # -------------------------
     # BOOT / LIFECYCLE
@@ -42,8 +46,12 @@ class GameManager:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.close_game()
+            
+            # Route logic to specialized handlers
             elif event.type == pygame.KEYDOWN:
                 self._handle_keydown(event)
+            elif event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
+                self._handle_mouse(event)
 
     def _handle_keydown(self, event: pygame.event.Event) -> None:
         """Route a single keyboard press."""
@@ -52,6 +60,14 @@ class GameManager:
             pygame.display.toggle_fullscreen()
         if event.key == pygame.K_ESCAPE:
             self.close_game()
+        # Centralized place to spawn components
+        if event.key == pygame.K_n:
+            self.components.append(Component(50, 50))
+
+    def _handle_mouse(self, event: pygame.event.Event) -> None:
+        """Pass mouse events to the component manager or components directly."""
+        for comp in self.components:
+            comp.handle_event(event)
 
     # -------------------------
     # PER-FRAME UPDATE / RENDER
@@ -61,10 +77,11 @@ class GameManager:
         pass
 
     def _draw(self):
-        pass
+        for comp in self.components:
+            comp.draw(self.screen)
 
     def _render_frame(self):
-        self.screen.fill(ColorSettings.BG_COLOR)
+        self.screen.fill(ScreenSettings.BG_COLOR)
         self._draw()
 
     def run(self):
