@@ -65,12 +65,12 @@ class GameManager:
 
     def _render_frame(self):
         self.screen.fill(ColorSettings.BG_COLOR)
+        self._draw()
 
     def run(self):
         while True:
             self._process_events()
             self._update_world()
-            self._draw()
             self._render_frame()
             pygame.display.flip()
             self.clock.tick(ScreenSettings.FPS)
