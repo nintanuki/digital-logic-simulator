@@ -5,6 +5,7 @@ import sys
 from elements import Component
 from settings import *
 from ui import ComponentBank
+from crt import CRT
 
 class GameManager:
     def __init__(self):
@@ -15,6 +16,7 @@ class GameManager:
         self.screen = pygame.display.set_mode(ScreenSettings.RESOLUTION)
         pygame.display.set_caption(ScreenSettings.TITLE)
         self.clock = pygame.time.Clock()
+        self.crt = CRT(self.screen)
 
         # -------- Subsystems --------
 
@@ -101,7 +103,8 @@ class GameManager:
     def _render_frame(self):
         self.screen.fill(ScreenSettings.BG_COLOR)
         self._draw()
-
+        self.crt.draw()
+        
     def run(self):
         while True:
             self._process_events()

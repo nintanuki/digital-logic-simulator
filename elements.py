@@ -3,7 +3,7 @@ import pygame
 from settings import ColorSettings, ComponentSettings, InputSettings
 
 class Component:
-    def __init__(self, x, y, width=80, height=50, name="NAND"):
+    def __init__(self, x, y, width=100, height=60, name="NAND"):
         self.rect = pygame.Rect(x, y, width, height)
         self.color = ComponentSettings.COLOR
         self.name = name
@@ -13,9 +13,20 @@ class Component:
 
         # Initialize font for names
         pygame.font.init()
-        self.font = pygame.font.SysFont("Arial", 16, bold=True)
+        self.font = pygame.font.SysFont("Arial", ComponentSettings.FONT_SIZE, bold=ComponentSettings.BOLD)
 
     def draw(self, surface):
+        # Draw the Port (Circles)
+        port_color = ComponentSettings.PORT_COLOR
+        radius = ComponentSettings.PORT_RADIUS
+        
+        # Left Ports (Inputs)
+        pygame.draw.circle(surface, port_color, (self.rect.left, self.rect.top + 15), radius)
+        pygame.draw.circle(surface, port_color, (self.rect.left, self.rect.bottom - 15), radius)
+        
+        # Right Port (Output)
+        pygame.draw.circle(surface, port_color, (self.rect.right, self.rect.centery), radius)
+        
         # Draw the main body (The Rectangle)
         pygame.draw.rect(surface, self.color, self.rect)
         
