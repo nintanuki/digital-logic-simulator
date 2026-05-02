@@ -179,5 +179,24 @@ class TextTemplateSettings:
     LABEL_COLOR = TextBoxSettings.TEXT_COLOR
 
 
+class MenuButtonSettings:
+    """Visual constants for the bottom-left MENU button on the toolbox bank.
+
+    Anchors the far-left of the bank as a Windows-style "Start" affordance.
+    The button itself only renders for now; clicking it will eventually open
+    a vertical popup with project file ops (New / Load / Save / Quit). Sized
+    to match the existing template row so the bank reads as one consistent
+    strip.
+    """
+    SIZE = 60
+    # Slightly lighter than BANK_COLOR so the button reads as a raised
+    # control against the bank background instead of disappearing into it.
+    BODY_COLOR = (60, 60, 60)
+    BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    BORDER_THICKNESS = 1
+    LABEL = "MENU"
+    LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+
+
 class AudioSettings:
     pass

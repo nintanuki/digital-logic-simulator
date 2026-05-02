@@ -1252,3 +1252,45 @@ because it was already honest). With this entry the entire "Now" section
 is complete; the next session should pick up at "Next — Bottom-left popup
 menu (file ops)".
 **Editor:** Claude (Opus 4.7)
+
+## 2026-05-02 — Add MENU button slot to bottom-left of toolbox bank
+
+**File:** settings.py
+**Lines (at time of edit):** 182-198 (new MenuButtonSettings inserted before AudioSettings)
+**Before:**
+    (no MenuButtonSettings class)
+**After:**
+    class MenuButtonSettings:
+        SIZE = 60
+        BODY_COLOR = (60, 60, 60)
+        BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+        BORDER_THICKNESS = 1
+        LABEL = "MENU"
+        LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+**Why:** First step of the bottom-left popup menu task in TODO Next. The
+popup itself, click handling, and menu items are out of scope for this
+edit — only the visual slot is added so the button can be placed in the
+bank without changing event flow.
+**Editor:** Claude (Opus 4.6)
+
+**File:** ui.py
+**Lines (at time of edit):** 5-11 (imports), 60-105 (new MenuButton class),
+135-142 (ComponentBank.__init__ instantiates menu_button), 174-178
+(_build_templates anchors x to menu_button.rect.right), 305-307 (draw)
+**Before:**
+    # _build_templates started templates flush at BANK_PADDING_X.
+    x = UISettings.BANK_PADDING_X
+    # ComponentBank.draw drew only the bank rect, separator, and templates.
+**After:**
+    # New MenuButton class (rect + label + draw, no click handling yet).
+    # ComponentBank.__init__ builds self.menu_button at BANK_PADDING_X,
+    # vertically centered. _build_templates starts at
+    # menu_button.rect.right + BANK_TEMPLATE_GAP so [MENU] [Switch] [NAND]
+    # [LED] [TEXT] reads as one row with no overlap. ComponentBank.draw
+    # blits the menu button before the templates.
+**Why:** Adds the visual anchor for the bottom-left popup menu (TODO
+Next). Anchoring the template row to menu_button.rect.right keeps the
+layout self-consistent if MENU's size ever changes — no second magic
+number to keep in sync. Click handling and the popup arrive in the
+next bullet.
+**Editor:** Claude (Opus 4.6)

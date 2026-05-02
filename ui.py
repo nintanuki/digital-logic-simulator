@@ -4,6 +4,7 @@ from elements import Component, LED, Switch
 from fonts import Fonts
 from settings import (
     InputSettings,
+    MenuButtonSettings,
     ScreenSettings,
     TextTemplateSettings,
     UISettings,
@@ -56,6 +57,54 @@ class TextTemplate:
         surface.blit(self._label_surf, label_rect)
 
 
+class MenuButton:
+    """Bottom-left bank button — visual anchor for the future file-ops popup.
+
+    Lives at the far-left of the toolbox bank as a Windows-style "Start"
+    button. This first cut owns the rect and the draw only — popup, click
+    handling, and menu items arrive in a follow-up step so the slot can be
+    introduced without touching event flow. `ports = ()` mirrors
+    `TextTemplate` so GameManager's port-hover walker can iterate this
+    object the same way it iterates Component templates without a special
+    case (if it's ever asked to).
+    """
+
+    def __init__(self, x, y):
+        """Lay out the button rect and pre-render its static label.
+
+        Args:
+            x (int): Top-left x in screen coordinates.
+            y (int): Top-left y in screen coordinates.
+        """
+        size = MenuButtonSettings.SIZE
+        self.rect = pygame.Rect(x, y, size, size)
+        # Empty tuple (not list) so accidental .append() in any walker would
+        # fail loud rather than silently grow this button's "ports".
+        self.ports = ()
+        # The label never changes, so render it once and blit per frame.
+        self._label_surf = Fonts.text_box.render(
+            MenuButtonSettings.LABEL,
+            True,
+            MenuButtonSettings.LABEL_COLOR,
+        )
+
+    def draw(self, surface):
+        """Render the button body, border, and centered MENU label.
+
+        Args:
+            surface (pygame.Surface): The surface to draw onto.
+        """
+        pygame.draw.rect(surface, MenuButtonSettings.BODY_COLOR, self.rect)
+        pygame.draw.rect(
+            surface,
+            MenuButtonSettings.BORDER_COLOR,
+            self.rect,
+            MenuButtonSettings.BORDER_THICKNESS,
+        )
+        label_rect = self._label_surf.get_rect(center=self.rect.center)
+        surface.blit(self._label_surf, label_rect)
+
+
 class ComponentBank:
     """The toolbox at the bottom of the screen — templates students drag onto the workspace.
 
@@ -83,6 +132,14 @@ class ComponentBank:
         # Held so _make_textbox_spawner's closure can reach the manager
         # without bank.handle_event needing a wider signature.
         self._text_boxes = text_boxes
+        # Far-left MENU button. Built before _build_templates so the
+        # template row can lay itself out flush to the button's right edge
+        # (no overlap, no magic-number reservation). Click handling and the
+        # popup arrive in a follow-up step.
+        self.menu_button = MenuButton(
+            UISettings.BANK_PADDING_X,
+            self.rect.y + (self.rect.height - MenuButtonSettings.SIZE) // 2,
+        )
         # List of (template_drawable, spawn_fn) tuples in display order. Each
         # spawn_fn is a closure that knows how to clone its template onto
         # the workspace at a click position; see _make_component_spawner
@@ -114,7 +171,11 @@ class ComponentBank:
         Returns:
             list[tuple]: (template_drawable, spawn_fn) pairs in display order.
         """
-        x = UISettings.BANK_PADDING_X
+        # Templates lay out to the right of the MENU button so the bank
+        # reads as: [MENU] [Switch] [NAND] [LED] [TEXT]. Using
+        # menu_button.rect.right as the anchor keeps the spacing
+        # self-consistent if MENU's size ever changes.
+        x = self.menu_button.rect.right + UISettings.BANK_TEMPLATE_GAP
         entries = []
         for cls in self.TEMPLATE_CLASSES:
             # Instantiate at a placeholder y, then vertically center based
@@ -241,6 +302,9 @@ class ComponentBank:
             (ScreenSettings.WIDTH, self.rect.y),
             2,
         )
+        # MENU draws before the templates so a future popup (drawn by the
+        # bank, anchored above this button) layers correctly on top.
+        self.menu_button.draw(surface)
         for tpl, _spawn in self._templates_and_spawners:
             tpl.draw(surface)
 

@@ -57,8 +57,12 @@ Once Save / Load / New Component / Save-as-Component arrive, the toolbar
 will have nowhere to put them. Add a Windows-style **MENU** button in the
 bottom-left corner of the bank. Clicking it pops up a vertical menu.
 
-- [ ] New class `MenuButton` (or `BankMenu`) in `ui.py` or a new `menu.py`,
-  rendered inside the bank rect at the far left.
+- [x] New class `MenuButton` (or `BankMenu`) in `ui.py` or a new `menu.py`,
+  rendered inside the bank rect at the far left. Lives in `ui.py` next to
+  `TextTemplate`. `ComponentBank` owns it as `self.menu_button` and the
+  template row anchors its starting x to `menu_button.rect.right` so
+  layout stays consistent if MENU's size changes. Click handling and the
+  popup are still TODO — this bullet only adds the visual slot.
 - [ ] On click, draws a popup `pygame.Surface` above the bank with menu
   items. First items: **New Project**, **Load Project**, **Save Project**,
   **Save as Component**, **Quit**. Greyed-out / disabled state for items
