@@ -312,3 +312,14 @@ the manual checklist in `docs/TESTING.md`.
 - [ ] **Port highlighting is active inside the toolbox.** When hovering over the ports of a component in the toolbox, port highlighting works as if it was in the workspace. Low priority.
 - [ ] **Text boxes accept lowercase input.** Should force uppercase to match the rest of the workspace. Tracked under "Now — Force uppercase in text boxes" above.
 - [ ] **Text boxes are mouse-inaccessible.** Only the **T** hotkey spawns one; mouse-only users can't make a text box. Tracked under "Now — Toolbar TEXT button" above.
+
+## More Ideas / Issues (Organize and Categorize this later, this is just a brain dump):
+- [ ] Users should be able to toggle CRT on and off in the menu, as well as the swap between pixelated text and the Arial font. Some users might find the CRT effect annoying or difficult on the eyes, and the pixelated font hard to see. This is all part of an old school "retro" computer or video game look, but some might not light it. Decide if CRT and text should be toggled on/off together or seperately. Maybe in their own retro aesthetics category. Potential issue, when font is changed the size is massively different. I noticed when I change from Arial or default system font to Pixelated the text gets huge, so pixelated needs smaller values
+- [ ] F11 toggles full screen, but there should either be a mouse click option or at the top add a bar for hot key hints just like in old school computer programs. ESC should be dynamic. Right now it exits the entire game without warning. What it should actually do is take you out of full screen when you're in full screen (just like F11) but when not full screen treat it as a request to quit but warn the user, when they press esc a window should pop up (in game, not a real window) asking of they are sure they want to quit.
+- [ ] We need to change the name of this program at some point, it's not really a circuit builder... more of a digital logic simulator? Let's come up with accurate naming.
+- [ ] When students create components with more ports we are going to need to make the components dynamically sizable
+- [ ] When students save a component choose a default color, but allow from a small palette to choose from AND/OR allow them to choose RGB or hex values, valuable moment to teach and introduce that concept.
+- [ ] Allow students to choose the name of the component but when they stumble upon a working concept (they create an or gate out of NANDs or an and-or latch whether they realized it or not) it should default to that name, maybe a message saying "You discovered COMPONENT_NAME!"
+- [ ] Add sound effects, last priority
+- [ ] Decide on color of lit wires, it's green for now but we might want something more interesting later
+- [ ] Add encyclopedia and/or dictionary
