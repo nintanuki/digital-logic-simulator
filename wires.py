@@ -53,12 +53,17 @@ class Wire:
     def draw(self, surface):
         """Render the wire as a straight line between its two endpoints.
 
+        Wire color tracks the source port's live state so a HIGH signal
+        reads continuously from the output port, through the wire, into
+        the receiving input port.
+
         Args:
             surface (pygame.Surface): The surface to draw onto.
         """
+        color = WireSettings.LIVE_COLOR if self.source.live else WireSettings.COLOR
         pygame.draw.line(
             surface,
-            WireSettings.COLOR,
+            color,
             self.source.center,
             self.target.center,
             WireSettings.THICKNESS,

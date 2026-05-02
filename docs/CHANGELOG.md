@@ -432,6 +432,248 @@ deleting a component drops its attached wires, and wires render on top
 of components but under the toolbox bank rectangle.
 **Editor:** Claude (Opus)
 
+## 2026-05-02 — Live signal state: Port.live, SignalManager, Switch + LED
+
+**File:** settings.py
+**Lines (at time of edit):** 38-48 (UISettings), 67-70 (ComponentSettings),
+88-101 (WireSettings), 104-127 (new SwitchSettings + LedSettings)
+**Before:**
+    class UISettings:
+        BANK_HEIGHT = 100
+        ...
+        BANK_RECT = pygame.Rect(...)
+
+    class ComponentSettings:
+        ...
+        PORT_HIGHLIGHT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+        PORT_RADIUS = 10
+
+    class WireSettings:
+        COLOR = ColorSettings.WORD_COLORS["BLACK"]
+        GHOST_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+        THICKNESS = 3
+        HIT_THRESHOLD = 6
+**After:**
+    class UISettings:
+        ...
+        BANK_PADDING_X = 20
+        BANK_TEMPLATE_GAP = 20
+
+    class ComponentSettings:
+        ...
+        PORT_HIGHLIGHT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+        PORT_LIVE_COLOR = ColorSettings.WORD_COLORS["GREEN"]
+        PORT_RADIUS = 10
+
+    class WireSettings:
+        COLOR = ...
+        LIVE_COLOR = ColorSettings.WORD_COLORS["GREEN"]
+        ...
+
+    class SwitchSettings:  # SIZE/OFF_COLOR/ON_COLOR/BORDER...
+    class LedSettings:     # SIZE/OFF_COLOR/ON_COLOR/BORDER...
+**Why:** PORT_LIVE_COLOR and WIRE LIVE_COLOR drive the green-when-HIGH
+visual feedback added in this pass. Switch/LedSettings keep all the new
+component constants (size, ON/OFF body colors, border) out of code per
+the no-magic-numbers rule. UISettings.BANK_PADDING_X / BANK_TEMPLATE_GAP
+replace the literal 20 / 25 that ComponentBank used to hard-code for
+positioning a single template — needed now that the bank holds three
+templates side-by-side. Also dropped the obsolete "Reserve green/red for
+future live-signal phase" line from PORT_HIGHLIGHT_COLOR's comment since
+this commit is that future.
+**Editor:** Claude (Opus 4.7)
+
+**File:** elements.py
+**Lines (at time of edit):** 5-13 (imports), 43-49 (Port.__init__),
+73-93 (Port.draw), 146-150 (Component.__init__),
+168-193 (new Component.update_logic + _on_click hook),
+195-234 (Component.draw split into draw + _draw_body),
+245-269 (Component.handle_event click-vs-drag tracking),
+291-415 (new Switch + LED classes)
+**Before:**
+    class Port:
+        ...
+        self.hovered = False        # only hover state lived here
+
+        def draw(self, surface):
+            color = (PORT_HIGHLIGHT_COLOR
+                     if self.hovered else PORT_COLOR)
+            pygame.draw.circle(...)
+
+    class Component:
+        # had: __init__, _build_ports, draw, handle_event, _clamp_to_workspace
+        # draw drew rect body inline; no update_logic, no click hook.
+**After:**
+    class Port:
+        ...
+        self.hovered = False
+        self.live = False           # NEW: per-frame HIGH/LOW state
+
+        def draw(self, surface):
+            if self.hovered:    color = PORT_HIGHLIGHT_COLOR
+            elif self.live:     color = PORT_LIVE_COLOR
+            else:               color = PORT_COLOR
+            pygame.draw.circle(...)
+
+    class Component:
+        ...
+        self._moved_while_dragging = False  # NEW: click-vs-drag tracker
+
+        def update_logic(self, output_buffer):
+            a, b, out = self.ports
+            output_buffer[out] = not (a.live and b.live)
+
+        def _on_click(self):  # default no-op
+            pass
+
+        def draw(self, surface):
+            for port in self.ports: port.draw(surface)
+            self._draw_body(surface)         # NEW: delegated body
+            ...                              # name + hover labels unchanged
+
+        def _draw_body(self, surface):       # NEW
+            pygame.draw.rect(...)            # rect body + border
+
+        def handle_event(self, event):
+            # MOUSEBUTTONDOWN now resets _moved_while_dragging
+            # MOUSEMOTION sets it True while dragging
+            # MOUSEBUTTONUP fires _on_click() iff dragging and not moved
+
+    class Switch(Component):                 # NEW
+        # one OUTPUT port, circle body, _on_click toggles _state,
+        # update_logic writes _state to its OUTPUT port.
+
+    class LED(Component):                    # NEW
+        # one INPUT port, circle body whose color reflects port.live,
+        # update_logic is a no-op (no OUTPUT to drive).
+**Why:** Implements the "Now — Live signal state" roadmap item end-to-end.
+Port gains a per-frame `live` flag drawn green when HIGH so signal
+propagation reads at a glance. Component grows update_logic (default 2-
+input NAND) and a `_draw_body` hook so the rectangular default can be
+swapped for a circle without rewriting draw(). The `_on_click` hook plus
+`_moved_while_dragging` tracker lets Switch toggle on a stationary click
+while still allowing drag, without duplicating Component.handle_event.
+Switch + LED are concrete subclasses fulfilling the user's "dedicated IN
+and OUT components" requirement (see TODO.md "Now" item) — circles for
+now, replacing the original "click an unconnected input port to toggle"
+plan from the same bullet because Switch/LED are clearer to students and
+support multiple drives without ambiguity. update_logic is overridden in
+Switch (drives output from `_state`) and in LED (no-op so the inherited
+NAND code doesn't run on a single-port component).
+**Editor:** Claude (Opus 4.7)
+
+**File:** signals.py
+**Lines (at time of edit):** (new file)
+**After:**
+    class SignalManager:
+        def update(self, components, wires):
+            output_buffer = {}
+            for comp in components:
+                comp.update_logic(output_buffer)        # phase 1: read
+            for port, value in output_buffer.items():
+                port.live = value                        # phase 2: write
+            for comp in components:
+                for port in comp.ports:
+                    if port.direction == Port.INPUT:
+                        port.live = False                # reset inputs
+            for wire in wires:
+                wire.target.live = wire.source.live      # phase 3: wires
+**Why:** Two-phase propagation as spec'd in TODO.md so SR latches and
+other feedback circuits behave (gate evaluation order would otherwise
+change the result). Inputs are reset before wire propagation so a port
+that lost its wire reads LOW instead of latching its prior value.
+SignalManager is its own class per the architectural rule that
+GameManager stay light — main.py just calls self.signals.update(...) in
+_update_world.
+**Editor:** Claude (Opus 4.7)
+
+**File:** wires.py
+**Lines (at time of edit):** 53-69 (Wire.draw)
+**Before:**
+    pygame.draw.line(surface, WireSettings.COLOR,
+                     self.source.center, self.target.center,
+                     WireSettings.THICKNESS)
+**After:**
+    color = (WireSettings.LIVE_COLOR
+             if self.source.live else WireSettings.COLOR)
+    pygame.draw.line(surface, color, ...)
+**Why:** A wire whose source is HIGH should read as continuous green from
+output port, through the wire, into the receiving input port. Same color
+as PORT_LIVE_COLOR by design.
+**Editor:** Claude (Opus 4.7)
+
+**File:** ui.py
+**Lines (at time of edit):** 1-95 (full rewrite of ComponentBank for
+multi-template support; was a 28-line single-template class)
+**Before:**
+    class ComponentBank:
+        def __init__(self):
+            self.rect = UISettings.BANK_RECT
+            self.template = Component(20, self.rect.y + 25, name="NAND")
+
+        def draw(self, surface):
+            ...
+            self.template.draw(surface)
+
+        def handle_event(self, event, components_list):
+            if click on self.template:
+                spawn Component at event.pos
+**After:**
+    class ComponentBank:
+        TEMPLATE_CLASSES = (Switch, Component, LED)
+        # __init__ builds self.templates via _build_templates
+        # _build_templates lays them left-to-right, vertically centered
+        # draw iterates self.templates
+        # handle_event iterates self.templates, uses type(tpl)(x, y) so
+        # the spawned component matches the clicked template's class.
+        # Spawn forces _moved_while_dragging=True so a stationary click
+        # on a template doesn't trigger _on_click on the spawned Switch.
+**Why:** Live signal state needs Switch and LED to be addable to the
+workspace, which means the toolbox has to hold more than one template.
+The class-tuple + type(tpl) factory keeps it data-driven so adding a
+fourth/fifth template later is one tuple entry. The
+_moved_while_dragging suppression prevents an off-by-one UX bug where a
+Switch dropped via a click-without-drag would immediately toggle ON;
+spawn drags aren't initiated by the component's own MOUSEBUTTONDOWN so
+they should never fire _on_click.
+**Editor:** Claude (Opus 4.7)
+
+**File:** main.py
+**Lines (at time of edit):** 8 (import), 37 (own self.signals),
+128-130 (_update_port_hover walks self.bank.templates instead of
+self.bank.template), 136-143 (_update_world drives the simulation)
+**Before:**
+    from ui import ComponentBank
+    ...
+    self.wires = WireManager()
+
+    def _update_port_hover(self, mouse_pos):
+        ...
+        for port in self.bank.template.ports:
+            port.hovered = port.rect.collidepoint(mouse_pos)
+
+    def _update_world(self):
+        pass
+**After:**
+    from signals import SignalManager
+    from ui import ComponentBank
+    ...
+    self.signals = SignalManager()
+
+    def _update_port_hover(self, mouse_pos):
+        ...
+        for tpl in self.bank.templates:
+            for port in tpl.ports:
+                port.hovered = port.rect.collidepoint(mouse_pos)
+
+    def _update_world(self):
+        self.signals.update(self.components, self.wires.wires)
+**Why:** Hooks SignalManager into the per-frame loop and updates the
+hover walker for the new multi-template bank. _update_world used to be
+a pass; now it drives the simulation, leaving the rest of the game
+loop unchanged.
+**Editor:** Claude (Opus 4.7)
+
 ## 2026-05-01 — Polish: default width/height constants, drop super() in CRT
 
 **File:** settings.py

@@ -5,6 +5,7 @@ import sys
 from elements import Component
 from fonts import Fonts
 from settings import *
+from signals import SignalManager
 from ui import ComponentBank
 from crt import CRT
 from wires import WireManager
@@ -33,6 +34,7 @@ class GameManager:
         self.bank = ComponentBank()
         self.components = [] # Start with an empty workspace. Components will be added by the user.
         self.wires = WireManager()
+        self.signals = SignalManager()
 
     # -------------------------
     # BOOT / LIFECYCLE
@@ -123,15 +125,22 @@ class GameManager:
         for comp in self.components:
             for port in comp.ports:
                 port.hovered = port.rect.collidepoint(mouse_pos)
-        for port in self.bank.template.ports:
-            port.hovered = port.rect.collidepoint(mouse_pos)
+        for tpl in self.bank.templates:
+            for port in tpl.ports:
+                port.hovered = port.rect.collidepoint(mouse_pos)
 
     # -------------------------
     # PER-FRAME UPDATE / RENDER
     # -------------------------
 
     def _update_world(self):
-        pass
+        """Advance per-frame simulation state.
+
+        Wires hold the canonical list of connections. SignalManager reads
+        port states, computes new outputs, applies them, and propagates
+        through wires — see signals.py for the two-phase contract.
+        """
+        self.signals.update(self.components, self.wires.wires)
 
     def _draw(self):
         for comp in self.components:

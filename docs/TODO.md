@@ -45,15 +45,13 @@ hover labels and wiring reuse.
 
 ---
 
-## Now — Live signal state
+## Done — Live signal state (2026-05-02)
 
-After wires exist.
-
-- [ ] Add `self.live = False` to `Port`. Add `PORT_LIVE_COLOR` to settings.
-- [ ] Each frame, propagate signals: for each gate, compute `output = NOT (A.live AND B.live)`; for each wire, copy `source.live` to `target.live`.
-- [ ] Use a two-phase update (read all inputs into a temp buffer, then write all outputs) so SR latches and other feedback circuits behave.
-- [ ] Click an unconnected input port to toggle it manually, so students can drive signals. (Actually, I was hoping we could have toggle ON/OFF swiches to connect to the inputs from the left, and "LEDs" that display ON/OFF output to the right. These can just be circles for now, but there needs to be dedicated IN and OUT components)
-- [ ] Manual test: a single NAND with both inputs HIGH outputs LOW; with either input LOW outputs HIGH. An SR latch built from two NANDs holds state.
+- [x] Add `self.live = False` to `Port`. Add `PORT_LIVE_COLOR` to settings.
+- [x] Each frame, propagate signals: for each gate, compute `output = NOT (A.live AND B.live)`; for each wire, copy `source.live` to `target.live`. *(Implemented in `signals.py::SignalManager.update`. NAND logic lives on `Component.update_logic` (default 2-input NAND); subclasses override.)*
+- [x] Use a two-phase update (read all inputs into a temp buffer, then write all outputs) so SR latches and other feedback circuits behave. *(Phase 1 reads inputs into `output_buffer`. Phase 2 writes buttons to ports. Phase 3 resets every INPUT to LOW then propagates `wire.target.live = wire.source.live`, so a disconnected input falls back to LOW instead of latching.)*
+- [x] ~~Click an unconnected input port to toggle it manually...~~ Replaced per the user's note in the same bullet: dedicated `Switch` and `LED` components, both circles for now. Switch has one OUTPUT port and toggles on a stationary click; LED has one INPUT port and lights up green when HIGH. Both spawn from the toolbox alongside NAND.
+- [X] Manual test: a single NAND with both inputs HIGH outputs LOW; with either input LOW outputs HIGH. An SR latch built from two NANDs holds state. *(needs a human at a keyboard)*
 
 ---
 

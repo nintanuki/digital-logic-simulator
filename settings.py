@@ -41,6 +41,11 @@ class UISettings:
     BANK_LINE_COLOR = (100, 100, 100)
     # The area at the bottom of the screen
     BANK_RECT = pygame.Rect(0, ScreenSettings.HEIGHT - BANK_HEIGHT, ScreenSettings.WIDTH, BANK_HEIGHT)
+    # Horizontal padding for the first toolbox template and the gap between
+    # adjacent templates. Pulled out of ComponentBank so the layout has no
+    # magic numbers.
+    BANK_PADDING_X = 20
+    BANK_TEMPLATE_GAP = 20
 
 class AssetPaths:
     FONT = "assets/font/Pixeled.ttf"
@@ -57,9 +62,12 @@ class ComponentSettings:
     PORT_COLOR = ColorSettings.WORD_COLORS["BLACK"]
     # Highlight color used by Port.draw when the port is hovered. White was
     # chosen because it contrasts strongly with both the black resting color
-    # and the dark red body, so the hover state reads at a glance. Reserve
-    # green/red for future live-signal state per the roadmap.
+    # and the dark red body, so the hover state reads at a glance.
     PORT_HIGHLIGHT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    # Fill color used by Port.draw when the port is carrying a live (HIGH)
+    # signal and not currently hovered. Hover takes precedence so the user
+    # always gets immediate cursor feedback.
+    PORT_LIVE_COLOR = ColorSettings.WORD_COLORS["GREEN"]
     PORT_RADIUS = 10
     # Vertical inset of the two input ports from the component's top and bottom
     # edges, in pixels. Used by Component when laying out its default ports.
@@ -80,6 +88,10 @@ class ComponentSettings:
 class WireSettings:
     """Visual + interaction constants for wires between component ports."""
     COLOR = ColorSettings.WORD_COLORS["BLACK"]
+    # Color used while the wire's source port is HIGH. Matches the live port
+    # fill so a live signal reads continuously from output port through wire
+    # to input port.
+    LIVE_COLOR = ColorSettings.WORD_COLORS["GREEN"]
     # Lighter gray so the in-flight ghost reads as "not yet committed".
     GHOST_COLOR = ColorSettings.WORD_COLORS["GRAY"]
     THICKNESS = 3
@@ -87,6 +99,32 @@ class WireSettings:
     # a "hit" for right-click delete. Bigger than THICKNESS so users don't
     # have to land on the line exactly.
     HIT_THRESHOLD = 6
+
+
+class SwitchSettings:
+    """Visual constants for the manual ON/OFF input source ('IN') component.
+
+    Switch is rendered as a circle that fills the bounding rect, color-coded
+    by toggle state. Border keeps it distinguishable against the background.
+    """
+    SIZE = 60
+    OFF_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+    ON_COLOR = ColorSettings.WORD_COLORS["GREEN"]
+    BORDER_COLOR = ColorSettings.WORD_COLORS["BLACK"]
+    BORDER_THICKNESS = 2
+
+
+class LedSettings:
+    """Visual constants for the read-only output display ('OUT') component.
+
+    LED is rendered as a circle whose fill color follows the live state of
+    its single input port — bright when HIGH, dim when LOW.
+    """
+    SIZE = 60
+    OFF_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+    ON_COLOR = ColorSettings.WORD_COLORS["GREEN"]
+    BORDER_COLOR = ColorSettings.WORD_COLORS["BLACK"]
+    BORDER_THICKNESS = 2
 
 
 class AudioSettings:
