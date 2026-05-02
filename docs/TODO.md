@@ -36,9 +36,16 @@ alongside Switch / NAND / LED.
 - [x] Spawned `TextBox` should immediately focus so the student can start
   typing without an extra click. (Free — `TextBoxManager.spawn_at` already
   focused; the new spawn closure just calls it.)
-- [ ] Update the **N** / **T** hotkeys in `main.py::_handle_keydown` to
+- [x] Update the **N** / **T** hotkeys in `main.py::_handle_keydown` to
   call the same spawn paths the bank uses, not duplicate them. Keeps the
-  two entry points honest.
+  two entry points honest. **N** now routes through a new public
+  `ComponentBank.spawn_component(cls, pos, components_list)` that delegates
+  to the same closure a toolbox click runs (cursor-centered, drag primed,
+  `_moved_while_dragging` set), so a NAND from the keyboard now follows
+  the cursor exactly like a NAND from the bank. **T** was already calling
+  `text_boxes.spawn_at(...)` — the same line the bank's text spawner
+  calls — so it stayed direct rather than threading a passthrough through
+  the bank (would have added a middleman, not removed duplication).
 - [X] Manual test: click the TEXT template, drag a box onto the workspace,
   type, drop. Then keyboard-spawn another with **T**. Both work the same.
 

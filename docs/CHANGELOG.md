@@ -1184,3 +1184,71 @@ that's a separate refactor and orthogonal to the mouse-path gap closed
 here. Also drops the resolved "Text boxes are mouse-inaccessible" Known
 Issues entry.
 **Editor:** Claude (Opus 4.7)
+
+## 2026-05-02 — Route N hotkey through the bank's spawn path
+
+Closes the last open item under "Now — Toolbar TEXT button" — N now
+shares ComponentBank's spawn closure with toolbox clicks instead of
+reimplementing it. T was already calling `text_boxes.spawn_at(...)`,
+the same line the bank's text spawner runs, so it was left alone (a
+`bank.spawn_text_box` passthrough would add a middleman, not remove
+duplication).
+
+**File:** ui.py
+**Lines (at time of edit):** 200-228 (new `spawn_component` method on
+ComponentBank, inserted between `_make_textbox_spawner` and `draw`)
+**Before:**
+    (no public API for spawning a component by class — the
+    spawner closures lived only inside `_templates_and_spawners`
+    and were reachable only via a left-click on a template rect)
+**After:**
+    def spawn_component(self, cls, event_pos, components_list):
+        for tpl, spawn_fn in self._templates_and_spawners:
+            if type(tpl) is cls:
+                spawn_fn(event_pos, components_list)
+                return
+        raise KeyError(f"No bank template for {cls.__name__}")
+**Why:** Lifts a single, narrow public method onto the bank so external
+callers (currently just `main.py`'s K_n handler, eventually any other
+hotkey or future palette) can spawn through the same closure a click
+runs — cursor-centered, drag-primed, `_moved_while_dragging` set. Uses
+`type(tpl) is cls` rather than `isinstance` so a Switch template never
+shadows a request for `Component` (Switch subclasses Component). Raises
+`KeyError` for an unknown class so a typo at the call site fails loudly
+instead of silently no-op'ing. `handle_event`'s template loop deliberately
+stays separate: it dispatches by rect-collision, not by class, and
+collapsing the two would force collision logic into both call paths.
+**Editor:** Claude (Opus 4.7)
+
+**File:** main.py
+**Lines (at time of edit):** 93-98 (K_n handler in `_handle_keydown`)
+**Before:**
+    # Centralized place to spawn components
+    if event.key == pygame.K_n:
+        self.components.append(Component(50, 50))
+**After:**
+    # N spawns a NAND through the bank's own spawn path so the hotkey
+    # and the toolbox click stay in lock-step (cursor-centered, drag
+    # primed, _moved_while_dragging set). Keeping the duplicate here
+    # would re-introduce drift the moment the bank's spawner changes.
+    if event.key == pygame.K_n:
+        self.bank.spawn_component(Component, pygame.mouse.get_pos(), self.components)
+**Why:** The old handler appended a raw `Component(50, 50)` — no cursor
+centering, no drag priming, no `_moved_while_dragging` flag — so a
+keyboard-spawned NAND landed at a fixed corner and just sat there until
+the user grabbed it, while a bank-spawned NAND followed the cursor and
+dropped on the next click. Routing through `bank.spawn_component` makes
+both entry points identical, which matches the design principle that
+keyboard shortcuts are aliases for clickable equivalents, never a
+parallel implementation. Import of `Component` from `elements` is
+unchanged — still needed as the `cls` argument.
+**Editor:** Claude (Opus 4.7)
+
+**File:** docs/TODO.md
+**Lines (at time of edit):** ~39-41 (Now section, the N/T hotkey item)
+**Why:** Checks off the last open item under "Now — Toolbar TEXT button"
+and records the design call (N routed through the bank, T left direct
+because it was already honest). With this entry the entire "Now" section
+is complete; the next session should pick up at "Next — Bottom-left popup
+menu (file ops)".
+**Editor:** Claude (Opus 4.7)

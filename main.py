@@ -90,9 +90,12 @@ class GameManager:
             pygame.display.toggle_fullscreen()
         if event.key == pygame.K_ESCAPE:
             self.close_game()
-        # Centralized place to spawn components
+        # N spawns a NAND through the bank's own spawn path so the hotkey
+        # and the toolbox click stay in lock-step (cursor-centered, drag
+        # primed, _moved_while_dragging set). Keeping the duplicate here
+        # would re-introduce drift the moment the bank's spawner changes.
         if event.key == pygame.K_n:
-            self.components.append(Component(50, 50))
+            self.bank.spawn_component(Component, pygame.mouse.get_pos(), self.components)
         # T spawns an annotation text box at the current cursor position
         # and immediately focuses it so the user can start typing. Only
         # reachable when no text box is already focused (the manager

@@ -197,6 +197,36 @@ class ComponentBank:
             text_boxes.spawn_at(event_pos)
         return spawn
 
+    def spawn_component(self, cls, event_pos, components_list):
+        """Spawn an instance of `cls` through the bank's own spawn path.
+
+        Exposed so keyboard shortcuts (e.g. `main.py`'s K_n) share the
+        bank's cursor-centering and drag-priming logic instead of
+        reimplementing it — keeps the click and hotkey entry points honest.
+
+        Args:
+            cls (type[Component]): The Component subclass to instantiate.
+                Must match a template currently in the bank.
+            event_pos (tuple[int, int]): Cursor position the new component
+                should be centered on.
+            components_list (list[Component]): The workspace component list
+                the new instance is appended to.
+
+        Returns:
+            None.
+
+        Raises:
+            KeyError: If `cls` is not a known template class on this bank.
+        """
+        # `type(tpl) is cls` (not isinstance) so a Switch template doesn't
+        # match a request for its Component base class — each template kind
+        # owns its exact spawner.
+        for tpl, spawn_fn in self._templates_and_spawners:
+            if type(tpl) is cls:
+                spawn_fn(event_pos, components_list)
+                return
+        raise KeyError(f"No bank template for {cls.__name__}")
+
     def draw(self, surface):
         """Render the bank background, separator line, and every template.
 
