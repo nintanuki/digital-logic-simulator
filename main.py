@@ -89,6 +89,14 @@ class GameManager:
         if event.key == pygame.K_F11:
             pygame.display.toggle_fullscreen()
         if event.key == pygame.K_ESCAPE:
+            # Esc dismisses the bottom-left popup if it's open before it
+            # ever counts as a quit. Mirrors the text-box manager pattern
+            # (Esc unfocuses an active editor) so Esc never leaks through
+            # an open UI layer to kill the game. Future popups / dialogs
+            # should add their dismiss check here, in priority order.
+            if self.bank.menu_button.is_open:
+                self.bank.menu_button.toggle()
+                return
             self.close_game()
         # N spawns a NAND through the bank's own spawn path so the hotkey
         # and the toolbox click stay in lock-step (cursor-centered, drag

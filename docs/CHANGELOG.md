@@ -4,6 +4,58 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-02 — Roadmap reorganization + Esc closes the popup menu
+
+**File:** docs/TODO.md
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** whole-file rewrite (~340 lines → ~340 lines)
+**Why:** The previous TODO had grown a "More Ideas / Issues" brain-dump
+section at the bottom that the user wanted distributed into proper
+categories, and the completed "Now — Toolbar TEXT button" section needed
+to be promoted to a Done block so the next pickup point at the top of
+the file is the active work. Specific moves: TEXT button → Done; popup
+menu → Now; F11 mouse-path + dynamic-Esc behavior → new Next section;
+CRT/font/background-color/sound toggles → Options sub-bullets under the
+existing "Project main menu" Later item; dynamic component sizing →
+Later (tied to Save-as-Component); top hotkey-hint bar + easy mode →
+Later; lit-wire color + program rename → Brainstorming;
+encyclopedia/dictionary → Far future; popup-menu cosmetic bugs (overlap,
+MENU/TEXT visual collision) → Known Issues. Also checked off the "Esc
+closes the popup" sub-bullet under Now to match the code change below.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** main.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 91-100 (GameManager._handle_keydown, K_ESCAPE branch)
+**Before:**
+    if event.key == pygame.K_ESCAPE:
+        self.close_game()
+**After:**
+    if event.key == pygame.K_ESCAPE:
+        # Esc dismisses the bottom-left popup if it's open before it
+        # ever counts as a quit. Mirrors the text-box manager pattern
+        # (Esc unfocuses an active editor) so Esc never leaks through
+        # an open UI layer to kill the game. Future popups / dialogs
+        # should add their dismiss check here, in priority order.
+        if self.bank.menu_button.is_open:
+            self.bank.menu_button.toggle()
+            return
+        self.close_game()
+**Why:** Smallest meaningful step in the in-progress "Now — Bottom-left
+popup menu" task. Esc was unconditionally quitting the game even when a
+UI layer was open, which both breaks the in-progress popup work (you
+can't dismiss the popup with the keyboard at all today — only by
+clicking MENU again) and is the same anti-pattern the text-box manager
+already solves for focused editors. Routing Esc through the popup
+gate first keeps that pattern uniform: any future modal dialog (the
+Save / Load picker, the Save-as-Component dialog, the in-game "Are you
+sure you want to quit?" confirm planned under "Next — F11 / Esc
+consolidation") just adds another check above `self.close_game()`.
+The mouse equivalent (clicking MENU again toggles the popup closed)
+already works, so this is a power-user alias, not a hotkey-only path —
+the design principle is satisfied.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## 2026-05-02 — MENU button click toggles a placeholder popup
 
 **File:** settings.py

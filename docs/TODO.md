@@ -17,7 +17,64 @@ incomplete.
 
 ---
 
-## Now — Toolbar TEXT button
+## Now — Bottom-left popup menu (file ops)
+
+Once Save / Load / New Component / Save-as-Component arrive, the toolbar
+will have nowhere to put them. Add a Windows-style **MENU** button in the
+bottom-left corner of the bank. Clicking it pops up a vertical menu.
+
+- [x] New class `MenuButton` (or `BankMenu`) in `ui.py` or a new `menu.py`,
+  rendered inside the bank rect at the far left. Lives in `ui.py` next to
+  `TextTemplate`. `ComponentBank` owns it as `self.menu_button` and the
+  template row anchors its starting x to `menu_button.rect.right` so
+  layout stays consistent if MENU's size changes. Click handling and the
+  popup are still TODO — this bullet only adds the visual slot.
+- [ ] On click, draws a popup `pygame.Surface` above the bank with menu
+  items. First items: **New Project**, **Load Project**, **Save Project**,
+  **Save as Component**, **Quit**. Greyed-out / disabled state for items
+  that don't apply yet. *Half-done 2026-05-02*: clicking MENU now toggles
+  an empty placeholder popup above the bank (`MenuButton.is_open` +
+  `toggle()`, `ComponentBank.handle_event` routes the click before the
+  template loop). Items themselves still TODO.
+- [ ] Click outside the popup closes it. Click an item runs its action and
+  closes the popup.
+- [x] Keyboard escape also closes it. *Done 2026-05-02*:
+  `GameManager._handle_keydown` checks `self.bank.menu_button.is_open`
+  before treating Esc as quit; if the popup is open, Esc toggles it
+  closed and returns instead. Mirrors the text-box manager pattern
+  (Esc unfocuses the editor) so Esc never leaks through an active UI
+  layer to quit the game.
+- [ ] Treat the popup like the text-box manager: it intercepts events
+  before wires/components so a click on the popup can't start a wire on a
+  port underneath.
+- [X] Manual test: open the menu, click each item, confirm the popup
+  closes and the action runs. Click outside — popup closes, no spurious
+  wire/component side effects.
+
+---
+
+## Next — F11 / Esc consolidation
+
+Two related mouse-first gaps reported alongside the popup-menu work.
+Implement after the popup menu so the dismiss step can share the same
+dispatch.
+
+- [ ] **F11 needs a mouse path.** Fullscreen is keyboard-only today,
+  which violates the mouse-first design principle. Add a clickable
+  equivalent — most likely a menu item once the bottom-left popup
+  populates, or an icon on a future top hotkey-hint bar.
+- [ ] **Esc should not quit silently.** Currently Esc exits the game
+  without warning, swallowing whatever the student was building. Layered
+  behavior:
+  1. If a popup / dialog is open, Esc dismisses it. *(MenuButton popup
+     case landed 2026-05-02; future dialogs reuse the same gate.)*
+  2. Else if the game is fullscreen, Esc exits fullscreen (mirroring F11).
+  3. Else Esc shows an in-game "Are you sure you want to quit?" confirm
+     dialog. Only "Yes" actually quits.
+
+---
+
+## Done — Toolbar TEXT button (2026-05-02)
 
 Right now a text box can only be spawned by pressing **T**. The classroom
 target is mouse-only, so it also needs a clickable template on the bank
@@ -48,37 +105,6 @@ alongside Switch / NAND / LED.
   the bank (would have added a middleman, not removed duplication).
 - [X] Manual test: click the TEXT template, drag a box onto the workspace,
   type, drop. Then keyboard-spawn another with **T**. Both work the same.
-
----
-
-## Next — Bottom-left popup menu (file ops)
-
-Once Save / Load / New Component / Save-as-Component arrive, the toolbar
-will have nowhere to put them. Add a Windows-style **MENU** button in the
-bottom-left corner of the bank. Clicking it pops up a vertical menu.
-
-- [x] New class `MenuButton` (or `BankMenu`) in `ui.py` or a new `menu.py`,
-  rendered inside the bank rect at the far left. Lives in `ui.py` next to
-  `TextTemplate`. `ComponentBank` owns it as `self.menu_button` and the
-  template row anchors its starting x to `menu_button.rect.right` so
-  layout stays consistent if MENU's size changes. Click handling and the
-  popup are still TODO — this bullet only adds the visual slot.
-- [ ] On click, draws a popup `pygame.Surface` above the bank with menu
-  items. First items: **New Project**, **Load Project**, **Save Project**,
-  **Save as Component**, **Quit**. Greyed-out / disabled state for items
-  that don't apply yet. *Half-done 2026-05-02*: clicking MENU now toggles
-  an empty placeholder popup above the bank (`MenuButton.is_open` +
-  `toggle()`, `ComponentBank.handle_event` routes the click before the
-  template loop). Items themselves still TODO.
-- [ ] Click outside the popup closes it. Click an item runs its action and
-  closes the popup.
-- [ ] Keyboard escape also closes it.
-- [ ] Treat the popup like the text-box manager: it intercepts events
-  before wires/components so a click on the popup can't start a wire on a
-  port underneath.
-- [X] Manual test: open the menu, click each item, confirm the popup
-  closes and the action runs. Click outside — popup closes, no spurious
-  wire/component side effects.
 
 ---
 
@@ -192,8 +218,22 @@ Bigger features, in roughly the order they unlock student workflows.
 - [ ] **Project main menu (program startup).** Before the workspace opens,
   show a menu screen with: **New Project**, **Load Project**, **Options**,
   **Quit**. Replaces the current "drop straight into the workspace"
-  startup. Options can be empty for v1 (placeholder for fullscreen, audio,
-  CRT toggle, etc.).
+  startup. **Options** items already shaping up — carry these into the
+  Options page once the main menu lands:
+  - **CRT effect on/off.** Some students find scanlines distracting or
+    hard on the eyes — keep the retro aesthetic available, not mandatory.
+  - **Pixelated vs system font.** Same reasoning — the retro face is
+    charming but harder to read than Arial. *Implementation note:* the
+    pixelated face renders much larger than Arial at the same nominal
+    size, so swapping fonts requires per-face size constants in
+    `settings.py`, not one shared FONT_SIZE.
+  - **Decide whether CRT + font toggle together** as one "retro mode"
+    switch, or as two independent options. Tracking under one bullet so
+    the call gets made before either ships.
+  - **Background color.** Pale blue (current), circuit-board green
+    (cutting-mat aesthetic), or a small swatch the student picks.
+  - **Sound effects on/off** (placeholder until audio lands; pairs with
+    the Sound design item in **Far future**).
 - [ ] **Save as Component** (the keystone feature). Package the current
   workspace as a reusable named component that drops into the toolbox as a
   new template — a "black box" abstraction. Sub-features:
@@ -201,17 +241,26 @@ Bigger features, in roughly the order they unlock student workflows.
     the new component's INPUT ports and which internal LEDs become its
     OUTPUT ports. Order on the body matches order picked.
   - [ ] **Choose a color.** Default body color is the existing
-    `MEDIUM_CARMINE`, but the save dialog should offer a swatch picker so
-    students can color-code their library. Color saves into the component
-    definition, not the project.
+    `MEDIUM_CARMINE`, but the save dialog should offer a small palette
+    swatch AND/OR an RGB / hex entry field — the hex/RGB option is a
+    deliberate teaching moment so students see how digital colors are
+    encoded. Color saves into the component definition, not the project.
   - [ ] **Rename.** Default name is whatever the student typed in the
     "Save as..." dialog. **But:** if the saved component happens to match
     the truth table of a known gate (NOT, AND, OR, NAND, NOR, XOR, XNOR),
     the dialog pre-fills the recognized name as a reward for figuring it
-    out. Student can override; this is a hint, not a lock.
+    out. Student can override; this is a hint, not a lock. Pop a
+    celebratory "You discovered <NAME>!" banner so the moment is named,
+    not just silently auto-filled.
   - [ ] **Detect known gates.** Brute-force truth-table comparison on
     save. The space is small (≤4 inputs covers everything in this list)
     and the comparison runs once on save, not per frame.
+- [ ] **Dynamic component sizing.** Once Save-as-Component starts
+  producing components with more than the default 2 inputs / 1 output,
+  their bodies need to grow tall enough to fit all ports without overlap.
+  Pick a per-port vertical pitch and recompute height from
+  `max(inputs, outputs) * pitch + padding`. Width can grow too if the
+  name is wide, but height is the urgent one for port spacing.
 - [ ] **Toolbox redesign for many components.** Once Save-as-Component
   lands, the bank will overflow. Brainstorming options:
   - Horizontal scroll on the bank.
@@ -223,6 +272,16 @@ Bigger features, in roughly the order they unlock student workflows.
 
   Pick after we have real data on how many components a typical session
   produces.
+- [ ] **Top hotkey-hint bar.** Old-school computer-program style: a thin
+  bar across the top of the screen showing
+  "F11 fullscreen | Esc back | ?: shortcuts | …". Mouse-first reachable
+  summary so students don't need the docs to discover the keyboard path.
+  Pairs with the **Keyboard shortcut overlay** Brainstorming entry below
+  — pick one, or layer them, when the layout settles.
+- [ ] **Easy mode.** Optional starter set: students begin with AND, OR,
+  NOT, NAND already in the toolbox so they can build interesting
+  circuits before they've finished the NAND-only progression. Off by
+  default — the universal-NAND moment is the main pedagogical point.
 
 ---
 
@@ -266,6 +325,14 @@ shape is clearer.
 - [ ] **Keyboard shortcut overlay.** Press `?` to flash a translucent
   cheat-sheet of every shortcut. Lets the keyboard-curious discover the
   hotkeys without the docs being mandatory.
+- [ ] **Lit wire color.** Currently green (matches `PORT_LIVE_COLOR`).
+  Could go to amber, neon cyan, etc. — pick once we have the
+  Save-as-Component palette work to compare against, so the live signal
+  doesn't clash with the most popular custom-component colors.
+- [ ] **Rename the program.** "Circuit Builder" is a misnomer — there's
+  no analog circuitry, no resistors / capacitors. "Digital Logic
+  Simulator" or "Logic Sandbox" reads more accurately. Promote when
+  there's a candidate name we like.
 
 ---
 
@@ -287,10 +354,16 @@ parking here so we don't lose them.
   "embed-don't-reference" save-file decision above.
 - [ ] **Sound design.** Subtle click on placement, faint hum on HIGH
   signal, a small "snap" when a wire commits. CRT scanlines already set
-  the toy-computer mood; audio would land the rest of it.
+  the toy-computer mood; audio would land the rest of it. Pair with an
+  **Options toggle** (see the Project main menu Later bullet) so users
+  who don't want sound can turn it off.
 - [ ] **Multi-bit ports / busses.** Once students build a 4-bit adder
   they'll want a way to bundle four wires into one visual line. Big
   semantic lift; park until adders happen.
+- [ ] **Encyclopedia / dictionary.** Built-in glossary students can flip
+  open: each gate, each common circuit (latch, flip-flop, adder,
+  multiplexer) with a short definition and a worked example. Pairs with
+  tutorials and puzzles as a reference layer.
 
 ---
 
@@ -324,19 +397,14 @@ the manual checklist in `docs/TESTING.md`.
 - [ ] **Wires only go in a straight line, can't be bent or curved.** Right now if a user wants to connect two components and there is another component between them, or they want to create a loop, this results in ugly straight lines everywhere. Perhaps allow them to create the wire in "segments" — see Brainstorming entry above for a sketch.
 - [ ] **Port highlighting is active inside the toolbox.** When hovering over the ports of a component in the toolbox, port highlighting works as if it was in the workspace. Low priority.
 - [x] ~~**Text boxes are mouse-inaccessible.**~~ Fixed 2026-05-02. The bank now ships a TEXT template that drops a focused TextBox under the cursor on click; the **T** hotkey is the keyboard parallel, not the only path.
-
-## More Ideas / Issues (Organize and Categorize this later, this is just a brain dump):
-- [ ] Users should be able to toggle CRT on and off in the menu, as well as the swap between pixelated text and the Arial font. Some users might find the CRT effect annoying or difficult on the eyes, and the pixelated font hard to see. This is all part of an old school "retro" computer or video game look, but some might not light it. Decide if CRT and text should be toggled on/off together or seperately. Maybe in their own retro aesthetics category. Potential issue, when font is changed the size is massively different. I noticed when I change from Arial or default system font to Pixelated the text gets huge, so pixelated needs smaller values
-- [ ] F11 toggles full screen, but there should either be a mouse click option or at the top add a bar for hot key hints just like in old school computer programs. ESC should be dynamic. Right now it exits the entire game without warning. What it should actually do is take you out of full screen when you're in full screen (just like F11) but when not full screen treat it as a request to quit but warn the user, when they press esc a window should pop up (in game, not a real window) asking of they are sure they want to quit.
-- [ ] We need to change the name of this program at some point, it's not really a circuit builder... more of a digital logic simulator? Let's come up with accurate naming.
-- [ ] When students create components with more ports we are going to need to make the components dynamically sizable
-- [ ] When students save a component choose a default color, but allow from a small palette to choose from AND/OR allow them to choose RGB or hex values, valuable moment to teach and introduce that concept.
-- [ ] Allow students to choose the name of the component but when they stumble upon a working concept (they create an or gate out of NANDs or an and-or latch whether they realized it or not) it should default to that name, maybe a message saying "You discovered COMPONENT_NAME!"
-- [ ] Add sound effects, last priority
-- [ ] Decide on color of lit wires, it's green for now but we might want something more interesting later
-- [ ] Add encyclopedia and/or dictionary
-- [ ] Decide if we want to stick with the pale blue for the background or a more circuit board style green (supposed to emulate a circuit board cutting mat) or better yet, let students choose that in options
-- [ ] Toggle sound effects in options
-- [ ] Add easy mode? Students start with some components already such as AND/OR/NOT
-- [ ] Right now the blank context menu that pops up when you click the menu button overlaps a bit with the toolbar. I'd prefer if it floated above or rested right on top of the top of the toolbar. The menu button also looks too similar to the text component, it's hard to tell which one is a button for options and which one is a component you can drag
-- [ ] Add black bar to the top with all the hotkeys explained
+- [ ] **Popup menu overlaps the toolbar.** When the MENU button is
+  clicked open, the popup's bottom edge overlaps the toolbar by a few
+  pixels instead of resting flush on its top. Fix: anchor
+  `popup_rect.bottom` to `BANK_RECT.top` (with a small gap) rather than
+  offsetting from the button's top. Reported by user 2026-05-02.
+- [ ] **MENU button looks too similar to the TEXT template.** Both are
+  small dark squares with a four-letter white label, so it's not obvious
+  which is a control and which is a draggable component. Fix: give MENU
+  a distinct treatment — a different color, an icon (≡ / ☰), or a
+  different shape — so it reads as a control surface, not an element.
+  Reported by user 2026-05-02.
