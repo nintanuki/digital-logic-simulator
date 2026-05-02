@@ -196,13 +196,37 @@ class MenuButtonSettings:
     BORDER_THICKNESS = 1
     LABEL = "MENU"
     LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    # Items shown in the popup, top-to-bottom. All disabled (greyed out)
+    # in this cut — backing actions and click dispatch arrive in the
+    # follow-up step, so labels exist now to lock the popup's height and
+    # let the layout be verified independently of the wiring.
+    ITEM_LABELS = (
+        "NEW PROJECT",
+        "LOAD PROJECT",
+        "SAVE PROJECT",
+        "SAVE AS COMPONENT",
+        "QUIT",
+    )
+    # Vertical pitch per item inside the popup. The label baseline and
+    # (once it lands) each item's hit-rect both anchor to this value, so
+    # bumping it shifts both in sync.
+    ITEM_HEIGHT = 32
+    # Horizontal inset for an item label from the popup's left edge, so
+    # text doesn't kiss the popup border.
+    ITEM_PADDING_X = 10
+    # Greyed-out label color used while the item has no action wired up.
+    # Dimmer than the white MENU label so a future "enabled" item reads
+    # as the active affordance against this disabled baseline.
+    ITEM_DISABLED_COLOR = (140, 140, 140)
     # Popup container that appears above the button when the menu is open.
-    # Width/height are placeholders for an empty popup; once menu items
-    # exist, height will be derived from the item count instead of pinned
-    # here. Color matches the button body so the popup reads as an
-    # extension of the same control.
-    POPUP_WIDTH = 180
-    POPUP_HEIGHT = 160
+    # Width is sized to fit the longest item label ("SAVE AS COMPONENT"
+    # measures ~197px in the Pixeled face at FONT_SIZE 12) with the
+    # ITEM_PADDING_X inset on the left and a small visual margin on the
+    # right; height is derived from the item count so adding/removing
+    # entries only requires touching ITEM_LABELS. Color matches the
+    # button body so the popup reads as an extension of the same control.
+    POPUP_WIDTH = 220
+    POPUP_HEIGHT = len(ITEM_LABELS) * ITEM_HEIGHT
     POPUP_BODY_COLOR = (60, 60, 60)
     POPUP_BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     POPUP_BORDER_THICKNESS = 1

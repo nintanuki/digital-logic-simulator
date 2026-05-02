@@ -4,6 +4,121 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-02 — Popup menu items rendered (disabled state)
+
+**File:** settings.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 197-235 (MenuButtonSettings: items + popup
+geometry)
+**Before:**
+    LABEL = "MENU"
+    LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    # Popup container that appears above the button when the menu is open.
+    # Width/height are placeholders for an empty popup; once menu items
+    # exist, height will be derived from the item count instead of pinned
+    # here. Color matches the button body so the popup reads as an
+    # extension of the same control.
+    POPUP_WIDTH = 180
+    POPUP_HEIGHT = 160
+**After:**
+    LABEL = "MENU"
+    LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    # Items shown in the popup, top-to-bottom. All disabled (greyed out)
+    # in this cut — backing actions and click dispatch arrive in the
+    # follow-up step, so labels exist now to lock the popup's height and
+    # let the layout be verified independently of the wiring.
+    ITEM_LABELS = (
+        "NEW PROJECT",
+        "LOAD PROJECT",
+        "SAVE PROJECT",
+        "SAVE AS COMPONENT",
+        "QUIT",
+    )
+    # Vertical pitch per item inside the popup. The label baseline and
+    # (once it lands) each item's hit-rect both anchor to this value, so
+    # bumping it shifts both in sync.
+    ITEM_HEIGHT = 32
+    # Horizontal inset for an item label from the popup's left edge, so
+    # text doesn't kiss the popup border.
+    ITEM_PADDING_X = 10
+    # Greyed-out label color used while the item has no action wired up.
+    # Dimmer than the white MENU label so a future "enabled" item reads
+    # as the active affordance against this disabled baseline.
+    ITEM_DISABLED_COLOR = (140, 140, 140)
+    # Popup container that appears above the button when the menu is open.
+    # Width is sized to fit the longest item label ("SAVE AS COMPONENT"
+    # measures ~197px in the Pixeled face at FONT_SIZE 12) with the
+    # ITEM_PADDING_X inset on the left and a small visual margin on the
+    # right; height is derived from the item count so adding/removing
+    # entries only requires touching ITEM_LABELS. Color matches the
+    # button body so the popup reads as an extension of the same control.
+    POPUP_WIDTH = 220
+    POPUP_HEIGHT = len(ITEM_LABELS) * ITEM_HEIGHT
+**Why:** The next bullet under Now in the roadmap is "Populate the popup
+with items." Took the smallest cut of that bullet — render the five item
+labels inside the popup in a disabled (greyed-out) state — so layout and
+geometry can be verified independently of click dispatch. ITEM_LABELS is
+the single source of truth for which items exist; deriving POPUP_HEIGHT
+from `len(ITEM_LABELS) * ITEM_HEIGHT` cashes in the comment that already
+flagged this ("once menu items exist, height will be derived from the
+item count instead of pinned here") so future add/remove only touches
+ITEM_LABELS. Width was bumped from 180 to 220 because "SAVE AS COMPONENT"
+measures ~197px in the Pixeled face at FONT_SIZE 12 (verified via PIL +
+fontTools against `assets/font/Pixeled.ttf`); 180 - 10 (ITEM_PADDING_X) =
+170 of usable text width would have clipped the right edge by ~27px.
+220 leaves ~13px of right margin so the longest label doesn't visually
+kiss the border. ITEM_DISABLED_COLOR is a mid-grey (140,140,140) chosen
+to read as "present but inactive" against the (60,60,60) popup body
+without disappearing — once an item gains an action it can swap to white
+without disturbing the disabled baseline.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** ui.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 60-74 (MenuButton docstring), 102-122
+(MenuButton.__init__: pre-render item labels), 133-181 (MenuButton.draw:
+blit items inside popup)
+**Before:**
+- Class docstring said "Menu items, click-outside dismissal, and Esc
+  dismissal arrive in follow-up steps" (stale — both dismissals already
+  shipped earlier today, and items now exist).
+- `__init__` rendered only `self._label_surf` for the MENU button label
+  itself; no per-item surfaces.
+- `draw` painted the popup body and border but no items inside; its
+  docstring claimed "no menu items would be (none yet)".
+**After:**
+- Class docstring rewritten to reflect current scope: items render in
+  disabled state, click-outside + Esc dismissal already ship elsewhere,
+  click dispatch lands next.
+- `__init__` additionally pre-renders one surface per `ITEM_LABELS`
+  entry in `ITEM_DISABLED_COLOR` and stashes them in
+  `self._item_label_surfs`. Same render-once / blit-per-frame discipline
+  the existing `_label_surf` uses, so the cost is paid once and a future
+  step can swap individual surfaces (e.g. an enabled-state render) without
+  reworking the layout.
+- `draw` now, when `is_open`, iterates `self._item_label_surfs` after the
+  popup body+border so labels layer on top of the fill but stay inside
+  the border. Each item owns a vertical band of `ITEM_HEIGHT` starting
+  at `popup_rect.top`; its label is left-padded by `ITEM_PADDING_X` and
+  vertically centered inside its band. No hit-test math here — click
+  dispatch is the next bullet.
+**Why:** Smallest concrete progress on the Now/"Populate the popup with
+items" bullet without coupling to click dispatch (the next bullet, which
+needs a per-item rect + action map and was deliberately deferred so the
+visual layer could be reviewed in isolation). Kept the rendering
+piggybacked on `MenuButton` rather than introducing a `MenuItem` class
+because there's no behavior to model yet — once items gain hit-rects,
+hover state, and enabled/disabled toggles, that's the right moment to
+extract. `_item_label_surfs` mirrors `_label_surf`'s lifecycle so
+consistency reads at a glance. Vertical centering inside an `ITEM_HEIGHT`
+band keeps the layout robust to future font/size changes — the label just
+re-centers in whatever band it gets. Updated two stale docstrings (class
++ `draw`) so a fresh-session reader doesn't see contradictions between
+what the code does and what the docstring claims. Manual visual
+verification still owed (needs a human at a keyboard); checklist in
+`docs/TESTING.md` continues to apply.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## 2026-05-02 — Roadmap reorder + popup-menu overlap fix
 
 **File:** docs/TODO.md

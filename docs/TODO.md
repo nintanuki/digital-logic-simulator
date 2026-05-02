@@ -48,7 +48,13 @@ bottom-left corner of the bank. Clicking it pops up a vertical menu.
 - [ ] **Populate the popup with items.** First items: **New Project**,
   **Load Project**, **Save Project**, **Save as Component**, **Quit**.
   Greyed-out / disabled state for items that don't apply yet. Each item
-  hit-tests its own rect and runs its action.
+  hit-tests its own rect and runs its action. *Partial 2026-05-02:*
+  the five labels now render top-to-bottom inside the popup in
+  `ITEM_DISABLED_COLOR` (`MenuButtonSettings.ITEM_LABELS` /
+  `ITEM_HEIGHT` / `ITEM_PADDING_X`); `POPUP_WIDTH` was widened to 220
+  so "SAVE AS COMPONENT" fits and `POPUP_HEIGHT` is now derived from
+  the item count. Per-item hit-rects + dispatch are still owed — those
+  fold into the next bullet.
 - [ ] **Clicking an item runs its action and closes the popup.** Folds in
   once items exist.
 - [ ] **Popup intercepts events before wires/components.** Treat the

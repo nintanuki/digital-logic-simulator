@@ -61,13 +61,16 @@ class MenuButton:
     """Bottom-left bank button + the popup it toggles above the bank.
 
     Lives at the far-left of the toolbox bank as a Windows-style "Start"
-    button. Clicking the button toggles `is_open`; while open, a placeholder
-    popup rect is drawn directly above the button. Menu items, click-outside
-    dismissal, and Esc dismissal arrive in follow-up steps — keeping those
-    out of this cut means the toggle can be introduced and verified in
-    isolation. `ports = ()` mirrors `TextTemplate` so GameManager's
-    port-hover walker can iterate this object the same way it iterates
-    Component templates without a special case (if it's ever asked to).
+    button. Clicking the button toggles `is_open`; while open, the popup
+    rect is drawn directly above the button with the file-ops items listed
+    inside. Items render in their disabled (greyed-out) state until click
+    dispatch and the backing actions land in a follow-up step, which is why
+    each item is just a static label here. Click-outside and Esc already
+    dismiss the popup elsewhere — see `ComponentBank.handle_event` and
+    `GameManager._handle_keydown`. `ports = ()` mirrors `TextTemplate` so
+    GameManager's port-hover walker can iterate this object the same way
+    it iterates Component templates without a special case (if it's ever
+    asked to).
     """
 
     def __init__(self, x, y):
@@ -105,6 +108,18 @@ class MenuButton:
             True,
             MenuButtonSettings.LABEL_COLOR,
         )
+        # Pre-render each popup item label in its disabled color. Labels
+        # never change either, so render once and blit per frame; per-item
+        # state (hover, enabled vs. disabled) and click dispatch arrive in
+        # follow-up steps that can swap the surfaces if needed.
+        self._item_label_surfs = [
+            Fonts.text_box.render(
+                label,
+                True,
+                MenuButtonSettings.ITEM_DISABLED_COLOR,
+            )
+            for label in MenuButtonSettings.ITEM_LABELS
+        ]
 
     def toggle(self):
         """Flip the popup open/closed.
@@ -116,10 +131,12 @@ class MenuButton:
         self.is_open = not self.is_open
 
     def draw(self, surface):
-        """Render the button and, if open, the placeholder popup above it.
+        """Render the button and, if open, the popup with its item labels.
 
-        The popup is drawn before any menu items would be (none yet) so
-        future item glyphs can blit on top without z-order gymnastics.
+        Item labels are blit after the popup body+border so they layer on
+        top of the fill but stay inside the border. All items currently
+        render in their disabled color — click dispatch and per-item state
+        arrive in a follow-up step.
 
         Args:
             surface (pygame.Surface): The surface to draw onto.
@@ -145,6 +162,25 @@ class MenuButton:
                 self.popup_rect,
                 MenuButtonSettings.POPUP_BORDER_THICKNESS,
             )
+            # Items are blit after the popup body+border so they layer on
+            # top of the fill but stay inside the border. Each item owns a
+            # vertical band of ITEM_HEIGHT starting at popup.top; the label
+            # is left-padded by ITEM_PADDING_X and vertically centered
+            # inside its band. No hit-test math here — click dispatch lands
+            # in a follow-up step.
+            for index, surf in enumerate(self._item_label_surfs):
+                label_y = (
+                    self.popup_rect.top
+                    + index * MenuButtonSettings.ITEM_HEIGHT
+                    + (MenuButtonSettings.ITEM_HEIGHT - surf.get_height()) // 2
+                )
+                surface.blit(
+                    surf,
+                    (
+                        self.popup_rect.left + MenuButtonSettings.ITEM_PADDING_X,
+                        label_y,
+                    ),
+                )
 
 
 class ComponentBank:
