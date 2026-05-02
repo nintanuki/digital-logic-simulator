@@ -19,7 +19,7 @@ hover labels and wiring reuse.
 - [x] Add `PORT_HIGHLIGHT_COLOR` to `ComponentSettings` in `settings.py`.
 - [x] In `Port.draw`, pick `PORT_HIGHLIGHT_COLOR` when `self.hovered`, else `PORT_COLOR`.
 - [x] In `GameManager._handle_mouse`, on `MOUSEMOTION` walk every component's `ports` and set `port.hovered = port.rect.collidepoint(event.pos)`. Toolbox templates count too. (Implemented as `_update_port_hover`.)
-- [ ] Manual test: hover a port — it lights up. Move away — it un-lights. Drag a component — its ports stay hot under the cursor as expected. *(needs a human at a keyboard)*
+- [X] Manual test: hover a port — it lights up. Move away — it un-lights. Drag a component — its ports stay hot under the cursor as expected. *(needs a human at a keyboard)*
 
 ---
 
@@ -28,7 +28,7 @@ hover labels and wiring reuse.
 - [x] Add `PORT_LABEL_COLOR`, `PORT_LABEL_FONT_SIZE`, and `PORT_LABEL_OFFSET` to `ComponentSettings`.
 - [x] Cache one `pygame.font.Font` for port labels at the `GameManager` level. *(Implemented as a dedicated `Fonts` class — exposes `Fonts.component_label` and `Fonts.port_label`, init'd once at boot.)*
 - [x] Split out `Port.draw_label`. INPUT anchors right (label sits to the left of the port), OUTPUT anchors left. Called from Component.draw after the body so labels stay on top.
-- [ ] Manual test: hover each port on a NAND, see "A", "B", "OUT". *(needs a human at a keyboard)*
+- [X] Manual test: hover each port on a NAND, see "A", "B", "OUT". *(needs a human at a keyboard)*
 
 ---
 
@@ -41,7 +41,7 @@ hover labels and wiring reuse.
 - [x] Validation: output↔input only (auto-swap so the user can drag from either end), no self-connections (same parent rejected), one incoming wire per input (existing wire on the target is dropped before commit).
 - [x] Right-click an existing wire to delete it.
 - [x] Wires touching a deleted component are dropped via `WireManager.drop_wires_for_component`.
-- [ ] Manual test: connect two NANDs, drag both, the wire follows both endpoints. *(needs a human at a keyboard)*
+- [X] Manual test: connect two NANDs, drag both, the wire follows both endpoints. *(needs a human at a keyboard)*
 
 ---
 
