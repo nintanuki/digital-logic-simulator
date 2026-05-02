@@ -1063,3 +1063,124 @@ no signature change to ComponentBank.handle_event, no change to
 GameManager wiring. The new TEXT entry plus the N/T hotkey
 consolidation are deliberate follow-ups.
 **Editor:** Claude (Opus 4.7)
+
+## 2026-05-02 — Add TEXT template to the toolbox bank
+
+**File:** settings.py
+**Lines (at time of edit):** 166-179 (new TextTemplateSettings appended above AudioSettings)
+**After:**
+    class TextTemplateSettings:
+        SIZE = 60
+        BODY_COLOR = TextBoxSettings.BODY_COLOR
+        BORDER_COLOR = TextBoxSettings.BORDER_COLOR
+        BORDER_THICKNESS = TextBoxSettings.BORDER_THICKNESS
+        LABEL = "TEXT"
+        LABEL_COLOR = TextBoxSettings.TEXT_COLOR
+**Why:** Visual constants for the bank-side TEXT template, kept out of
+code per the no-magic-numbers rule. Mirrors TextBoxSettings (body, border,
+text colors) so the template visually previews what a click will spawn.
+SIZE matches Switch/LED so the four templates read as one row.
+**Editor:** Claude (Opus 4.7)
+
+**File:** ui.py
+**Lines (at time of edit):** 1-10 (imports), 13-56 (new TextTemplate class),
+73-91 (ComponentBank.__init__ now takes text_boxes), 126-133
+(_build_templates appends TEXT entry), 178-198 (new _make_textbox_spawner)
+**Before:**
+    from elements import Component, LED, Switch
+    from settings import InputSettings, ScreenSettings, UISettings
+
+    class ComponentBank:
+        TEMPLATE_CLASSES = (Switch, Component, LED)
+
+        def __init__(self):
+            self.rect = UISettings.BANK_RECT
+            self._templates_and_spawners = self._build_templates()
+
+        def _build_templates(self):
+            x = UISettings.BANK_PADDING_X
+            entries = []
+            for cls in self.TEMPLATE_CLASSES:
+                tpl = cls(x, 0)
+                tpl.rect.y = ...
+                entries.append((tpl, self._make_component_spawner(tpl, cls)))
+                x += tpl.rect.width + UISettings.BANK_TEMPLATE_GAP
+            return entries
+**After:**
+    from elements import Component, LED, Switch
+    from fonts import Fonts
+    from settings import (InputSettings, ScreenSettings,
+                          TextTemplateSettings, UISettings)
+
+    class TextTemplate:
+        # rect, ports=() (no signal), pre-rendered "TEXT" label surf,
+        # draws body + border + label. Matches the (rect, ports, draw)
+        # surface every other bank template exposes so the hover walker
+        # and bank.draw don't need a special case.
+
+    class ComponentBank:
+        TEMPLATE_CLASSES = (Switch, Component, LED)
+
+        def __init__(self, text_boxes):
+            self.rect = UISettings.BANK_RECT
+            self._text_boxes = text_boxes
+            self._templates_and_spawners = self._build_templates()
+
+        def _build_templates(self):
+            ... (existing component loop)
+            text_tpl = TextTemplate(x, 0)
+            text_tpl.rect.y = ... (vertically centered)
+            entries.append((text_tpl, self._make_textbox_spawner()))
+            return entries
+
+        def _make_textbox_spawner(self):
+            text_boxes = self._text_boxes  # closed-over reference
+            def spawn(event_pos, components_list):
+                # ignores components_list; routes through the manager
+                text_boxes.spawn_at(event_pos)
+            return spawn
+**Why:** Closes the "Now — Toolbar TEXT button" gap so text boxes are
+mouse-spawnable per the mouse-first design principle. The architectural
+refactor that introduced (drawable, spawn_fn) pairs landed earlier today;
+this commit is the follow-up that uses that infrastructure to add the
+actual TEXT entry. TextTemplate is its own tiny class (not a Component
+subclass) because it has no ports, no signal, and no workspace lifecycle —
+it's a static button. ports=() is an empty tuple (not list) so a stray
+.append in the hover walker would fail loud. The label surf is rendered
+once in __init__ and blitted per frame; the template never changes so a
+re-render every frame would be wasted work. ComponentBank.__init__ now
+takes the TextBoxManager so the TEXT spawner closure can route a click
+straight to text_boxes.spawn_at without bank.handle_event growing a wider
+signature. TextBoxManager.spawn_at already focuses the new box, so
+"Spawned TextBox should immediately focus" comes for free.
+**Editor:** Claude (Opus 4.7)
+
+**File:** main.py
+**Lines (at time of edit):** 35-43 (subsystem init reordered)
+**Before:**
+    self.bank = ComponentBank()
+    self.components = []
+    self.wires = WireManager()
+    self.signals = SignalManager()
+    self.text_boxes = TextBoxManager()
+**After:**
+    self.text_boxes = TextBoxManager()
+    self.bank = ComponentBank(self.text_boxes)
+    self.components = []
+    self.wires = WireManager()
+    self.signals = SignalManager()
+**Why:** ComponentBank now needs the TextBoxManager at construction time
+(its TEXT spawner closes over the reference), so text_boxes has to be
+built first. The other three subsystems (components, wires, signals) are
+unchanged — only the relative order of bank vs. text_boxes flipped.
+**Editor:** Claude (Opus 4.7)
+
+**File:** docs/TODO.md
+**Lines (at time of edit):** ~26-46 (Now section), ~315 (Known issues row)
+**Why:** Marks items 1-3 of "Now — Toolbar TEXT button" as done (template
+added, special-case routing live, immediate focus inherited from
+spawn_at). Item 4 (N/T hotkey consolidation) is intentionally still open —
+that's a separate refactor and orthogonal to the mouse-path gap closed
+here. Also drops the resolved "Text boxes are mouse-inaccessible" Known
+Issues entry.
+**Editor:** Claude (Opus 4.7)

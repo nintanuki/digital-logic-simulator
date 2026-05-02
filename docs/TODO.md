@@ -23,22 +23,19 @@ Right now a text box can only be spawned by pressing **T**. The classroom
 target is mouse-only, so it also needs a clickable template on the bank
 alongside Switch / NAND / LED.
 
-- [ ] Add a new toolbox template that reads "TEXT" centered on its body.
+- [x] Add a new toolbox template that reads "TEXT" centered on its body.
   Square is fine (matches Switch/LED size); it's a label, not a circuit
   element, so no ports.
-- [ ] In `ui.py::ComponentBank`, special-case it: clicking the template
+- [x] In `ui.py::ComponentBank`, special-case it: clicking the template
   spawns a `TextBox` (not a `Component` subclass), so add a small adapter
-  rather than shoving TextBox into `TEMPLATE_CLASSES`. Two reasonable
-  options to weigh:
-  1. Generalize `TEMPLATE_CLASSES` to a list of `(template_drawable,
-     spawn_fn)` pairs and let TextBox spawn through the manager.
-  2. Add a separate `_text_template` rect that the bank also draws/handles,
-     parallel to the component templates.
-
-  Option 1 is cleaner long-term (Save-as-Component will need the same
-  generalization); pick that.
-- [ ] Spawned `TextBox` should immediately focus so the student can start
-  typing without an extra click.
+  rather than shoving TextBox into `TEMPLATE_CLASSES`. Option 1 picked —
+  the bank now stores `(template_drawable, spawn_fn)` pairs and the TEXT
+  spawner closes over the `TextBoxManager` passed into the bank at
+  construction time, so adding a non-Component spawnable was a one-line
+  append in `_build_templates`.
+- [x] Spawned `TextBox` should immediately focus so the student can start
+  typing without an extra click. (Free — `TextBoxManager.spawn_at` already
+  focused; the new spawn closure just calls it.)
 - [ ] Update the **N** / **T** hotkeys in `main.py::_handle_keydown` to
   call the same spawn paths the bank uses, not duplicate them. Keeps the
   two entry points honest.
@@ -312,7 +309,7 @@ the manual checklist in `docs/TESTING.md`.
 - [x] ~~**Components can be dragged behind the toolbox.**~~ Fixed 2026-05-01. `Component._clamp_to_workspace` clamps `rect.x`/`rect.y` after every drag-driven assignment so a component cannot enter the toolbox bank or leave the screen. Reported by user 2026-05-01.
 - [ ] **Wires only go in a straight line, can't be bent or curved.** Right now if a user wants to connect two components and there is another component between them, or they want to create a loop, this results in ugly straight lines everywhere. Perhaps allow them to create the wire in "segments" — see Brainstorming entry above for a sketch.
 - [ ] **Port highlighting is active inside the toolbox.** When hovering over the ports of a component in the toolbox, port highlighting works as if it was in the workspace. Low priority.
-- [ ] **Text boxes are mouse-inaccessible.** Only the **T** hotkey spawns one; mouse-only users can't make a text box. Tracked under "Now — Toolbar TEXT button" above.
+- [x] ~~**Text boxes are mouse-inaccessible.**~~ Fixed 2026-05-02. The bank now ships a TEXT template that drops a focused TextBox under the cursor on click; the **T** hotkey is the keyboard parallel, not the only path.
 
 ## More Ideas / Issues (Organize and Categorize this later, this is just a brain dump):
 - [ ] Users should be able to toggle CRT on and off in the menu, as well as the swap between pixelated text and the Arial font. Some users might find the CRT effect annoying or difficult on the eyes, and the pixelated font hard to see. This is all part of an old school "retro" computer or video game look, but some might not light it. Decide if CRT and text should be toggled on/off together or seperately. Maybe in their own retro aesthetics category. Potential issue, when font is changed the size is massively different. I noticed when I change from Arial or default system font to Pixelated the text gets huge, so pixelated needs smaller values

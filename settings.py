@@ -163,5 +163,21 @@ class TextBoxSettings:
     CARET_BLINK_MS = 1000
 
 
+class TextTemplateSettings:
+    """Visual constants for the bank-side TEXT label that spawns text boxes.
+
+    Renders as a square (matches Switch/LED) with the word "TEXT" centered on
+    it, in the dark body color of an empty text box so the template visually
+    previews what a click will spawn. No ports — text boxes carry no signal.
+    """
+    SIZE = 60
+    # Mirror TextBoxSettings so the template reads as "the thing that spawns".
+    BODY_COLOR = TextBoxSettings.BODY_COLOR
+    BORDER_COLOR = TextBoxSettings.BORDER_COLOR
+    BORDER_THICKNESS = TextBoxSettings.BORDER_THICKNESS
+    LABEL = "TEXT"
+    LABEL_COLOR = TextBoxSettings.TEXT_COLOR
+
+
 class AudioSettings:
     pass

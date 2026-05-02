@@ -32,13 +32,15 @@ class GameManager:
         # -------- Managers --------
 
         # -------- Sprite groups --------
-        self.bank = ComponentBank()
+        # Text boxes are pure annotations — no signal, no ports. Built
+        # before the bank so the TEXT template can capture this manager
+        # in its spawn closure. Spawnable from the bank's TEXT template
+        # and from the T keyboard shortcut at the cursor position.
+        self.text_boxes = TextBoxManager()
+        self.bank = ComponentBank(self.text_boxes)
         self.components = [] # Start with an empty workspace. Components will be added by the user.
         self.wires = WireManager()
         self.signals = SignalManager()
-        # Text boxes are pure annotations — no signal, never on the bank.
-        # Spawned via the T keyboard shortcut at the cursor position.
-        self.text_boxes = TextBoxManager()
 
     # -------------------------
     # BOOT / LIFECYCLE

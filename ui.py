@@ -1,7 +1,59 @@
 import pygame
 
 from elements import Component, LED, Switch
-from settings import InputSettings, ScreenSettings, UISettings
+from fonts import Fonts
+from settings import (
+    InputSettings,
+    ScreenSettings,
+    TextTemplateSettings,
+    UISettings,
+)
+
+
+class TextTemplate:
+    """Bank-side template that spawns a focused TextBox on click.
+
+    Visually a small square with the word "TEXT" centered on it, sized to
+    match Switch/LED so the row of templates reads as one row. Has no ports
+    because text boxes carry no signal — `ports` is exposed as an empty
+    tuple so GameManager's port-hover walker can iterate this template the
+    same way it iterates Component templates without a special case.
+    """
+
+    def __init__(self, x, y):
+        """Lay out the template's rect and pre-render its static label.
+
+        Args:
+            x (int): Top-left x in screen coordinates.
+            y (int): Top-left y in screen coordinates.
+        """
+        size = TextTemplateSettings.SIZE
+        self.rect = pygame.Rect(x, y, size, size)
+        # Empty tuple (not list) so accidental .append() in the hover walker
+        # would fail loud rather than silently grow the template's "ports".
+        self.ports = ()
+        # The label never changes, so render it once and blit per frame.
+        self._label_surf = Fonts.text_box.render(
+            TextTemplateSettings.LABEL,
+            True,
+            TextTemplateSettings.LABEL_COLOR,
+        )
+
+    def draw(self, surface):
+        """Render the template body, border, and centered TEXT label.
+
+        Args:
+            surface (pygame.Surface): The surface to draw onto.
+        """
+        pygame.draw.rect(surface, TextTemplateSettings.BODY_COLOR, self.rect)
+        pygame.draw.rect(
+            surface,
+            TextTemplateSettings.BORDER_COLOR,
+            self.rect,
+            TextTemplateSettings.BORDER_THICKNESS,
+        )
+        label_rect = self._label_surf.get_rect(center=self.rect.center)
+        surface.blit(self._label_surf, label_rect)
 
 
 class ComponentBank:
@@ -11,20 +63,30 @@ class ComponentBank:
     associated spawn_fn, which is responsible for placing a fresh instance
     on the workspace under the cursor with dragging primed. Storing
     (template_drawable, spawn_fn) pairs (instead of just classes) keeps
-    the bank open to non-Component spawnables like the upcoming TEXT
-    label (which spawns a TextBox via the manager) and future saved
-    sub-circuits — see docs/TODO.md "Toolbar TEXT button".
+    the bank open to non-Component spawnables like the TEXT label (which
+    spawns a TextBox via the manager) and future saved sub-circuits.
     """
 
     # Order is the left-to-right order shown in the toolbox.
     TEMPLATE_CLASSES = (Switch, Component, LED)
 
-    def __init__(self):
-        """Build the bank rect and the row of templates with their spawners."""
+    def __init__(self, text_boxes):
+        """Build the bank rect and the row of templates with their spawners.
+
+        Args:
+            text_boxes (TextBoxManager): Manager that owns workspace text
+                boxes. Captured by the TEXT template's spawn closure so a
+                click on that template can drop a focused TextBox without
+                routing back through GameManager.
+        """
         self.rect = UISettings.BANK_RECT
+        # Held so _make_textbox_spawner's closure can reach the manager
+        # without bank.handle_event needing a wider signature.
+        self._text_boxes = text_boxes
         # List of (template_drawable, spawn_fn) tuples in display order. Each
         # spawn_fn is a closure that knows how to clone its template onto
-        # the workspace at a click position; see _make_component_spawner.
+        # the workspace at a click position; see _make_component_spawner
+        # and _make_textbox_spawner.
         self._templates_and_spawners = self._build_templates()
 
     @property
@@ -61,6 +123,13 @@ class ComponentBank:
             tpl.rect.y = self.rect.y + (self.rect.height - tpl.rect.height) // 2
             entries.append((tpl, self._make_component_spawner(tpl, cls)))
             x += tpl.rect.width + UISettings.BANK_TEMPLATE_GAP
+        # The TEXT template lives in the same row as the component templates
+        # so the bank stays one homogeneous list of (drawable, spawn_fn)
+        # pairs. It spawns through TextBoxManager rather than into the
+        # components list — see _make_textbox_spawner.
+        text_tpl = TextTemplate(x, 0)
+        text_tpl.rect.y = self.rect.y + (self.rect.height - text_tpl.rect.height) // 2
+        entries.append((text_tpl, self._make_textbox_spawner()))
         return entries
 
     @staticmethod
@@ -104,6 +173,28 @@ class ComponentBank:
             # the bank.
             new_comp._moved_while_dragging = True
             components_list.append(new_comp)
+        return spawn
+
+    def _make_textbox_spawner(self):
+        """Build a spawn_fn that drops a fresh focused TextBox via the manager.
+
+        The closure captures the TextBoxManager passed into the bank at
+        construction time so the bank doesn't have to look it up on every
+        click. Spawned text boxes are immediately focused — see
+        TextBoxManager.spawn_at — so the student can start typing without a
+        follow-up click.
+
+        Returns:
+            Callable[[tuple[int, int], list], None]: Spawner that ignores
+                components_list (text boxes aren't components) and routes to
+                the text-box manager instead.
+        """
+        text_boxes = self._text_boxes
+        def spawn(event_pos, components_list):
+            # components_list is part of the shared spawn protocol but a
+            # text box is an annotation, not a circuit element — drop it
+            # into the text-box manager and ignore the list.
+            text_boxes.spawn_at(event_pos)
         return spawn
 
     def draw(self, surface):
