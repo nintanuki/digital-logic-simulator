@@ -4,6 +4,274 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-02 — Popup item dispatch (QUIT wired up)
+
+**File:** settings.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 217-224 (MenuButtonSettings: enabled-color
+constant added next to ITEM_DISABLED_COLOR)
+**Before:**
+    # Greyed-out label color used while the item has no action wired up.
+    # Dimmer than the white MENU label so a future "enabled" item reads
+    # as the active affordance against this disabled baseline.
+    ITEM_DISABLED_COLOR = (140, 140, 140)
+**After:**
+    # Greyed-out label color used while the item has no action wired up.
+    # Dimmer than the white MENU label so an enabled item reads as the
+    # active affordance against this disabled baseline.
+    ITEM_DISABLED_COLOR = (140, 140, 140)
+    # Label color used for an item that has an action wired up. Matches
+    # the white MENU button label so the affordance reads as part of the
+    # same control surface.
+    ITEM_ENABLED_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+**Why:** Closes the two folded-together "Now" bullets in TODO ("Populate
+the popup with items" — per-item hit-rects + dispatch — and "Clicking an
+item runs its action and closes the popup"). MenuButton needed a second
+color so an enabled item visibly differs from a disabled placeholder;
+adding ITEM_ENABLED_COLOR alongside the existing ITEM_DISABLED_COLOR
+keeps both in one place rather than borrowing LABEL_COLOR (the MENU
+button label) and tying the item palette to the button's. White matches
+the active MENU label so a live item reads as part of the same control.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** ui.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 60-200 (MenuButton: constructor takes
+`enabled_labels`; new `_item_rects`; new `item_label_at`; draw uses the
+rects directly) and 215-280 (ComponentBank: constructor takes
+`menu_actions`; popup-click branch in `handle_event` dispatches by label)
+**Before (MenuButton.__init__ signature, label rendering, draw loop):**
+    def __init__(self, x, y):
+        ...
+        self._item_label_surfs = [
+            Fonts.text_box.render(
+                label,
+                True,
+                MenuButtonSettings.ITEM_DISABLED_COLOR,
+            )
+            for label in MenuButtonSettings.ITEM_LABELS
+        ]
+    ...
+            for index, surf in enumerate(self._item_label_surfs):
+                label_y = (
+                    self.popup_rect.top
+                    + index * MenuButtonSettings.ITEM_HEIGHT
+                    + (MenuButtonSettings.ITEM_HEIGHT - surf.get_height()) // 2
+                )
+                surface.blit(
+                    surf,
+                    (
+                        self.popup_rect.left + MenuButtonSettings.ITEM_PADDING_X,
+                        label_y,
+                    ),
+                )
+**After (MenuButton.__init__ signature, hit-rect array, color-aware
+rendering, label-at-pos lookup, draw loop using the rects):**
+    def __init__(self, x, y, enabled_labels):
+        ...
+        self._item_rects = [
+            pygame.Rect(
+                self.popup_rect.left,
+                self.popup_rect.top + index * MenuButtonSettings.ITEM_HEIGHT,
+                MenuButtonSettings.POPUP_WIDTH,
+                MenuButtonSettings.ITEM_HEIGHT,
+            )
+            for index in range(len(MenuButtonSettings.ITEM_LABELS))
+        ]
+        self._item_label_surfs = [
+            Fonts.text_box.render(
+                label,
+                True,
+                MenuButtonSettings.ITEM_ENABLED_COLOR
+                if label in enabled_labels
+                else MenuButtonSettings.ITEM_DISABLED_COLOR,
+            )
+            for label in MenuButtonSettings.ITEM_LABELS
+        ]
+    ...
+    def item_label_at(self, pos):
+        for rect, label in zip(self._item_rects, MenuButtonSettings.ITEM_LABELS):
+            if rect.collidepoint(pos):
+                return label
+        return None
+    ...
+            for rect, surf in zip(self._item_rects, self._item_label_surfs):
+                label_y = rect.y + (rect.height - surf.get_height()) // 2
+                surface.blit(
+                    surf,
+                    (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y),
+                )
+**Before (ComponentBank.__init__ signature, popup-click branch):**
+    def __init__(self, text_boxes):
+        ...
+        self.menu_button = MenuButton(
+            UISettings.BANK_PADDING_X,
+            self.rect.y + (self.rect.height - MenuButtonSettings.SIZE) // 2,
+        )
+    ...
+        if self.menu_button.is_open:
+            if self.menu_button.popup_rect.collidepoint(event.pos):
+                return True
+            self.menu_button.toggle()
+**After (ComponentBank.__init__ signature, popup-click branch with
+dispatch):**
+    def __init__(self, text_boxes, menu_actions):
+        ...
+        self._menu_actions = menu_actions
+        self.menu_button = MenuButton(
+            UISettings.BANK_PADDING_X,
+            self.rect.y + (self.rect.height - MenuButtonSettings.SIZE) // 2,
+            set(menu_actions),
+        )
+    ...
+        if self.menu_button.is_open:
+            if self.menu_button.popup_rect.collidepoint(event.pos):
+                label = self.menu_button.item_label_at(event.pos)
+                action = self._menu_actions.get(label) if label else None
+                if action is not None:
+                    # Close the popup before running the action so any
+                    # state the action mutates (e.g. close_game tears
+                    # pygame down) sees the popup as already dismissed.
+                    self.menu_button.toggle()
+                    action()
+                return True
+            self.menu_button.toggle()
+**Why:** This is the rest of "Populate the popup with items" + "Clicking
+an item runs its action and closes the popup" from TODO's Now section,
+folded together as the bullet predicted. MenuButton owns hit-rects and
+label color (presentational); ComponentBank owns the action dispatch
+(behavioral); GameManager owns the actual callbacks (mirrors the
+"classes communicate through GameManager" rule in TESTING.md). The
+hit-rects are built once at construction because the popup's geometry is
+fixed; rebuilding them on every click would have been a needless cost.
+`item_label_at` is the single bridge between the two — it answers "which
+label was clicked?" without leaking the rect array. Disabled items
+consume their click but do not close the popup or run anything: a
+misclick on a placeholder shouldn't lose the menu the user just opened.
+Enabled items close the popup *before* running the action so a callback
+that tears state down (close_game in particular) sees a consistent state.
+The old comment in the popup-click branch ("Items run no action yet —
+per-item dispatch will plug in here once at least one action exists") is
+gone because dispatch now exists. ITEM_LABELS remains the single source
+of truth for the item set; the actions dict keys against those labels by
+exact string. ITEM_ENABLED_COLOR is reached through `MenuButtonSettings`
+so a future palette change touches one constant.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** main.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 39-50 (GameManager.__init__: bank built
+with the new `menu_actions` argument)
+**Before:**
+        # Text boxes are pure annotations — no signal, no ports. Built
+        # before the bank so the TEXT template can capture this manager
+        # in its spawn closure. Spawnable from the bank's TEXT template
+        # and from the T keyboard shortcut at the cursor position.
+        self.text_boxes = TextBoxManager()
+        self.bank = ComponentBank(self.text_boxes)
+**After:**
+        # Text boxes are pure annotations — no signal, no ports. Built
+        # before the bank so the TEXT template can capture this manager
+        # in its spawn closure. Spawnable from the bank's TEXT template
+        # and from the T keyboard shortcut at the cursor position.
+        self.text_boxes = TextBoxManager()
+        # Menu actions: only QUIT has a backing path today (close_game),
+        # so it's the only enabled item in the bottom-left popup. The
+        # other four items (NEW PROJECT, LOAD PROJECT, SAVE PROJECT,
+        # SAVE AS COMPONENT) ship disabled until the Save/Load and
+        # Save-as-Component features land in TODO's Later section. The
+        # dict's keys mirror MenuButtonSettings.ITEM_LABELS exactly so
+        # MenuButton can pre-render each label in the right color.
+        self.bank = ComponentBank(
+            self.text_boxes,
+            menu_actions={"QUIT": self.close_game},
+        )
+**Why:** Wires the only available action — close_game — into the bank's
+new menu_actions parameter. QUIT was the obvious first item to enable
+because the underlying behavior already exists (Esc has called
+close_game from day one) and the F11/Esc consolidation Next bullet
+already named "a menu item once the bottom-left popup populates" as the
+intended mouse path for quitting. The other four items stay disabled —
+their backing features (Save / Load project, Save as Component) are in
+TODO's Later section, and pre-creating no-op callbacks would have lit
+them up visually without a behavior to back the affordance. The
+callback is bound directly (`self.close_game`) rather than wrapped in a
+lambda so a future "are you sure?" confirm dialog can be added by
+swapping the bound method for a different method on GameManager
+(matches TODO's Next bullet on Esc-confirms-quit, which the menu QUIT
+will inherit through the same callback).
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+## 2026-05-02 — Popup-body clicks intercepted before wires in main
+
+**File:** main.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 114-136 (GameManager._handle_mouse: early
+popup-body intercept inserted before `wires.handle_event`)
+**Before:**
+    def _handle_mouse(self, event: pygame.event.Event) -> None:
+        """Pass mouse events to the component manager or components directly."""
+        # Hover updates ride along with motion events. Done here (not inside
+        # Component) because every port in the world — workspace and toolbox
+        # template alike — needs to reflect the same cursor, and only
+        # GameManager owns both collections.
+        if event.type == pygame.MOUSEMOTION:
+            self._update_port_hover(event.pos)
+
+        # Wires get the event before bank/components: a click that lands on a
+        # port should start a wire, not drag the underlying component.
+        if self.wires.handle_event(event, self.components):
+            return
+**After:**
+    def _handle_mouse(self, event: pygame.event.Event) -> None:
+        """Pass mouse events to the component manager or components directly."""
+        # Hover updates ride along with motion events. Done here (not inside
+        # Component) because every port in the world — workspace and toolbox
+        # template alike — needs to reflect the same cursor, and only
+        # GameManager owns both collections.
+        if event.type == pygame.MOUSEMOTION:
+            self._update_port_hover(event.pos)
+
+        # When the bottom-left popup menu is open, any mouse-button press
+        # that lands on the popup body belongs to the popup — intercept it
+        # before wires/components can react so a port that happens to sit
+        # under the popup can't start a wire. Mirrors the text-box manager
+        # pattern in `_process_events` (an active UI layer claims its
+        # clicks before anything else). The bank's own handler owns the
+        # left-click semantics (item dispatch lands here next); the
+        # unconditional `return` also swallows right-clicks on the popup
+        # body so the menu reads as opaque to the cursor while open.
+        if (event.type == pygame.MOUSEBUTTONDOWN
+                and self.bank.menu_button.is_open
+                and self.bank.menu_button.popup_rect.collidepoint(event.pos)):
+            self.bank.handle_event(event, self.components)
+            return
+
+        # Wires get the event before bank/components: a click that lands on a
+        # port should start a wire, not drag the underlying component.
+        if self.wires.handle_event(event, self.components):
+            return
+**Why:** Closes the second half of the "Popup intercepts events before
+wires/components" bullet in TODO. The first half (consume popup-body
+clicks inside `ComponentBank.handle_event`) landed earlier today, but
+because `wires.handle_event` runs before `bank.handle_event` in the
+default mouse pipeline, a port that happened to sit under the popup
+body could still start a wire on a click that the popup was supposed
+to swallow. The new early-intercept block runs only when the popup is
+actually open AND the click lands on the popup body, so the normal
+mouse flow is untouched in every other case (no double-call to
+`bank.handle_event`, no change to MENU-button or click-outside
+dismiss). Pattern is intentionally the same shape as the text-box
+manager's pre-emption in `_process_events` so the "active UI layer
+claims its clicks first" rule reads consistently across the two
+subsystems. Today the popup body has no items wired up, so the
+observable change is limited to that wire-blocking case; once
+per-item dispatch lands inside `ComponentBank.handle_event` (the
+remaining "Clicking an item runs its action and closes the popup"
+bullet), the same intercept will deliver those clicks to the bank
+without the wires layer getting a look.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## 2026-05-02 — Popup-body clicks consumed by ComponentBank
 
 **File:** ui.py

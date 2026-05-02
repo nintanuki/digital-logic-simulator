@@ -63,22 +63,29 @@ class MenuButton:
     Lives at the far-left of the toolbox bank as a Windows-style "Start"
     button. Clicking the button toggles `is_open`; while open, the popup
     rect is drawn directly above the button with the file-ops items listed
-    inside. Items render in their disabled (greyed-out) state until click
-    dispatch and the backing actions land in a follow-up step, which is why
-    each item is just a static label here. Click-outside and Esc already
-    dismiss the popup elsewhere — see `ComponentBank.handle_event` and
-    `GameManager._handle_keydown`. `ports = ()` mirrors `TextTemplate` so
-    GameManager's port-hover walker can iterate this object the same way
-    it iterates Component templates without a special case (if it's ever
-    asked to).
+    inside. Each item owns a vertical band (its hit-rect) inside the popup;
+    the bank routes a popup-body click to `item_label_at` to look up which
+    item was clicked and dispatches via the `menu_actions` it was given.
+    Items render in `ITEM_ENABLED_COLOR` when an action is wired up for
+    them and in `ITEM_DISABLED_COLOR` otherwise, so the live affordances
+    are visually distinct from the placeholders without any per-frame
+    state. Click-outside and Esc already dismiss the popup elsewhere — see
+    `ComponentBank.handle_event` and `GameManager._handle_keydown`.
+    `ports = ()` mirrors `TextTemplate` so GameManager's port-hover walker
+    can iterate this object the same way it iterates Component templates
+    without a special case (if it's ever asked to).
     """
 
-    def __init__(self, x, y):
-        """Lay out the button + popup rects and pre-render the static label.
+    def __init__(self, x, y, enabled_labels):
+        """Lay out the button + popup rects, item hit-rects, and label surfaces.
 
         Args:
             x (int): Top-left x in screen coordinates.
             y (int): Top-left y in screen coordinates.
+            enabled_labels (set[str]): Item labels that have a backing
+                action and should render as live (white) affordances.
+                Labels not in the set render greyed out and will be
+                rejected by the bank's dispatch path.
         """
         size = MenuButtonSettings.SIZE
         self.rect = pygame.Rect(x, y, size, size)
@@ -108,15 +115,35 @@ class MenuButton:
             True,
             MenuButtonSettings.LABEL_COLOR,
         )
-        # Pre-render each popup item label in its disabled color. Labels
-        # never change either, so render once and blit per frame; per-item
-        # state (hover, enabled vs. disabled) and click dispatch arrive in
-        # follow-up steps that can swap the surfaces if needed.
+        # Per-item hit-rects, one ITEM_HEIGHT band per label starting at
+        # popup.top, full popup width. Built once at construction (the
+        # popup's geometry is fixed) so dispatch is a cheap rect walk and
+        # not a per-click recompute. Index parity with ITEM_LABELS / the
+        # rendered label surfaces is what lets `item_label_at` answer in
+        # one zip.
+        self._item_rects = [
+            pygame.Rect(
+                self.popup_rect.left,
+                self.popup_rect.top + index * MenuButtonSettings.ITEM_HEIGHT,
+                MenuButtonSettings.POPUP_WIDTH,
+                MenuButtonSettings.ITEM_HEIGHT,
+            )
+            for index in range(len(MenuButtonSettings.ITEM_LABELS))
+        ]
+        # Pre-render each popup item label in either the enabled or the
+        # disabled color depending on whether `enabled_labels` lists it.
+        # Labels never change after construction, so render once and blit
+        # per frame; if the enabled set ever grows mid-session (e.g. SAVE
+        # PROJECT becomes valid only after a project name exists) this
+        # would need a refresh hook, but today the set is fixed by the
+        # actions wired in main.py.
         self._item_label_surfs = [
             Fonts.text_box.render(
                 label,
                 True,
-                MenuButtonSettings.ITEM_DISABLED_COLOR,
+                MenuButtonSettings.ITEM_ENABLED_COLOR
+                if label in enabled_labels
+                else MenuButtonSettings.ITEM_DISABLED_COLOR,
             )
             for label in MenuButtonSettings.ITEM_LABELS
         ]
@@ -130,13 +157,34 @@ class MenuButton:
         """
         self.is_open = not self.is_open
 
+    def item_label_at(self, pos):
+        """Return the item label whose hit-rect contains `pos`, else None.
+
+        Used by `ComponentBank.handle_event` to look up which popup item a
+        click landed on without leaking the rect-array layout to the bank.
+        Caller is expected to gate this on `is_open` and on the popup body
+        rect already containing `pos` — items only exist while the popup
+        is visible.
+
+        Args:
+            pos (tuple[int, int]): Cursor position in screen space.
+
+        Returns:
+            str | None: The matching label from ITEM_LABELS, or None if
+                no item's band contains the position.
+        """
+        for rect, label in zip(self._item_rects, MenuButtonSettings.ITEM_LABELS):
+            if rect.collidepoint(pos):
+                return label
+        return None
+
     def draw(self, surface):
         """Render the button and, if open, the popup with its item labels.
 
         Item labels are blit after the popup body+border so they layer on
-        top of the fill but stay inside the border. All items currently
-        render in their disabled color — click dispatch and per-item state
-        arrive in a follow-up step.
+        top of the fill but stay inside the border. Each label is rendered
+        in either ITEM_ENABLED_COLOR or ITEM_DISABLED_COLOR at construction
+        time, so this loop is purely positional.
 
         Args:
             surface (pygame.Surface): The surface to draw onto.
@@ -163,23 +211,17 @@ class MenuButton:
                 MenuButtonSettings.POPUP_BORDER_THICKNESS,
             )
             # Items are blit after the popup body+border so they layer on
-            # top of the fill but stay inside the border. Each item owns a
-            # vertical band of ITEM_HEIGHT starting at popup.top; the label
-            # is left-padded by ITEM_PADDING_X and vertically centered
-            # inside its band. No hit-test math here — click dispatch lands
-            # in a follow-up step.
-            for index, surf in enumerate(self._item_label_surfs):
-                label_y = (
-                    self.popup_rect.top
-                    + index * MenuButtonSettings.ITEM_HEIGHT
-                    + (MenuButtonSettings.ITEM_HEIGHT - surf.get_height()) // 2
-                )
+            # top of the fill but stay inside the border. Each item is
+            # vertically centered inside its hit-rect band; the label is
+            # left-padded by ITEM_PADDING_X. Anchoring the y to the
+            # pre-built rect (rather than recomputing index*ITEM_HEIGHT)
+            # keeps the visual position and the hit position from drifting
+            # apart if the rect math ever changes.
+            for rect, surf in zip(self._item_rects, self._item_label_surfs):
+                label_y = rect.y + (rect.height - surf.get_height()) // 2
                 surface.blit(
                     surf,
-                    (
-                        self.popup_rect.left + MenuButtonSettings.ITEM_PADDING_X,
-                        label_y,
-                    ),
+                    (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y),
                 )
 
 
@@ -197,7 +239,7 @@ class ComponentBank:
     # Order is the left-to-right order shown in the toolbox.
     TEMPLATE_CLASSES = (Switch, Component, LED)
 
-    def __init__(self, text_boxes):
+    def __init__(self, text_boxes, menu_actions):
         """Build the bank rect and the row of templates with their spawners.
 
         Args:
@@ -205,18 +247,35 @@ class ComponentBank:
                 boxes. Captured by the TEXT template's spawn closure so a
                 click on that template can drop a focused TextBox without
                 routing back through GameManager.
+            menu_actions (dict[str, Callable[[], None]]): Map from popup
+                item label (matching an entry in
+                `MenuButtonSettings.ITEM_LABELS`) to the zero-arg callback
+                that runs when that item is clicked. Items whose label is
+                not a key in this dict render disabled and consume their
+                clicks without doing anything. The MenuButton is told the
+                set of enabled labels at construction so the rendered
+                labels match the live affordances without a per-frame
+                lookup.
         """
         self.rect = UISettings.BANK_RECT
         # Held so _make_textbox_spawner's closure can reach the manager
         # without bank.handle_event needing a wider signature.
         self._text_boxes = text_boxes
+        # Held so handle_event's popup-dispatch path can call the right
+        # zero-arg callback by label. Stored separately from MenuButton
+        # because MenuButton is purely presentational — it owns colors and
+        # rects, not behavior.
+        self._menu_actions = menu_actions
         # Far-left MENU button. Built before _build_templates so the
         # template row can lay itself out flush to the button's right edge
-        # (no overlap, no magic-number reservation). Click handling and the
-        # popup arrive in a follow-up step.
+        # (no overlap, no magic-number reservation). The set of enabled
+        # labels is what drives per-item color in the popup; passing it
+        # here (rather than letting MenuButton import the actions dict)
+        # keeps the button decoupled from the action callables.
         self.menu_button = MenuButton(
             UISettings.BANK_PADDING_X,
             self.rect.y + (self.rect.height - MenuButtonSettings.SIZE) // 2,
+            set(menu_actions),
         )
         # List of (template_drawable, spawn_fn) tuples in display order. Each
         # spawn_fn is a closure that knows how to clone its template onto
@@ -413,17 +472,28 @@ class ComponentBank:
             return True
         # While the popup is open, route the click through the menu before
         # the template loop. A click on the popup body is consumed so it
-        # can't fall through to templates (or to wires/components once
-        # main.py routes menu clicks ahead of those — see the "Popup
-        # intercepts events before wires/components" bullet in TODO).
-        # Items run no action yet — per-item dispatch will plug in here
-        # once at least one action exists. A click that misses the popup
-        # body dismisses it but does NOT consume — a stray miss still
-        # falls through to the template loop / wires / empty space so the
-        # user isn't punished with a second click. Mouse parallel of the
-        # Esc dismiss in `GameManager._handle_keydown`.
+        # can't fall through to templates / wires / components (main.py's
+        # early intercept also funnels the popup-body case here ahead of
+        # `wires.handle_event` — see the "Popup intercepts events before
+        # wires/components" bullet in TODO). When the click lands on an
+        # enabled item, the item's action runs and the popup closes; a
+        # click on a disabled item is consumed but does nothing (no
+        # action, popup stays open) so a misclick on a placeholder item
+        # doesn't lose the popup. A click that misses the popup body
+        # entirely dismisses the popup but does NOT consume — a stray
+        # miss still falls through to the template loop / wires / empty
+        # space so the user isn't punished with a second click. Mouse
+        # parallel of the Esc dismiss in `GameManager._handle_keydown`.
         if self.menu_button.is_open:
             if self.menu_button.popup_rect.collidepoint(event.pos):
+                label = self.menu_button.item_label_at(event.pos)
+                action = self._menu_actions.get(label) if label else None
+                if action is not None:
+                    # Close the popup before running the action so any
+                    # state the action mutates (e.g. close_game tears
+                    # pygame down) sees the popup as already dismissed.
+                    self.menu_button.toggle()
+                    action()
                 return True
             self.menu_button.toggle()
         for tpl, spawn_fn in self._templates_and_spawners:

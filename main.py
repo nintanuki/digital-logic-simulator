@@ -37,7 +37,17 @@ class GameManager:
         # in its spawn closure. Spawnable from the bank's TEXT template
         # and from the T keyboard shortcut at the cursor position.
         self.text_boxes = TextBoxManager()
-        self.bank = ComponentBank(self.text_boxes)
+        # Menu actions: only QUIT has a backing path today (close_game),
+        # so it's the only enabled item in the bottom-left popup. The
+        # other four items (NEW PROJECT, LOAD PROJECT, SAVE PROJECT,
+        # SAVE AS COMPONENT) ship disabled until the Save/Load and
+        # Save-as-Component features land in TODO's Later section. The
+        # dict's keys mirror MenuButtonSettings.ITEM_LABELS exactly so
+        # MenuButton can pre-render each label in the right color.
+        self.bank = ComponentBank(
+            self.text_boxes,
+            menu_actions={"QUIT": self.close_game},
+        )
         self.components = [] # Start with an empty workspace. Components will be added by the user.
         self.wires = WireManager()
         self.signals = SignalManager()
@@ -120,6 +130,21 @@ class GameManager:
         if event.type == pygame.MOUSEMOTION:
             self._update_port_hover(event.pos)
 
+        # When the bottom-left popup menu is open, any mouse-button press
+        # that lands on the popup body belongs to the popup — intercept it
+        # before wires/components can react so a port that happens to sit
+        # under the popup can't start a wire. Mirrors the text-box manager
+        # pattern in `_process_events` (an active UI layer claims its
+        # clicks before anything else). The bank's own handler owns the
+        # left-click semantics (item dispatch lands here next); the
+        # unconditional `return` also swallows right-clicks on the popup
+        # body so the menu reads as opaque to the cursor while open.
+        if (event.type == pygame.MOUSEBUTTONDOWN
+                and self.bank.menu_button.is_open
+                and self.bank.menu_button.popup_rect.collidepoint(event.pos)):
+            self.bank.handle_event(event, self.components)
+            return
+
         # Wires get the event before bank/components: a click that lands on a
         # port should start a wire, not drag the underlying component.
         if self.wires.handle_event(event, self.components):
@@ -194,11 +219,11 @@ class GameManager:
     def _draw_grid(self):
         grid_color = (ColorSettings.WORD_COLORS["WHITE"]) # Subtle light blue
         grid_size = ScreenSettings.GRID_SIZE
-        
+
         # Draw Vertical Lines
         for x in range(0, ScreenSettings.WIDTH, grid_size):
             pygame.draw.line(self.screen, grid_color, (x, 0), (x, ScreenSettings.HEIGHT), 1)
-            
+
         # Draw Horizontal Lines
         for y in range(0, ScreenSettings.HEIGHT, grid_size):
             pygame.draw.line(self.screen, grid_color, (0, y), (ScreenSettings.WIDTH, y), 1)
@@ -221,3 +246,4 @@ class GameManager:
 if __name__ == '__main__':
     game_manager = GameManager()
     game_manager.run()
+

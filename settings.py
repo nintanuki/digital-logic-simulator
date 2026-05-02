@@ -215,9 +215,13 @@ class MenuButtonSettings:
     # text doesn't kiss the popup border.
     ITEM_PADDING_X = 10
     # Greyed-out label color used while the item has no action wired up.
-    # Dimmer than the white MENU label so a future "enabled" item reads
-    # as the active affordance against this disabled baseline.
+    # Dimmer than the white MENU label so an enabled item reads as the
+    # active affordance against this disabled baseline.
     ITEM_DISABLED_COLOR = (140, 140, 140)
+    # Label color used for an item that has an action wired up. Matches
+    # the white MENU button label so the affordance reads as part of the
+    # same control surface.
+    ITEM_ENABLED_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     # Popup container that appears above the button when the menu is open.
     # Width is sized to fit the longest item label ("SAVE AS COMPONENT"
     # measures ~197px in the Pixeled face at FONT_SIZE 12) with the

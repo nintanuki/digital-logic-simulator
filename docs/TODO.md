@@ -45,33 +45,43 @@ bottom-left corner of the bank. Clicking it pops up a vertical menu.
   intercept-before-wires step still owes us the case where the click
   lands on a port that's drawn under the popup body — see the bullet
   below.
-- [ ] **Populate the popup with items.** First items: **New Project**,
-  **Load Project**, **Save Project**, **Save as Component**, **Quit**.
-  Greyed-out / disabled state for items that don't apply yet. Each item
-  hit-tests its own rect and runs its action. *Partial 2026-05-02:*
-  the five labels now render top-to-bottom inside the popup in
-  `ITEM_DISABLED_COLOR` (`MenuButtonSettings.ITEM_LABELS` /
-  `ITEM_HEIGHT` / `ITEM_PADDING_X`); `POPUP_WIDTH` was widened to 220
-  so "SAVE AS COMPONENT" fits and `POPUP_HEIGHT` is now derived from
-  the item count. Per-item hit-rects + dispatch are still owed — those
-  fold into the next bullet.
-- [ ] **Clicking an item runs its action and closes the popup.** Folds in
-  once items exist.
-- [ ] **Popup intercepts events before wires/components.** Treat the
-  popup like the text-box manager so a click on the popup body / an item
-  can't start a wire on a port that happens to sit underneath. Only
-  matters once items exist (today the popup is empty). *Partial
-  2026-05-02:* `ComponentBank.handle_event` now consumes
-  (`return True`) any click that lands on the popup body while the menu
-  is open, so the click can no longer fall through to the template loop.
-  Still owed: route bank popup-body clicks ahead of `wires.handle_event`
-  in `main.py::_handle_mouse` (mirroring how the text-box manager runs
-  before mouse routing in `_process_events`) so a port that happens to
-  sit under the popup can't start a wire.
+- [x] **Populate the popup with items.** *Done 2026-05-02:* the five
+  labels (NEW PROJECT, LOAD PROJECT, SAVE PROJECT, SAVE AS COMPONENT,
+  QUIT) render top-to-bottom in the popup. Each owns a vertical
+  ITEM_HEIGHT band as its hit-rect (`MenuButton._item_rects`); enabled
+  items render in `ITEM_ENABLED_COLOR` (white) and disabled items in
+  `ITEM_DISABLED_COLOR` (grey). Today only QUIT is enabled — the other
+  four wait on Save / Load / Save-as-Component in **Later**.
+- [x] **Clicking an item runs its action and closes the popup.** *Done
+  2026-05-02:* `ComponentBank.handle_event`'s popup-body branch calls
+  `MenuButton.item_label_at(pos)` to identify the clicked item, looks
+  the label up in the `menu_actions` dict GameManager passed in, and on
+  hit closes the popup *before* running the callback (so a callback
+  like `close_game` that tears pygame down sees a consistent state).
+  Disabled items consume the click but neither run nor dismiss — a
+  misclick on a placeholder doesn't lose the menu. QUIT is wired to
+  `GameManager.close_game`, which gives the program its first mouse
+  path to quit (relevant to the F11/Esc consolidation in **Next**).
+- [x] **Popup intercepts events before wires/components.** *Done
+  2026-05-02:* two-step landing. (1) `ComponentBank.handle_event`
+  consumes (`return True`) any click that lands on the popup body while
+  the menu is open, so the click can no longer fall through to the
+  template loop. (2) `GameManager._handle_mouse` now early-intercepts
+  any `MOUSEBUTTONDOWN` on the popup body (when the menu is open) and
+  routes it to `bank.handle_event` before `wires.handle_event` runs,
+  mirroring the text-box manager's pre-emption in `_process_events`.
+  Net effect: a port that happens to sit under the popup body cannot
+  start a wire, and right-clicks on the popup body no longer fall
+  through to wire/component delete. The early intercept only fires when
+  the popup is actually open AND the click lands on the popup body, so
+  every other mouse flow (MENU-button clicks, click-outside dismiss,
+  template clicks, wires, component drags) is unchanged.
 - [ ] **Manual test.** Open the menu, click each item, confirm the popup
   closes and the action runs. Click outside — popup closes, no spurious
-  wire/component side effects. *(The click-outside path can already be
-  manually exercised; the click-each-item path can't until items exist.)*
+  wire/component side effects. *(Now exercisable for QUIT (game quits)
+  and the four disabled placeholders (click consumed, popup stays open,
+  no side effect). The other four items become testable as their backing
+  actions land in **Later**.)*
 
 ---
 
