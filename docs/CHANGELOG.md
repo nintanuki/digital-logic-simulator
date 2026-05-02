@@ -1,6 +1,6 @@
 # Change Log
 
-This file is an append-only record of every code change made to Dungeon Digger
+This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
