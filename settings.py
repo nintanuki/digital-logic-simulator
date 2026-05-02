@@ -127,5 +127,41 @@ class LedSettings:
     BORDER_THICKNESS = 2
 
 
+class TextBoxSettings:
+    """Visual + interaction constants for free-floating annotation text boxes.
+
+    Text boxes are draggable, editable labels students drop on the workspace
+    to annotate their circuits. They carry no signal and never appear on the
+    toolbox bank — they're spawned via keyboard shortcut at the cursor.
+    """
+    # Default body size for a freshly spawned text box. Width is fixed; the
+    # box grows downward as wrapped text needs more lines, never below
+    # MIN_HEIGHT so an empty box is still visibly grabbable.
+    WIDTH = 180
+    MIN_HEIGHT = 32
+    # Inner padding between the body edge and the rendered text, in pixels.
+    PADDING = 6
+    # Body fill, border, and text colors. Body uses an alpha-less near-black
+    # that reads against both the JELLYBEAN background and the toolbox bank.
+    BODY_COLOR = (40, 40, 40)
+    BORDER_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+    BORDER_THICKNESS = 1
+    # Border switches to white while the box is focused so the user can see
+    # which box is receiving keystrokes.
+    BORDER_FOCUSED_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    PLACEHOLDER_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+    PLACEHOLDER_TEXT = "Type here..."
+    # Font face is reused across the project; size is its own knob so labels
+    # don't have to match component-label sizing.
+    FONT = AssetPaths.FONT
+    FONT_SIZE = 12
+    # Caret blink period (in milliseconds) and width. Caret is hidden during
+    # the second half of each period so the eye sees it pulse.
+    CARET_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    CARET_WIDTH = 2
+    CARET_BLINK_MS = 1000
+
+
 class AudioSettings:
     pass

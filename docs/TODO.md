@@ -55,11 +55,41 @@ hover labels and wiring reuse.
 
 ---
 
+## Done — Text boxes (2026-05-02)
+
+Free-floating annotation labels students can drop on the workspace to
+explain their circuits. No signal, no port, never on the toolbox bank.
+
+- [x] New `TextBox` class in `text_boxes.py`. Owns a rect, the editable
+  string, focus + drag state, and a cached wrap. Width is fixed
+  (`TextBoxSettings.WIDTH`); height grows downward as the wrap needs
+  more lines, never below `MIN_HEIGHT`. Caret blinks at the end of the
+  text while focused.
+- [x] `TextBoxManager` (separate class — focus + multi-box stack grew
+  enough state to deserve one). GameManager owns it as `self.text_boxes`.
+- [x] Spawn shortcut: press **T** to drop a text box at the cursor and
+  immediately focus it. Mirrors the existing **N** = NAND pattern.
+- [x] Manager intercepts events before wires/bank/components: KEYDOWN
+  while a box is focused goes to the box (so typing 'n' doesn't spawn a
+  NAND), left-click on a box focuses + starts drag, click on empty space
+  blurs (without consuming, so wires still work), Esc unfocuses,
+  right-click on a box deletes.
+- [x] Word-wrap honors explicit `\n` line breaks first, then greedy-wraps
+  paragraphs word by word, then force-breaks single words wider than the
+  inner width so nothing overflows.
+- [x] Drag is clamped to the workspace (above the toolbox bank) the same
+  way `Component._clamp_to_workspace` does it, including a re-clamp after
+  a keystroke grows the box.
+- [X] Manual test: press T, type a multi-line label, drag it around, and
+  drop a NAND on top to confirm wires under it still work when the label
+  is moved aside. *(needs a human at a keyboard)*
+
+---
+
 ## Later
 
 Bigger features, in roughly the order they unlock student workflows.
 
-- [ ] **Text boxes:** draggable, editable labels students can drop on the workspace to annotate their circuits.
 - [ ] **Save / load a project:** JSON file containing components (type, position), ports, wires, and text boxes. Pick a schema version field early so future formats can migrate.
 - [ ] **Main menu:** "New Project" / "Load Project" before the workspace opens.
 - [ ] **Save as Component:** package the current workspace as a reusable named component that drops into the toolbox as a new template ("black box" abstraction). This is the keystone feature of the project — the moment students can build NOT/AND/OR from NAND and reuse them.

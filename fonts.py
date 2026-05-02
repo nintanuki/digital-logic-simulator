@@ -1,6 +1,6 @@
 import pygame
 
-from settings import ComponentSettings
+from settings import ComponentSettings, TextBoxSettings
 
 
 class Fonts:
@@ -18,6 +18,7 @@ class Fonts:
     # rather than silently using a default font.
     component_label = None
     port_label = None
+    text_box = None
 
     @classmethod
     def init(cls):
@@ -34,4 +35,8 @@ class Fonts:
         cls.port_label = pygame.font.Font(
             ComponentSettings.FONT,
             ComponentSettings.PORT_LABEL_FONT_SIZE,
+        )
+        cls.text_box = pygame.font.Font(
+            TextBoxSettings.FONT,
+            TextBoxSettings.FONT_SIZE,
         )

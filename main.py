@@ -6,6 +6,7 @@ from elements import Component
 from fonts import Fonts
 from settings import *
 from signals import SignalManager
+from text_boxes import TextBoxManager
 from ui import ComponentBank
 from crt import CRT
 from wires import WireManager
@@ -35,6 +36,9 @@ class GameManager:
         self.components = [] # Start with an empty workspace. Components will be added by the user.
         self.wires = WireManager()
         self.signals = SignalManager()
+        # Text boxes are pure annotations — no signal, never on the bank.
+        # Spawned via the T keyboard shortcut at the cursor position.
+        self.text_boxes = TextBoxManager()
 
     # -------------------------
     # BOOT / LIFECYCLE
@@ -60,9 +64,19 @@ class GameManager:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.close_game()
-            
+                continue
+
+            # Text boxes get every event first: keystrokes while a box is
+            # focused belong to the box (so typing 'n' types 'n' instead of
+            # spawning a NAND), and clicks on a text box should edit it
+            # rather than starting a wire on a port that happens to sit
+            # underneath. The manager only consumes events it actually
+            # uses, so empty-space clicks fall through to wires/components.
+            if self.text_boxes.handle_event(event):
+                continue
+
             # Route logic to specialized handlers
-            elif event.type == pygame.KEYDOWN:
+            if event.type == pygame.KEYDOWN:
                 self._handle_keydown(event)
             elif event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
                 self._handle_mouse(event)
@@ -77,6 +91,12 @@ class GameManager:
         # Centralized place to spawn components
         if event.key == pygame.K_n:
             self.components.append(Component(50, 50))
+        # T spawns an annotation text box at the current cursor position
+        # and immediately focuses it so the user can start typing. Only
+        # reachable when no text box is already focused (the manager
+        # consumes KEYDOWNs in that case so the 't' types instead).
+        if event.key == pygame.K_t:
+            self.text_boxes.spawn_at(pygame.mouse.get_pos())
 
     def _handle_mouse(self, event: pygame.event.Event) -> None:
         """Pass mouse events to the component manager or components directly."""
@@ -149,6 +169,12 @@ class GameManager:
         # wire routed through the toolbox area is hidden by the dark bank
         # rectangle drawn next.
         self.wires.draw(self.screen)
+        # Annotation text boxes draw on top of components and wires so
+        # labels stay legible even if a wire happens to pass underneath.
+        # Still below the bank — text boxes are clamped out of the bank
+        # area anyway, but drawing under it costs nothing and keeps the
+        # toolbox visually authoritative.
+        self.text_boxes.draw(self.screen)
         # Draw the bank last so it stays on top of everything
         self.bank.draw(self.screen)
 

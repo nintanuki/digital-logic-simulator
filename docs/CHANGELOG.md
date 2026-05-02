@@ -718,3 +718,169 @@ Backwards compatible with both `Component(x, y)` and
 **Why:** CRT inherits from object implicitly, so super().__init__() is a
 no-op. Polish item from the TODO. Removed.
 **Editor:** Claude (Opus)
+## 2026-05-02 — Annotation text boxes (TextBox + TextBoxManager)
+
+**File:** settings.py
+**Lines (at time of edit):** 130-163 (new TextBoxSettings class appended above AudioSettings)
+**After:**
+    class TextBoxSettings:
+        WIDTH = 180
+        MIN_HEIGHT = 32
+        PADDING = 6
+        BODY_COLOR = (40, 40, 40)
+        BORDER_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+        BORDER_THICKNESS = 1
+        BORDER_FOCUSED_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+        TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+        PLACEHOLDER_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+        PLACEHOLDER_TEXT = "Type here..."
+        FONT = AssetPaths.FONT
+        FONT_SIZE = 12
+        CARET_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+        CARET_WIDTH = 2
+        CARET_BLINK_MS = 1000
+**Why:** All visual + interaction constants for the new annotation text box
+component, kept out of code per the no-magic-numbers rule. WIDTH is fixed
+because the box wraps text and grows downward; MIN_HEIGHT keeps an empty
+box visibly grabbable. BORDER_FOCUSED_COLOR (white vs. resting gray) gives
+the user obvious feedback about which box is receiving keystrokes. CARET
+constants drive the half-period blink in TextBox._caret_visible.
+**Editor:** Claude (Opus 4.7)
+
+**File:** fonts.py
+**Lines (at time of edit):** 3 (import), 21 (class attr), 39-42 (init body)
+**Before:**
+    from settings import ComponentSettings
+    ...
+    component_label = None
+    port_label = None
+    ...
+        cls.port_label = pygame.font.Font(
+            ComponentSettings.FONT,
+            ComponentSettings.PORT_LABEL_FONT_SIZE,
+        )
+**After:**
+    from settings import ComponentSettings, TextBoxSettings
+    ...
+    component_label = None
+    port_label = None
+    text_box = None
+    ...
+        cls.text_box = pygame.font.Font(
+            TextBoxSettings.FONT,
+            TextBoxSettings.FONT_SIZE,
+        )
+**Why:** Same one-load-shared-everywhere pattern already used for
+component_label and port_label. Every TextBox renders many lines per
+frame; loading one Font shared across the whole game means we don't pay
+the .ttf parse cost per box.
+**Editor:** Claude (Opus 4.7)
+
+**File:** text_boxes.py
+**Lines (at time of edit):** (new file, ~475 lines)
+**After:**
+    class TextBox:
+        # Owns: rect (draggable), text (editable string), focused, dragging,
+        # offset_x/y, _focus_tick (for caret blink), _lines (cached wrap).
+        # API for the manager: focus / blur / start_drag / end_drag /
+        # handle_motion / handle_key / hit / draw.
+        # _wrap_lines: greedy word-wrap into WIDTH - 2*PADDING, force-breaks
+        # words wider than the inner width so nothing overflows.
+        # _resize_to_lines: rect.height = max(MIN_HEIGHT, lines * lineh + 2*pad).
+        # _clamp_to_workspace: same recipe as Component (above the bank).
+
+    class TextBoxManager:
+        # Owns: text_boxes list (oldest first / newest on top), focused box.
+        # spawn_at(pos): create + clamp + focus.
+        # handle_event(event):
+        #   KEYDOWN  -> forward to focused (Esc unfocuses); consume if focused.
+        #   MOTION   -> forward to dragging box; never consume (port hover
+        #              and wire ghost both depend on seeing every motion).
+        #   LEFT_DOWN-> focus + start drag on topmost hit; consume on hit,
+        #              else blur and let the click fall through.
+        #   RIGHT_DOWN -> delete topmost hit; blur if it was focused.
+        #   LEFT_UP  -> end drag on every box; never consume.
+        # Topmost-first iteration so a box drawn on top wins clicks.
+**Why:** Implements the "Text boxes" item from TODO.md "Later". TextBox is
+its own class with its own rect/text/focus/drag state, kept off Component
+because it has no ports, no signal, no toolbox template, and its event
+model (focus + keystroke editing + click-to-blur-on-empty-space) doesn't
+match Component's. TextBoxManager owns the collection plus focus routing
+so GameManager stays light per the architectural rules. Routing every
+event through the manager first lets it intercept keys when a box is
+focused (so typing 'n' in a label doesn't spawn a NAND) and intercept
+clicks that land on a box (so a label sitting over a port edits the
+label rather than starting a wire underneath). MOUSEMOTION never gets
+consumed because the wire ghost cursor and the port hover loop both
+depend on seeing every motion event, regardless of whether a text box
+is mid-drag.
+**Editor:** Claude (Opus 4.7)
+
+**File:** main.py
+**Lines (at time of edit):** 9 (import), 41 (own self.text_boxes),
+63-82 (_process_events routes events through text_boxes first),
+98-99 (K_t spawn shortcut in _handle_keydown),
+172-177 (text_boxes.draw above wires, below bank in _draw)
+**Before:**
+    from signals import SignalManager
+    from ui import ComponentBank
+    ...
+    self.signals = SignalManager()
+    ...
+    def _process_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.close_game()
+            elif event.type == pygame.KEYDOWN:
+                self._handle_keydown(event)
+            elif event.type in (...mouse...):
+                self._handle_mouse(event)
+    ...
+    def _handle_keydown(self, event):
+        ...
+        if event.key == pygame.K_n:
+            self.components.append(Component(50, 50))
+    ...
+    def _draw(self):
+        ...
+        self.wires.draw(self.screen)
+        self.bank.draw(self.screen)
+**After:**
+    from signals import SignalManager
+    from text_boxes import TextBoxManager
+    from ui import ComponentBank
+    ...
+    self.signals = SignalManager()
+    self.text_boxes = TextBoxManager()
+    ...
+    def _process_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.close_game(); continue
+            if self.text_boxes.handle_event(event):
+                continue   # box absorbed it (focused KEYDOWN, click on a box)
+            if event.type == pygame.KEYDOWN:
+                self._handle_keydown(event)
+            elif event.type in (...mouse...):
+                self._handle_mouse(event)
+    ...
+    def _handle_keydown(self, event):
+        ...
+        if event.key == pygame.K_t:
+            self.text_boxes.spawn_at(pygame.mouse.get_pos())
+    ...
+    def _draw(self):
+        ...
+        self.wires.draw(self.screen)
+        self.text_boxes.draw(self.screen)   # above wires, below bank
+        self.bank.draw(self.screen)
+**Why:** Hooks the new manager into the game loop. Routing every event
+through text_boxes.handle_event first is what keeps focused-box typing
+from leaking into the keyboard shortcuts (and what stops a click on a
+box from starting a wire on a port underneath). The K_t shortcut mirrors
+the existing K_n NAND-spawn pattern so the muscle memory carries over.
+Drawing above wires/components ensures labels stay legible even if a
+wire passes under them; drawing below the bank costs nothing since
+text boxes are clamped out of the bank area but keeps the toolbox
+visually authoritative.
+**Editor:** Claude (Opus 4.7)
