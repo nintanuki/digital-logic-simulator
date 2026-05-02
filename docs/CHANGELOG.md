@@ -133,3 +133,26 @@ template below, with one `**File:** ... **Why:** ...` block per file touched.
                 # body, border, and label drawn after, unchanged
 **Why:** Ports were previously three hardcoded circles inside `Component.draw` with no identity, name, direction, or hit rect. The next four roadmap items (port highlighting, hover labels, wiring, live state) all need ports to be real objects, so this extracts them into a `Port` class with relative offsets, name, direction, a screen-space `center`, and a hit `rect`. Visual output is preserved pixel-for-pixel: ports are drawn before the body so their inner halves are still covered by the rectangle, and offsets resolve to the same coordinates as the original literals (rect.left/top+15, rect.left/bottom-15, rect.right/centery). No public API changed: `Component(x, y, name=...)`, `comp.draw(surface)`, and `comp.handle_event(event)` are all the same.
 **Editor:** Claude (Opus)
+
+## 2026-05-01 — Fix right-click delete deleting the wrong component
+
+**File:** elements.py
+**Lines (at time of edit):** 148-155 (Component.handle_event)
+**Before:**
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == InputSettings.LEFT_CLICK and self.rect.collidepoint(event.pos):
+                self.dragging = True
+                self.offset_x = self.rect.x - event.pos[0]
+                self.offset_y = self.rect.y - event.pos[1]
+            elif event.button == InputSettings.RIGHT_CLICK:
+                    return "DELETE"
+**After:**
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == InputSettings.LEFT_CLICK and self.rect.collidepoint(event.pos):
+                self.dragging = True
+                self.offset_x = self.rect.x - event.pos[0]
+                self.offset_y = self.rect.y - event.pos[1]
+            elif event.button == InputSettings.RIGHT_CLICK and self.rect.collidepoint(event.pos):
+                return "DELETE"
+**Why:** The right-click branch was missing the `collidepoint(event.pos)` hit-test that the left-click branch already had, so every Component returned "DELETE" on every right-click. main.py iterates components in reverse and breaks on the first delete, which meant the most recently placed component was always the one deleted, regardless of cursor position. Reported by user. Also fixed the spurious extra indentation on the `return "DELETE"` line that was a hint the logic was incomplete.
+**Editor:** Claude (Opus)

@@ -151,8 +151,8 @@ class Component:
                 # Capture where on the gate we clicked so it doesn't "snap" to top-left of the image
                 self.offset_x = self.rect.x - event.pos[0]
                 self.offset_y = self.rect.y - event.pos[1]
-            elif event.button == InputSettings.RIGHT_CLICK:
-                    return "DELETE"
+            elif event.button == InputSettings.RIGHT_CLICK and self.rect.collidepoint(event.pos):
+                return "DELETE"
         elif event.type == pygame.MOUSEBUTTONUP:
             if event.button == InputSettings.LEFT_CLICK: self.dragging = False
         elif event.type == pygame.MOUSEMOTION:
