@@ -17,8 +17,8 @@ class ColorSettings:
     }
 
 class ScreenSettings:
-    WIDTH = 800
-    HEIGHT = 600
+    WIDTH = 1280
+    HEIGHT = 720
     RESOLUTION = (WIDTH, HEIGHT)
     BG_COLOR = ColorSettings.WORD_COLORS["JELLYBEAN"]
     FPS = 60
