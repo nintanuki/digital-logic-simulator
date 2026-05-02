@@ -1,0 +1,10 @@
+- [ ] Add port highlighting
+- [ ] Add port text on hover (INPUT A, INPUT B, OUT, etc)
+- [ ] Ports should be connectable with wires
+- [ ] Add logic for when ports are "live"
+- [ ] Allow text boxes that can be dragged, dropped and edited.
+- [ ] Allow ports to connect
+- [ ] Allow student to save a project
+- [ ] Add menu that allows the student to start a new project or load a new one
+- [ ] Shrink and simplify components on toolbox for a cleaner more compact UI
+- [ ] Add Menu button to toolbox for saving components and creating new workspace to make a new component
