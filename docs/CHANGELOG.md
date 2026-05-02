@@ -985,3 +985,38 @@ table is explicitly labeled "power user" and exists alongside, not
 instead of, the mouse path. Quit row notes the "only when no text box is
 focused" caveat that's already in the implementation.
 **Editor:** Claude (Opus 4.7)
+
+## 2026-05-02 — Force uppercase in text boxes
+
+**File:** text_boxes.py
+**Lines (at time of edit):** 92-113 (TextBox.handle_key)
+**Before:**
+        elif event.unicode and event.unicode.isprintable():
+            self.text += event.unicode
+**After:**
+        elif event.unicode and event.unicode.isprintable():
+            # str.upper() is a no-op for digits, punctuation, and already-
+            # uppercase letters, so this is safe to call unconditionally.
+            self.text += event.unicode.upper()
+**Why:** Text boxes were the only editable surface in the workspace that
+accepted lowercase input. Every other label (component names, port labels,
+IN/OUT) is uppercase, so a hand-typed annotation looked visually out of
+place against the rest of the circuit. Uppercasing at the keystroke
+boundary keeps `self.text` canonical so the wrap, render, and any future
+serializer all see the same value — no need to re-case at draw time. Tracked
+the load-from-save half of the same rule under the Save/Load bullet in
+TODO.md "Later" since there's no loader to hook into yet. Docstring updated
+to reflect the new behavior; the inline comment explains *why* the call
+is unconditional rather than restating *what* `.upper()` does.
+**Editor:** Claude (Opus 4.7)
+
+**File:** docs/TODO.md
+**Lines (at time of edit):** ~50-65 (removed Now section), ~88-103 (new
+Done — Force uppercase block), ~165-175 (Save/Load bullet extended),
+~315 (Known Issues row removed)
+**Why:** Mirrors the file change — promotes the completed work into the
+Done log, parks the load-from-save half of the decision inside the
+Save/Load Later bullet so it isn't lost when that work begins, and drops
+the now-resolved "Text boxes accept lowercase input" entry from Known
+Issues.
+**Editor:** Claude (Opus 4.7)

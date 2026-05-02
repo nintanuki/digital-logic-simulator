@@ -93,7 +93,9 @@ class TextBox:
         """Apply a keystroke to the focused text box.
 
         Backspace removes the last character; Return inserts a newline; any
-        other key with a printable unicode value is appended. Caret stays
+        other key with a printable unicode value is uppercased and appended
+        (text boxes are uppercase to match every other label in the
+        workspace — component names, port labels, IN/OUT). Caret stays
         implicitly at the end of the text — there is no cursor navigation
         in v1, which keeps the editing model dead simple for students.
 
@@ -106,7 +108,9 @@ class TextBox:
         elif event.key == pygame.K_RETURN:
             self.text += "\n"
         elif event.unicode and event.unicode.isprintable():
-            self.text += event.unicode
+            # str.upper() is a no-op for digits, punctuation, and already-
+            # uppercase letters, so this is safe to call unconditionally.
+            self.text += event.unicode.upper()
         else:
             # Non-printable, non-edit key (arrows, F-keys, modifiers) —
             # ignore so the user doesn't see junk characters appear.

@@ -47,23 +47,6 @@ alongside Switch / NAND / LED.
 
 ---
 
-## Now — Force uppercase in text boxes
-
-Quick win for visual consistency with the rest of the workspace (component
-labels, port names, IN/OUT — everything else is uppercase).
-
-- [ ] In `text_boxes.py::TextBox.handle_key`, uppercase `event.unicode`
-  before appending. `str.upper()` on a single character is safe for ASCII
-  and a no-op for symbols.
-- [ ] Decision: do we also force uppercase on existing text loaded from a
-  save file? Yes — the rule is "text boxes are uppercase," not "new
-  characters are uppercase." Apply `.upper()` once when the box is
-  populated from a save.
-- [X] Manual test: pressing 'a' shows 'A'. Pressing Shift+'a' also shows
-  'A' (no double-shift glitch). Numbers and symbols pass through unchanged.
-
----
-
 ## Next — Bottom-left popup menu (file ops)
 
 Once Save / Load / New Component / Save-as-Component arrive, the toolbar
@@ -85,6 +68,22 @@ bottom-left corner of the bank. Clicking it pops up a vertical menu.
 - [X] Manual test: open the menu, click each item, confirm the popup
   closes and the action runs. Click outside — popup closes, no spurious
   wire/component side effects.
+
+---
+
+## Done — Force uppercase in text boxes (2026-05-02)
+
+- [x] In `text_boxes.py::TextBox.handle_key`, uppercase `event.unicode`
+  before appending. `str.upper()` on a single character is safe for ASCII
+  and a no-op for symbols.
+- [X] Manual test: pressing 'a' shows 'A'. Pressing Shift+'a' also shows
+  'A' (no double-shift glitch). Numbers and symbols pass through unchanged.
+  *(needs a human at a keyboard)*
+
+The "uppercase existing text loaded from a save" half of this decision is
+now parked under the Save/Load bullet in **Later** — there is no loader to
+hook into yet, but the rule ("text boxes are uppercase," not "new
+characters are uppercase") is recorded so it isn't lost.
 
 ---
 
@@ -175,7 +174,10 @@ Bigger features, in roughly the order they unlock student workflows.
   **Important:** when Save-as-Component lands, embed sub-circuit
   definitions inside the project save, don't reference them by name —
   otherwise sharing a project file breaks the moment the recipient is
-  missing one of the saved components.
+  missing one of the saved components. **Also:** apply `.upper()` once to
+  every text-box string when loading, so an old save file with lowercase
+  characters comes back conformant to the uppercase rule (the rule is
+  "text boxes are uppercase," not "new characters are uppercase").
 - [ ] **Project main menu (program startup).** Before the workspace opens,
   show a menu screen with: **New Project**, **Load Project**, **Options**,
   **Quit**. Replaces the current "drop straight into the workspace"
@@ -310,7 +312,6 @@ the manual checklist in `docs/TESTING.md`.
 - [x] ~~**Components can be dragged behind the toolbox.**~~ Fixed 2026-05-01. `Component._clamp_to_workspace` clamps `rect.x`/`rect.y` after every drag-driven assignment so a component cannot enter the toolbox bank or leave the screen. Reported by user 2026-05-01.
 - [ ] **Wires only go in a straight line, can't be bent or curved.** Right now if a user wants to connect two components and there is another component between them, or they want to create a loop, this results in ugly straight lines everywhere. Perhaps allow them to create the wire in "segments" — see Brainstorming entry above for a sketch.
 - [ ] **Port highlighting is active inside the toolbox.** When hovering over the ports of a component in the toolbox, port highlighting works as if it was in the workspace. Low priority.
-- [ ] **Text boxes accept lowercase input.** Should force uppercase to match the rest of the workspace. Tracked under "Now — Force uppercase in text boxes" above.
 - [ ] **Text boxes are mouse-inaccessible.** Only the **T** hotkey spawns one; mouse-only users can't make a text box. Tracked under "Now — Toolbar TEXT button" above.
 
 ## More Ideas / Issues (Organize and Categorize this later, this is just a brain dump):
