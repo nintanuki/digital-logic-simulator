@@ -52,6 +52,9 @@ class ComponentSettings:
     BORDER_THICKNESS = 2
     PORT_COLOR = ColorSettings.WORD_COLORS["BLACK"]
     PORT_RADIUS = 10
+    # Vertical inset of the two input ports from the component's top and bottom
+    # edges, in pixels. Used by Component when laying out its default ports.
+    INPUT_PORT_INSET = 15
 
     # Font settings for component labels
     FONT = AssetPaths.FONT

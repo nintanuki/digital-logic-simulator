@@ -59,3 +59,77 @@ template below, with one `**File:** ... **Why:** ...` block per file touched.
     Requirements, Project Layout, Contributing...]
 **Why:** Original draft read like a private note: typos (intead, abstacted, toobox, too), no install/run steps, no controls reference, no project layout, no link to the roadmap. New version is structured for someone discovering the repo cold, fixes the typos, and points contributors at TESTING.md.
 **Editor:** Claude (Opus)
+
+## 2026-05-01 — Extract Port class from Component
+
+**File:** settings.py
+**Lines (at time of edit):** 49-54 (modified, ComponentSettings)
+**Before:**
+        class ComponentSettings:
+            COLOR = ColorSettings.WORD_COLORS["MEDIUM_CARMINE"]
+            BORDER_COLOR = ColorSettings.WORD_COLORS["GUARDSMEN_RED"]
+            BORDER_THICKNESS = 2
+            PORT_COLOR = ColorSettings.WORD_COLORS["BLACK"]
+            PORT_RADIUS = 10
+**After:**
+        class ComponentSettings:
+            COLOR = ColorSettings.WORD_COLORS["MEDIUM_CARMINE"]
+            BORDER_COLOR = ColorSettings.WORD_COLORS["GUARDSMEN_RED"]
+            BORDER_THICKNESS = 2
+            PORT_COLOR = ColorSettings.WORD_COLORS["BLACK"]
+            PORT_RADIUS = 10
+            # Vertical inset of the two input ports from the component's top and
+            # bottom edges, in pixels. Used by Component when laying out its
+            # default ports.
+            INPUT_PORT_INSET = 15
+**Why:** The literal 15 was a magic number used twice in elements.py to position the input ports. Moved to settings.py per the no-magic-numbers rule so the Port refactor stays clean.
+**Editor:** Claude (Opus)
+
+**File:** elements.py
+**Lines (at time of edit):** 1-63 (replaced; file grew to ~155 lines)
+**Before:**
+        class Component:
+            def __init__(self, x, y, width=100, height=60, name="NAND"):
+                self.rect = pygame.Rect(x, y, width, height)
+                ...
+
+            def draw(self, surface):
+                # Draw the Port (Circles)
+                port_color = ComponentSettings.PORT_COLOR
+                radius = ComponentSettings.PORT_RADIUS
+                pygame.draw.circle(surface, port_color, (self.rect.left, self.rect.top + 15), radius)
+                pygame.draw.circle(surface, port_color, (self.rect.left, self.rect.bottom - 15), radius)
+                pygame.draw.circle(surface, port_color, (self.rect.right, self.rect.centery), radius)
+                pygame.draw.rect(surface, self.color, self.rect)
+                ...
+**After:**
+        class Port:
+            INPUT  = "INPUT"
+            OUTPUT = "OUTPUT"
+
+            def __init__(self, parent, offset_x, offset_y, name, direction): ...
+            @property
+            def center(self): ...   # (parent.rect.x + offset_x, parent.rect.y + offset_y)
+            @property
+            def rect(self):   ...   # square hit-rect of side 2 * PORT_RADIUS
+            def draw(self, surface): ...
+
+        class Component:
+            def __init__(self, ...):
+                ...
+                self.ports = self._build_ports()
+
+            def _build_ports(self):
+                inset = ComponentSettings.INPUT_PORT_INSET
+                return [
+                    Port(self, 0,               inset,                    "A",   Port.INPUT),
+                    Port(self, 0,               self.rect.height - inset, "B",   Port.INPUT),
+                    Port(self, self.rect.width, self.rect.height // 2,    "OUT", Port.OUTPUT),
+                ]
+
+            def draw(self, surface):
+                for port in self.ports:
+                    port.draw(surface)
+                # body, border, and label drawn after, unchanged
+**Why:** Ports were previously three hardcoded circles inside `Component.draw` with no identity, name, direction, or hit rect. The next four roadmap items (port highlighting, hover labels, wiring, live state) all need ports to be real objects, so this extracts them into a `Port` class with relative offsets, name, direction, a screen-space `center`, and a hit `rect`. Visual output is preserved pixel-for-pixel: ports are drawn before the body so their inner halves are still covered by the rectangle, and offsets resolve to the same coordinates as the original literals (rect.left/top+15, rect.left/bottom-15, rect.right/centery). No public API changed: `Component(x, y, name=...)`, `comp.draw(surface)`, and `comp.handle_event(event)` are all the same.
+**Editor:** Claude (Opus)
