@@ -13,7 +13,10 @@ class Component:
 
         # Initialize font for names
         pygame.font.init()
-        self.font = pygame.font.SysFont("Arial", ComponentSettings.FONT_SIZE, bold=ComponentSettings.BOLD)
+        self.font = pygame.font.Font(
+            ComponentSettings.FONT,
+            ComponentSettings.FONT_SIZE,
+            )
 
     def draw(self, surface):
         # Draw the Port (Circles)

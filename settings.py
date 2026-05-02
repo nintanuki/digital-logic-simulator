@@ -42,6 +42,10 @@ class UISettings:
     # The area at the bottom of the screen
     BANK_RECT = pygame.Rect(0, ScreenSettings.HEIGHT - BANK_HEIGHT, ScreenSettings.WIDTH, BANK_HEIGHT)
 
+class AssetPaths:
+    FONT = "assets/font/Pixeled.ttf"
+    TV = "assets/graphics/tv.png"
+
 class ComponentSettings:
     COLOR = ColorSettings.WORD_COLORS["MEDIUM_CARMINE"]
     BORDER_COLOR = ColorSettings.WORD_COLORS["GUARDSMEN_RED"]
@@ -50,12 +54,9 @@ class ComponentSettings:
     PORT_RADIUS = 10
 
     # Font settings for component labels
-    FONT = "Arial"
+    FONT = AssetPaths.FONT
     FONT_SIZE = 16
     BOLD = True
 
 class AudioSettings:
     pass
-
-class AssetPaths:
-    TV = "assets/graphics/tv.png"
