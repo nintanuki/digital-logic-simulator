@@ -3,14 +3,21 @@ from __future__ import annotations
 import pygame
 import sys
 from elements import Component
+from fonts import Fonts
 from settings import *
 from ui import ComponentBank
 from crt import CRT
+from wires import WireManager
+
 
 class GameManager:
     def __init__(self):
         # -------- Pygame core --------
         pygame.init()
+        # Load every shared Font once, before any object that calls .render().
+        # ComponentBank instantiates a template Component below, so this must
+        # come before the bank is built.
+        Fonts.init()
 
         # -------- Display --------
         self.screen = pygame.display.set_mode(ScreenSettings.RESOLUTION)
@@ -25,6 +32,7 @@ class GameManager:
         # -------- Sprite groups --------
         self.bank = ComponentBank()
         self.components = [] # Start with an empty workspace. Components will be added by the user.
+        self.wires = WireManager()
 
     # -------------------------
     # BOOT / LIFECYCLE
@@ -70,22 +78,53 @@ class GameManager:
 
     def _handle_mouse(self, event: pygame.event.Event) -> None:
         """Pass mouse events to the component manager or components directly."""
+        # Hover updates ride along with motion events. Done here (not inside
+        # Component) because every port in the world — workspace and toolbox
+        # template alike — needs to reflect the same cursor, and only
+        # GameManager owns both collections.
+        if event.type == pygame.MOUSEMOTION:
+            self._update_port_hover(event.pos)
+
+        # Wires get the event before bank/components: a click that lands on a
+        # port should start a wire, not drag the underlying component.
+        if self.wires.handle_event(event, self.components):
+            return
+
         # Try the bank first since it has priority for clicks in its area. If it returns True,
         # it handled the event and we can skip the rest.
         # Returns True if a new game was spawned
         if self.bank.handle_event(event, self.components):
             return # If the bank handled it, we're done.
-        
+
         # Check components (backwards for proper layering/removal)
         for i in range(len(self.components) - 1, -1, -1):
             comp = self.components[i]
-            
+
             # Catch the return value from the component
             action = comp.handle_event(event)
-            
+
             if action == "DELETE":
+                # Drop any wires touching this component before it disappears,
+                # otherwise wires would dangle on a freed Port reference.
+                self.wires.drop_wires_for_component(comp)
                 self.components.pop(i) # This is the "What then?"—we remove it!
                 break # Stop checking others so one click only deletes one gate
+
+    def _update_port_hover(self, mouse_pos) -> None:
+        """Refresh the hovered flag on every port given the current cursor.
+
+        Walks all workspace components plus the toolbox template so a port in
+        either place lights up under the cursor. Callers must invoke this on
+        MOUSEMOTION; ports do not poll their own state.
+
+        Args:
+            mouse_pos (tuple[int, int]): Cursor position in screen space.
+        """
+        for comp in self.components:
+            for port in comp.ports:
+                port.hovered = port.rect.collidepoint(mouse_pos)
+        for port in self.bank.template.ports:
+            port.hovered = port.rect.collidepoint(mouse_pos)
 
     # -------------------------
     # PER-FRAME UPDATE / RENDER
@@ -97,6 +136,10 @@ class GameManager:
     def _draw(self):
         for comp in self.components:
             comp.draw(self.screen)
+        # Wires sit above the components but below the toolbox bank, so a
+        # wire routed through the toolbox area is hidden by the dark bank
+        # rectangle drawn next.
+        self.wires.draw(self.screen)
         # Draw the bank last so it stays on top of everything
         self.bank.draw(self.screen)
 

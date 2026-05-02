@@ -1,6 +1,14 @@
 import pygame
 
-from settings import ColorSettings, ComponentSettings, InputSettings
+from fonts import Fonts
+
+from settings import (
+    ColorSettings,
+    ComponentSettings,
+    InputSettings,
+    ScreenSettings,
+    UISettings,
+)
 
 
 class Port:
@@ -30,6 +38,9 @@ class Port:
         self.offset_y = offset_y
         self.name = name
         self.direction = direction
+        # Set by GameManager on MOUSEMOTION via rect.collidepoint. Drives the
+        # highlight color in draw() and (later) the hover label.
+        self.hovered = False
 
     @property
     def center(self):
@@ -59,39 +70,66 @@ class Port:
         Args:
             surface (pygame.Surface): The surface to draw onto.
         """
+        color = (ComponentSettings.PORT_HIGHLIGHT_COLOR
+                 if self.hovered else ComponentSettings.PORT_COLOR)
         pygame.draw.circle(
             surface,
-            ComponentSettings.PORT_COLOR,
+            color,
             self.center,
             ComponentSettings.PORT_RADIUS,
         )
+
+    def draw_label(self, surface):
+        """Render the port's name beside it, but only while hovered.
+
+        Split out from draw() so Component.draw can render every label after
+        the body and border, guaranteeing labels stay on top of the component
+        regardless of port position. INPUT ports anchor their label to the
+        left of the port; OUTPUT ports anchor to the right, so labels always
+        point outward from the component body.
+
+        Args:
+            surface (pygame.Surface): The surface to draw onto.
+        """
+        if not self.hovered:
+            return
+        label_surf = Fonts.port_label.render(
+            self.name, True, ComponentSettings.PORT_LABEL_COLOR,
+        )
+        label_rect = label_surf.get_rect()
+        cx, cy = self.center
+        offset = ComponentSettings.PORT_LABEL_OFFSET
+        if self.direction == Port.INPUT:
+            label_rect.midright = (cx - offset, cy)
+        else:
+            label_rect.midleft = (cx + offset, cy)
+        surface.blit(label_surf, label_rect)
 
 
 class Component:
     """A draggable circuit element (a NAND gate today, a saved sub-circuit later)."""
 
-    def __init__(self, x, y, width=100, height=60, name="NAND"):
+    def __init__(self, x, y, width=None, height=None, name="NAND"):
         """
         Args:
             x (int): Initial top-left x in screen coordinates.
             y (int): Initial top-left y in screen coordinates.
-            width (int): Body width in pixels. Defaults to 100.
-            height (int): Body height in pixels. Defaults to 60.
+            width (int | None): Body width in pixels. Defaults to
+                ComponentSettings.DEFAULT_WIDTH when omitted.
+            height (int | None): Body height in pixels. Defaults to
+                ComponentSettings.DEFAULT_HEIGHT when omitted.
             name (str): Display label drawn on the body. Defaults to "NAND".
         """
+        if width is None:
+            width = ComponentSettings.DEFAULT_WIDTH
+        if height is None:
+            height = ComponentSettings.DEFAULT_HEIGHT
         self.rect = pygame.Rect(x, y, width, height)
         self.color = ComponentSettings.COLOR
         self.name = name
         self.dragging = False
         self.offset_x = 0
         self.offset_y = 0
-
-        # Initialize font for names
-        pygame.font.init()
-        self.font = pygame.font.Font(
-            ComponentSettings.FONT,
-            ComponentSettings.FONT_SIZE,
-            )
 
         # Two inputs on the left, one output on the right (NAND layout).
         self.ports = self._build_ports()
@@ -132,9 +170,13 @@ class Component:
         )
 
         # Draw the Name Label
-        text_surf = self.font.render(self.name, True, ColorSettings.WORD_COLORS["WHITE"])
+        text_surf = Fonts.component_label.render(self.name, True, ColorSettings.WORD_COLORS["WHITE"])
         text_rect = text_surf.get_rect(center=self.rect.center)
         surface.blit(text_surf, text_rect)
+
+        # Hover labels last so they always sit on top of the body and border.
+        for port in self.ports:
+            port.draw_label(surface)
 
     def handle_event(self, event):
         """Handle a single pygame event for this component (drag, delete).
@@ -159,3 +201,23 @@ class Component:
             if self.dragging:
                 self.rect.x = event.pos[0] + self.offset_x
                 self.rect.y = event.pos[1] + self.offset_y
+                self._clamp_to_workspace()
+        return None
+
+    def _clamp_to_workspace(self):
+        """Constrain self.rect to the visible playfield above the toolbox.
+
+        The bottom edge of the workspace is the top of the toolbox bank, not
+        the bottom of the screen, so a dragged component cannot disappear
+        behind the toolbox or fall off any screen edge.
+        """
+        max_x = ScreenSettings.WIDTH - self.rect.width
+        max_y = UISettings.BANK_RECT.top - self.rect.height
+        if self.rect.x < 0:
+            self.rect.x = 0
+        elif self.rect.x > max_x:
+            self.rect.x = max_x
+        if self.rect.y < 0:
+            self.rect.y = 0
+        elif self.rect.y > max_y:
+            self.rect.y = max_y

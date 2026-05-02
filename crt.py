@@ -1,5 +1,6 @@
 import pygame
 import random
+
 from settings import *
 
 class CRT:
@@ -14,7 +15,6 @@ class CRT:
             screen (pygame.Surface): The main display surface that the CRT
                 overlay will be composited onto each frame.
         """
-        super().__init__()
         self.screen = screen
         self.tv = pygame.image.load(AssetPaths.TV).convert_alpha()
         self.tv = pygame.transform.scale(self.tv,(ScreenSettings.RESOLUTION))

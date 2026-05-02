@@ -47,10 +47,19 @@ class AssetPaths:
     TV = "assets/graphics/tv.png"
 
 class ComponentSettings:
+    # Default body size for a freshly spawned component, used by
+    # Component.__init__ when no explicit width/height is passed.
+    DEFAULT_WIDTH = 100
+    DEFAULT_HEIGHT = 60
     COLOR = ColorSettings.WORD_COLORS["MEDIUM_CARMINE"]
     BORDER_COLOR = ColorSettings.WORD_COLORS["GUARDSMEN_RED"]
     BORDER_THICKNESS = 2
     PORT_COLOR = ColorSettings.WORD_COLORS["BLACK"]
+    # Highlight color used by Port.draw when the port is hovered. White was
+    # chosen because it contrasts strongly with both the black resting color
+    # and the dark red body, so the hover state reads at a glance. Reserve
+    # green/red for future live-signal state per the roadmap.
+    PORT_HIGHLIGHT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     PORT_RADIUS = 10
     # Vertical inset of the two input ports from the component's top and bottom
     # edges, in pixels. Used by Component when laying out its default ports.
@@ -60,6 +69,25 @@ class ComponentSettings:
     FONT = AssetPaths.FONT
     FONT_SIZE = 16
     BOLD = True
+
+    # Port hover label. PORT_LABEL_OFFSET is the gap (in pixels) between the
+    # port's center and the closest edge of the rendered text, so the label
+    # sits clear of the port circle and the component body.
+    PORT_LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    PORT_LABEL_FONT_SIZE = 12
+    PORT_LABEL_OFFSET = PORT_RADIUS + 6
+
+class WireSettings:
+    """Visual + interaction constants for wires between component ports."""
+    COLOR = ColorSettings.WORD_COLORS["BLACK"]
+    # Lighter gray so the in-flight ghost reads as "not yet committed".
+    GHOST_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+    THICKNESS = 3
+    # Pixel distance from the cursor to the wire segment that still counts as
+    # a "hit" for right-click delete. Bigger than THICKNESS so users don't
+    # have to land on the line exactly.
+    HIT_THRESHOLD = 6
+
 
 class AudioSettings:
     pass

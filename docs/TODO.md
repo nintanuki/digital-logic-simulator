@@ -8,59 +8,51 @@ rebuilding context. Known bugs live in **Known Issues** at the bottom.
 Before starting any item, read `docs/TESTING.md` (refactoring rules + manual
 test checklist) and skim recent entries in `docs/CHANGELOG.md`.
 
-## Read TESTING.md before making any changes
-
 ---
 
-## Now — Port highlighting
+## Done — Port highlighting (2026-05-01)
 
 Smallest visible win, and the test rig for the hover infrastructure that
-hover labels and wiring will reuse. The `Port` class already exposes a hit
-`rect` and a screen-space `center`, so this is just adding state and wiring
-it to mouse motion.
+hover labels and wiring reuse.
 
-- [ ] Add `self.hovered = False` in `Port.__init__`.
-- [ ] Add `PORT_HIGHLIGHT_COLOR` to `ComponentSettings` in `settings.py`.
-- [ ] In `Port.draw`, pick `PORT_HIGHLIGHT_COLOR` when `self.hovered`, else `PORT_COLOR`.
-- [ ] In `GameManager._handle_mouse`, on `MOUSEMOTION` walk every component's `ports` and set `port.hovered = port.rect.collidepoint(event.pos)`. Toolbox templates count too.
-- [ ] Manual test: hover a port — it lights up. Move away — it un-lights. Drag a component — its ports stay hot under the cursor as expected.
+- [x] Add `self.hovered = False` in `Port.__init__`.
+- [x] Add `PORT_HIGHLIGHT_COLOR` to `ComponentSettings` in `settings.py`.
+- [x] In `Port.draw`, pick `PORT_HIGHLIGHT_COLOR` when `self.hovered`, else `PORT_COLOR`.
+- [x] In `GameManager._handle_mouse`, on `MOUSEMOTION` walk every component's `ports` and set `port.hovered = port.rect.collidepoint(event.pos)`. Toolbox templates count too. (Implemented as `_update_port_hover`.)
+- [ ] Manual test: hover a port — it lights up. Move away — it un-lights. Drag a component — its ports stay hot under the cursor as expected. *(needs a human at a keyboard)*
 
 ---
 
-## Next — Port hover labels
+## Done — Port hover labels (2026-05-01)
 
-After highlighting works, the label is one extra draw call when `hovered`.
-
-- [ ] Add `PORT_LABEL_COLOR`, `PORT_LABEL_FONT_SIZE`, and `PORT_LABEL_OFFSET` to `ComponentSettings`.
-- [ ] Cache one `pygame.font.Font` for port labels at the `GameManager` level — do not spin up a new font per port (related to the font-init polish item below).
-- [ ] In `Port.draw` (or split out a `Port.draw_label`), if `hovered` render `self.name` near the port. Use `self.direction` to decide which side to offset to: `INPUT` → label drawn to the left of the port, `OUTPUT` → label drawn to the right.
-- [ ] Manual test: hover each port on a NAND, see "A", "B", "OUT".
+- [x] Add `PORT_LABEL_COLOR`, `PORT_LABEL_FONT_SIZE`, and `PORT_LABEL_OFFSET` to `ComponentSettings`.
+- [x] Cache one `pygame.font.Font` for port labels at the `GameManager` level. *(Implemented as a dedicated `Fonts` class — exposes `Fonts.component_label` and `Fonts.port_label`, init'd once at boot.)*
+- [x] Split out `Port.draw_label`. INPUT anchors right (label sits to the left of the port), OUTPUT anchors left. Called from Component.draw after the body so labels stay on top.
+- [ ] Manual test: hover each port on a NAND, see "A", "B", "OUT". *(needs a human at a keyboard)*
 
 ---
 
-## Next — Wiring
+## Done — Wiring (2026-05-01)
 
-The biggest feature in the queue. Probably worth a brief design pass before
-starting, but the rough shape:
-
-- [ ] New `Wire` class — likely its own file `wires.py` to mirror the existing one-role-per-file pattern. Holds `(source_port, target_port)` and draws a line between their `center`s each frame so it follows when either component is dragged.
-- [ ] `GameManager` owns `self.wires: list[Wire]` (or, if it grows, a `WireManager`).
-- [ ] Click-and-drag from a port to start a wire; release on another port to commit. Show a "ghost" wire from the source port to the cursor while dragging.
-- [ ] Cancel on right-click or release in empty space.
-- [ ] Validate: outputs may only connect to inputs, and an input may have at most one incoming wire (replace if a second is committed).
-- [ ] Right-click an existing wire to delete it.
-- [ ] Manual test: connect two NANDs, drag both, the wire follows both endpoints.
+- [x] New `Wire` class in `wires.py`. Holds `(source, target)` Port references (no cached coordinates) so it follows when either component is dragged. Includes `hit(pos)` (point-to-segment distance) for right-click delete.
+- [x] `WireManager` (separate class — wiring grew enough state to deserve one). GameManager owns it as `self.wires`.
+- [x] Click-and-drag from a port starts a wire; release on a valid target port commits. Ghost line drawn in `WireSettings.GHOST_COLOR` while dragging.
+- [x] Cancel on right-click during drag, or release in empty space.
+- [x] Validation: output↔input only (auto-swap so the user can drag from either end), no self-connections (same parent rejected), one incoming wire per input (existing wire on the target is dropped before commit).
+- [x] Right-click an existing wire to delete it.
+- [x] Wires touching a deleted component are dropped via `WireManager.drop_wires_for_component`.
+- [ ] Manual test: connect two NANDs, drag both, the wire follows both endpoints. *(needs a human at a keyboard)*
 
 ---
 
-## Next — Live signal state
+## Now — Live signal state
 
 After wires exist.
 
 - [ ] Add `self.live = False` to `Port`. Add `PORT_LIVE_COLOR` to settings.
 - [ ] Each frame, propagate signals: for each gate, compute `output = NOT (A.live AND B.live)`; for each wire, copy `source.live` to `target.live`.
 - [ ] Use a two-phase update (read all inputs into a temp buffer, then write all outputs) so SR latches and other feedback circuits behave.
-- [ ] Click an unconnected input port to toggle it manually, so students can drive signals.
+- [ ] Click an unconnected input port to toggle it manually, so students can drive signals. (Actually, I was hoping we could have toggle ON/OFF swiches to connect to the inputs from the left, and "LEDs" that display ON/OFF output to the right. These can just be circles for now, but there needs to be dedicated IN and OUT components)
 - [ ] Manual test: a single NAND with both inputs HIGH outputs LOW; with either input LOW outputs HIGH. An SR latch built from two NANDs holds state.
 
 ---
@@ -83,10 +75,10 @@ Bigger features, in roughly the order they unlock student workflows.
 Not bugs, just code-quality items worth fixing the next time the surrounding
 code is touched.
 
-- [ ] `pygame.font.init()` runs inside `Component.__init__`, so every spawned gate re-initializes the font subsystem. Move it to `GameManager.__init__` and cache fonts there (or on a dedicated class). This becomes important once port labels also need a font.
-- [ ] `Component.handle_event` falls off the end implicitly returning `None` on most paths. Add an explicit `return None` so the docstring contract (`str | None`) is honest at a glance.
-- [ ] `Component.__init__` defaults `width=100`, `height=60` — magic numbers. Move to `ComponentSettings.DEFAULT_WIDTH` / `DEFAULT_HEIGHT`.
-- [ ] `crt.py::CRT` calls `super().__init__()` despite inheriting from `object`. Harmless, but unnecessary; remove when next editing the file.
+- [x] ~~`pygame.font.init()` runs inside `Component.__init__`...~~ Done 2026-05-01. New `fonts.py` with a `Fonts` class loaded once by `GameManager.__init__`.
+- [x] ~~`Component.handle_event` falls off the end implicitly...~~ Done 2026-05-01. Explicit `return None` added.
+- [x] ~~`Component.__init__` defaults `width=100`, `height=60`...~~ Done 2026-05-01. Replaced with `ComponentSettings.DEFAULT_WIDTH` / `DEFAULT_HEIGHT` via a `None` sentinel default.
+- [x] ~~`crt.py::CRT` calls `super().__init__()`...~~ Done 2026-05-01. Removed.
 
 ---
 
@@ -95,4 +87,6 @@ code is touched.
 Bugs that affect behavior. Repro → fix → log in `docs/CHANGELOG.md` → re-run
 the manual checklist in `docs/TESTING.md`.
 
-- [ ] **Components can be dragged behind the toolbox.** A component should not be allowed below `UISettings.BANK_RECT.top`. Probably also clamp to the other three screen edges so a gate can't be lost off-screen. Fix lives in the `MOUSEMOTION` branch of `Component.handle_event`: clamp `self.rect.x` / `self.rect.y` after the assignment, ideally via a small `_clamp_to_workspace` helper that reads bounds from `ScreenSettings` and `UISettings`. Reported by user 2026-05-01.
+- [x] ~~**Components can be dragged behind the toolbox.**~~ Fixed 2026-05-01. `Component._clamp_to_workspace` clamps `rect.x`/`rect.y` after every drag-driven assignment so a component cannot enter the toolbox bank or leave the screen. Reported by user 2026-05-01.
+- [ ] ~~**Wires only go in a straight line, can't be bent or curved.**~~ Right now if a user wants to connect to components and there is another component between them, or they want to create a loop, this results in ugly straight lines everywhere. Perhaps allow them to create the wire in "segments"
+-  [ ] ~~**Port highlighting is active inside the toolbox.** When hovering over the ports of a component in the toolbox port highlighting works as if it was in the workspace. This is a low priority issue.
