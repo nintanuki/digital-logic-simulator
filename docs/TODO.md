@@ -323,3 +323,6 @@ the manual checklist in `docs/TESTING.md`.
 - [ ] Add sound effects, last priority
 - [ ] Decide on color of lit wires, it's green for now but we might want something more interesting later
 - [ ] Add encyclopedia and/or dictionary
+- [ ] Decide if we want to stick with the pale blue for the background or a more circuit board style green (supposed to emulate a circuit board cutting mat) or better yet, let students choose that in options
+- [ ] Toggle sound effects in options
+- [ ] Add easy mode? Students start with some components already such as AND/OR/NOT
