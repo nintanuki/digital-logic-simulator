@@ -4,6 +4,138 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-02 23:18 UTC — Date+time format and TODO restructure
+
+**File:** docs/CHANGELOG.md
+**Date and Time:** 2026-05-02 23:18 UTC
+**Lines (at time of edit):** 716-746 (Format + Conventions sections rewritten)
+**Before:**
+    ## Format
+    ...
+        ## YYYY-MM-DD HH:MM — short summary
+        **File:** path/to/file.py
+        **Date and Time* e.g. 5/2/2026 @ 3:43PM
+        ...
+    ## Conventions
+    [no rule about timezones; older entries use date-only headers and a mix
+     of `5/2/2026` US-style values for the per-file `Date and Time` field —
+     no entry to date has ever included an actual clock time]
+**After:**
+    ## Format
+    ...
+        ## YYYY-MM-DD HH:MM TZ — short summary
+        **File:** path/to/file.py
+        **Date and Time:** YYYY-MM-DD HH:MM TZ
+        ...
+    ### Date and time format
+    [requires ISO 8601 date + 24-hour clock + timezone abbreviation, e.g.
+     `2026-05-02 16:18 PDT`, on BOTH the section header and per-file field]
+    ## Conventions
+    [+ rule: pre-2026-05-02 entries are not retroactively edited]
+**Why:** The old template promised "Date and Time" but every real entry
+filled it with a date-only `5/2/2026` value (US-style, ambiguous, not
+sortable as text), and the section header was inconsistent — sometimes
+ISO date, never a clock time. Two problems compound: (1) collaborators
+in different timezones can't sort the file deterministically; (2) within
+a single working session several entries land within minutes of each
+other and the day-only stamp can't tell them apart. ISO 8601 with a
+24-hour clock and timezone abbreviation fixes both, and is the format
+most engineering teams settle on for this exact reason. Per-file field
+stays alongside the header on purpose — a single logical change can span
+hours when it touches three files, and the per-file timestamp pinpoints
+when each landed. Old entries are explicitly grandfathered: backfilling
+guesses would be worse than leaving the gap visible.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-02 23:18 UTC
+**Lines (at time of edit):** 1-432 (full rewrite)
+**Before:**
+    Sections: Now / Next / Done x7 / Later / Brainstorming / Far future
+    / Polish / Known issues. Seven "Done — ..." sections inline at the top
+    of the file capturing already-shipped work (Toolbar TEXT button, Force
+    uppercase, Live signal state, Text boxes, Wiring, Port hover labels,
+    Port highlighting). "Brainstorming" was a single bucket mixing open
+    design questions (rename the program, lit-wire-color decision pending
+    palette) with uncommitted ideas (undo/redo, IN/OUT visual redesign,
+    pin-to-toolbar). Bugs lived under "Known Issues" at the bottom.
+**After:**
+    Sections: Milestone 1 (Mouse-First Polish) → Milestone 6 (Far Future),
+    plus standalone Questions, Ideas, Issues / Bugs, and Polish & Tech
+    Debt sections. All seven inline "Done — ..." sections removed;
+    "Brainstorming" split into Questions (open decisions) and Ideas
+    (uncommitted designs); Issues / Bugs promoted to its own top-level
+    section adjacent to Polish & Tech Debt.
+**Why:** The TODO had grown to ~430 lines, the majority of which was
+historical "Done" sections duplicating content already captured in this
+changelog. Removing them recovers the file's purpose (forward-looking
+roadmap) without losing history (the changelog has the diffs, the
+rationale, and the editor for every shipped item — see the themes
+covered between 2026-05-01 and 2026-05-02 below). The phase rename from
+Now/Next/Later/Far-future to numbered Milestones with thematic titles
+makes the dependency story explicit: persistence (M2) unblocks the
+Save-as-Component keystone (M3), which unblocks the toolbox-overflow
+discussion that has been parked under "Brainstorming." Brainstorming as
+one bucket conflated two different shapes of work — questions need an
+answer, ideas need an owner — so splitting them lets each be triaged on
+its own terms. Issues / Bugs gets its own peer section so a regression
+report doesn't hide at the bottom under "Known Issues" alongside polish
+items.
+
+Context preserved here that would otherwise vanish with the deleted
+"Done" sections (anything not already represented in earlier changelog
+entries):
+
+  * **Live signals — design pivot.** The original "Live signal state"
+    spec called for clicking an unconnected INPUT port to manually toggle
+    it HIGH/LOW. That bullet was scrapped mid-flight and replaced with
+    dedicated `Switch` and `LED` components (both circles for now), so
+    inputs are driven by an explicit toggle widget rather than by
+    overloading the port itself. This decision shaped the rest of the
+    component model — every future "input source" or "output sink" is a
+    full Component subclass, not a port mode — and is the reason
+    `update_logic` is the override surface (Switch overrides to mirror
+    its toggle to the OUTPUT port; LED overrides to no-op).
+
+  * **TEXT toolbox template — architecture choice ("Option 1").** Two
+    paths existed for adding a non-Component spawnable to the bank:
+    (Option 1) extend `ComponentBank` to store `(template_drawable,
+    spawn_fn)` pairs, with the TEXT spawner closing over a
+    `TextBoxManager` reference passed in at construction; (Option 2)
+    shoehorn `TextBox` into the existing `TEMPLATE_CLASSES` mapping by
+    making it look like a `Component` subclass. Option 1 was picked.
+    Adding any future non-Component spawnable (e.g. a future Annotation,
+    a Probe widget) is a one-line append in `_build_templates` rather
+    than a subclass workaround.
+
+  * **Text boxes — uppercase rule scope.** The rule is "text boxes are
+    uppercase," not "new characters are uppercase." Implication for the
+    future Save/Load loader: apply `.upper()` once to every text-box
+    string at load time, so an old save with lowercase characters comes
+    back conformant. (This rule is also restated inside the Save/Load
+    bullet in TODO M2 so the loader implementor sees it in context.)
+
+  * **Popup menu — two-step routing.** The bottom-left popup intercepts
+    mouse events at two layers: (1) `ComponentBank.handle_event`
+    consumes any click that lands on the popup body, blocking it from
+    falling through to the template loop; (2) `GameManager._handle_mouse`
+    early-intercepts `MOUSEBUTTONDOWN` on the popup body BEFORE
+    `wires.handle_event` runs, so a port that happens to sit under the
+    popup body cannot start a wire and a right-click on the popup body
+    cannot delete the wire underneath it. Both layers gate on
+    `menu_button.is_open AND popup_rect.collidepoint(event.pos)`. This
+    pattern is the template for any future popup/dialog and is worth
+    preserving as the architectural reference.
+
+  * **Esc layered behavior — first layer landed.** The Esc dismiss for
+    the MenuButton popup was the first concrete example of the
+    "Esc never leaks through an active UI layer" pattern. The TextBoxManager
+    already used this for editor unfocus; future dialogs reuse the same
+    gate. The roadmap's "F11 / Esc consolidation" milestone (now M1)
+    extends this pattern to fullscreen-exit and confirm-quit layers.
+
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## 2026-05-02 — Popup item dispatch (QUIT wired up)
 
 **File:** settings.py
@@ -718,10 +850,10 @@ so there's no overlap, but spacing might shrink later).
 Each entry covers one logical change (which may touch multiple files). Use the
 template below, with one `**File:** ... **Why:** ...` block per file touched.
 
-    ## YYYY-MM-DD HH:MM — short summary
+    ## YYYY-MM-DD HH:MM TZ — short summary
 
     **File:** path/to/file.py
-    **Date and Time* e.g. 5/2/2026 @ 3:43PM
+    **Date and Time:** YYYY-MM-DD HH:MM TZ
     **Lines (at time of edit):** 38-52 (modified)
     **Before:**
         [old code]
@@ -729,6 +861,22 @@ template below, with one `**File:** ... **Why:** ...` block per file touched.
         [new code]
     **Why:** explanation
     **Editor:** name of human or AI model
+
+### Date and time format
+
+Both the section header and the per-file `Date and Time:` field are
+**required** and must follow ISO 8601 calendar date plus a 24-hour clock
+and a timezone abbreviation: `YYYY-MM-DD HH:MM TZ`. Examples:
+
+    2026-05-02 16:18 PDT
+    2026-05-02 23:18 UTC
+
+The timezone is required so entries from collaborators in different
+zones sort and compare correctly. The per-file `Date and Time:` field is
+not redundant with the section header — a single logical change may span
+hours and touch several files in sequence, and the per-file timestamp
+pinpoints when each individual edit landed. Use a 24-hour clock (no AM/PM,
+no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ## Conventions
 
@@ -744,6 +892,9 @@ template below, with one `**File:** ... **Why:** ...` block per file touched.
 * Keep "Before" / "After" blocks short. If a change is huge, summarize with a
   diff-style excerpt of the most important lines plus a sentence describing the
   rest, instead of pasting the entire file.
+* Older entries (pre-2026-05-02) predate the timezone-aware format and use
+  date-only headers. Do not retroactively edit them; the rule applies to all
+  new entries from 2026-05-02 onward.
 
 ## 2026-05-01 — Rewrite README for a professional tone
 
