@@ -60,7 +60,14 @@ bottom-left corner of the bank. Clicking it pops up a vertical menu.
 - [ ] **Popup intercepts events before wires/components.** Treat the
   popup like the text-box manager so a click on the popup body / an item
   can't start a wire on a port that happens to sit underneath. Only
-  matters once items exist (today the popup is empty).
+  matters once items exist (today the popup is empty). *Partial
+  2026-05-02:* `ComponentBank.handle_event` now consumes
+  (`return True`) any click that lands on the popup body while the menu
+  is open, so the click can no longer fall through to the template loop.
+  Still owed: route bank popup-body clicks ahead of `wires.handle_event`
+  in `main.py::_handle_mouse` (mirroring how the text-box manager runs
+  before mouse routing in `_process_events`) so a port that happens to
+  sit under the popup can't start a wire.
 - [ ] **Manual test.** Open the menu, click each item, confirm the popup
   closes and the action runs. Click outside — popup closes, no spurious
   wire/component side effects. *(The click-outside path can already be

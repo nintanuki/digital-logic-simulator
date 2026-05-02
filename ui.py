@@ -411,13 +411,20 @@ class ComponentBank:
         if self.menu_button.rect.collidepoint(event.pos):
             self.menu_button.toggle()
             return True
-        # Click-outside-dismiss: while the popup is open, any click that
-        # misses both the popup body and the MENU button itself closes the
-        # popup. Mouse parallel of the Esc dismiss in
-        # `GameManager._handle_keydown`. We don't return — the click still
-        # falls through to the template loop / wires / empty space so a
-        # stray miss isn't punished with a second click.
-        if self.menu_button.is_open and not self.menu_button.popup_rect.collidepoint(event.pos):
+        # While the popup is open, route the click through the menu before
+        # the template loop. A click on the popup body is consumed so it
+        # can't fall through to templates (or to wires/components once
+        # main.py routes menu clicks ahead of those — see the "Popup
+        # intercepts events before wires/components" bullet in TODO).
+        # Items run no action yet — per-item dispatch will plug in here
+        # once at least one action exists. A click that misses the popup
+        # body dismisses it but does NOT consume — a stray miss still
+        # falls through to the template loop / wires / empty space so the
+        # user isn't punished with a second click. Mouse parallel of the
+        # Esc dismiss in `GameManager._handle_keydown`.
+        if self.menu_button.is_open:
+            if self.menu_button.popup_rect.collidepoint(event.pos):
+                return True
             self.menu_button.toggle()
         for tpl, spawn_fn in self._templates_and_spawners:
             if tpl.rect.collidepoint(event.pos):

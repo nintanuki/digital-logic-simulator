@@ -4,6 +4,60 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-02 — Popup-body clicks consumed by ComponentBank
+
+**File:** ui.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 414-428 (ComponentBank.handle_event:
+popup-body click consumption)
+**Before:**
+        # Click-outside-dismiss: while the popup is open, any click that
+        # misses both the popup body and the MENU button itself closes the
+        # popup. Mouse parallel of the Esc dismiss in
+        # `GameManager._handle_keydown`. We don't return — the click still
+        # falls through to the template loop / wires / empty space so a
+        # stray miss isn't punished with a second click.
+        if self.menu_button.is_open and not self.menu_button.popup_rect.collidepoint(event.pos):
+            self.menu_button.toggle()
+**After:**
+        # While the popup is open, route the click through the menu before
+        # the template loop. A click on the popup body is consumed so it
+        # can't fall through to templates (or to wires/components once
+        # main.py routes menu clicks ahead of those — see the "Popup
+        # intercepts events before wires/components" bullet in TODO).
+        # Items run no action yet — per-item dispatch will plug in here
+        # once at least one action exists. A click that misses the popup
+        # body dismisses it but does NOT consume — a stray miss still
+        # falls through to the template loop / wires / empty space so the
+        # user isn't punished with a second click. Mouse parallel of the
+        # Esc dismiss in `GameManager._handle_keydown`.
+        if self.menu_button.is_open:
+            if self.menu_button.popup_rect.collidepoint(event.pos):
+                return True
+            self.menu_button.toggle()
+**Why:** Smallest forward step in the "Now — Bottom-left popup menu"
+section of TODO. The next two pending bullets ("Clicking an item runs
+its action and closes the popup", "Popup intercepts events before
+wires/components") fold together; this change takes the half that
+doesn't need any backing action: a click on the popup body is now
+consumed by `ComponentBank.handle_event` (returns True) instead of
+falling through to the template loop. Observable behavior is unchanged
+today — the popup floats above the bank rect and the templates sit
+inside it, so a popup-body click was already a visual no-op via
+fall-through — but the bank's contract is now correct: while the popup
+is the topmost UI layer, popup-body clicks belong to the popup, not to
+whatever happens to lie underneath. This locks in the consumption slot
+that per-item dispatch will plug into next (one `if label == "X":
+action()` branch per wired item, before the `return True`). The
+wires-before-bank reordering in main.py — needed so a click on a port
+that happens to sit under the popup body can't start a wire — is still
+owed and stays under the same TODO bullet; doing it here would change
+event ordering for components that have nothing to do with the menu,
+which is a separate, larger move. Click-outside semantics are
+preserved verbatim (toggle without consume) so a stray miss still
+falls through to wires / templates / empty space without penalty.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## 2026-05-02 — Popup menu items rendered (disabled state)
 
 **File:** settings.py
