@@ -100,11 +100,24 @@ class GameManager:
         # Draw the bank last so it stays on top of everything
         self.bank.draw(self.screen)
 
+    def _draw_grid(self):
+        grid_color = (ColorSettings.WORD_COLORS["WHITE"]) # Subtle light blue
+        grid_size = ScreenSettings.GRID_SIZE
+        
+        # Draw Vertical Lines
+        for x in range(0, ScreenSettings.WIDTH, grid_size):
+            pygame.draw.line(self.screen, grid_color, (x, 0), (x, ScreenSettings.HEIGHT), 1)
+            
+        # Draw Horizontal Lines
+        for y in range(0, ScreenSettings.HEIGHT, grid_size):
+            pygame.draw.line(self.screen, grid_color, (0, y), (ScreenSettings.WIDTH, y), 1)
+
     def _render_frame(self):
         self.screen.fill(ScreenSettings.BG_COLOR)
+        self._draw_grid()
         self._draw()
         self.crt.draw()
-        
+
     def run(self):
         while True:
             self._process_events()

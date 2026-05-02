@@ -25,6 +25,7 @@ class ScreenSettings:
     TITLE = "Mr. Navarro's Logic Circuit Builder"
     CRT_ALPHA_RANGE = (75, 90)
     CRT_SCANLINE_HEIGHT = 3 # vertical pixels between scanlines drawn on the CRT overlay
+    GRID_SIZE = 32
 
 class InputSettings:
     LEFT_CLICK = 1
