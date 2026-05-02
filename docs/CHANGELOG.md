@@ -884,3 +884,104 @@ wire passes under them; drawing below the bank costs nothing since
 text boxes are clamped out of the bank area but keeps the toolbox
 visually authoritative.
 **Editor:** Claude (Opus 4.7)
+
+## 2026-05-02 — Roadmap refresh + README catch-up (docs only, no code)
+
+**File:** docs/TODO.md
+**Lines (at time of edit):** 1-11 (intro), full restructure to ~314 lines
+**Before:**
+    # Roadmap
+    ## Done — Port highlighting / Port hover labels / Wiring / Live signal state / Text boxes
+    ## Later  (5 bullets: save/load, main menu, save-as-component, toolbox redesign, toolbox menu button)
+    ## Polish / tech debt
+    ## Known issues
+**After:**
+    # Roadmap (intro now states the mouse-first design principle)
+    ## Now — Toolbar TEXT button   (mouse path for what was hotkey-only)
+    ## Now — Force uppercase in text boxes
+    ## Next — Bottom-left popup menu (file ops home)
+    ## Done — (existing five Done sections, unchanged)
+    ## Later — save/load (with embed-don't-reference note),
+              project main menu (New/Load/Options/Quit),
+              Save-as-Component (with pin selection, color picker,
+                                 rename, AND/OR/NOT auto-detect sub-bullets),
+              Toolbox redesign (with brainstormed approaches inline)
+    ## Brainstorming — dynamic text-box width, IN/OUT visual redesign
+                       (Switch as toggle, LED as bulb), pin-to-toolbar,
+                       wire bending, undo/redo, trash mode, shortcut overlay
+    ## Far future — tutorials, puzzles, library sharing, sound,
+                    multi-bit busses
+    ## Polish / tech debt — added unit-test bullet + try/except wrapper
+    ## Known issues — added "text boxes accept lowercase" and
+                      "text boxes are mouse-inaccessible" tied back to
+                      the new Now items
+**Why:** User feedback after the text-box session: (1) mouse-first is the
+design principle, hotkeys are bonus — every keyboard-only entry point
+needs a clickable equivalent (immediate gap: text boxes can't be spawned
+without **T**); (2) text boxes should be uppercase only to match every
+other label in the workspace; (3) the toolbar will eventually need a
+companion menu in the bottom-left for file ops, and the toolbox itself
+will need a redesign (scroll vs shrink vs sidebar — left as
+brainstorming until we have real component-count data); (4) the project
+needs a main-menu front door (New / Load / Options / Quit); (5)
+Save-as-Component should let students pick color, override the name,
+but auto-default to the recognized gate name if the truth table matches
+NOT/AND/OR/NAND/NOR/XOR/XNOR — a discoverable reward; (6) tutorials
+and puzzles are explicitly far-future. Also added new sections
+("Brainstorming" for design ideas not yet committed, "Far future" for
+stretch goals) so the TODO can keep absorbing ideas without losing the
+near-term ordering. Reordered so Now / Next sit above Done, making it
+obvious at a glance what to pick up.
+**Editor:** Claude (Opus 4.7)
+
+**File:** README.md
+**Lines (at time of edit):** 20-34 (Current Status + Controls), 47-59 (Project Layout)
+**Before:**
+    ## Current Status
+    Early prototype. The workspace, toolbox, NAND component and drag-and-drop
+    are in place. Wiring, port logic, and saving are not yet implemented...
+
+    ## Controls
+    | Action | Input |
+    | Spawn a NAND from the toolbox | Left-click the toolbox template |
+    | Move a component | Left-click and drag |
+    | Delete a component | Right-click |
+    | Spawn a NAND at (50, 50) | `N` |
+    | Toggle fullscreen | `F11` |
+    | Quit | `Esc` |
+
+    ## Project Layout
+    main.py / elements.py / ui.py / crt.py / settings.py / assets/ / docs/
+**After:**
+    ## Current Status
+    Working prototype. Drag-and-drop, wiring, port logic, live signal
+    propagation, the Switch / LED input-output components, and free-floating
+    annotation text boxes are all in. Save / load and Save as Component
+    (the keystone feature) are next; see docs/TODO.md...
+    The program is designed to be fully usable with the mouse alone.
+    Keyboard shortcuts exist as a convenience for power users but never
+    replace a clickable equivalent.
+
+    ## Controls
+    ### Mouse
+    (rows for: spawn from toolbox, move, toggle Switch, wire two ports,
+     cancel in-flight wire, delete component/wire/text-box, edit text box,
+     stop editing)
+    ### Keyboard (power user)
+    (rows for: N=NAND-at-50-50, T=text-box-at-cursor, F11=fullscreen,
+     Esc=quit-when-no-textbox-focused)
+
+    ## Project Layout
+    main.py / elements.py / wires.py / signals.py / text_boxes.py /
+    ui.py / fonts.py / crt.py / settings.py / assets/ / docs/
+**Why:** The Current Status paragraph claimed wiring / port logic / saving
+were unimplemented; wiring and port logic shipped 2026-05-01 and live
+signal state + text boxes shipped 2026-05-02. Controls table was missing
+every interaction added since v0 (wiring, Switch toggle, text editing,
+right-click wire delete). Project Layout was missing four files. Split
+Controls into Mouse and Keyboard tables to make the mouse-first design
+principle visible — students see the Mouse table first; the keyboard
+table is explicitly labeled "power user" and exists alongside, not
+instead of, the mouse path. Quit row notes the "only when no text box is
+focused" caveat that's already in the implementation.
+**Editor:** Claude (Opus 4.7)
