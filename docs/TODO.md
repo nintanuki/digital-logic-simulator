@@ -339,3 +339,4 @@ the manual checklist in `docs/TESTING.md`.
 - [ ] Toggle sound effects in options
 - [ ] Add easy mode? Students start with some components already such as AND/OR/NOT
 - [ ] Right now the blank context menu that pops up when you click the menu button overlaps a bit with the toolbar. I'd prefer if it floated above or rested right on top of the top of the toolbar. The menu button also looks too similar to the text component, it's hard to tell which one is a button for options and which one is a component you can drag
+- [ ] Add black bar to the top with all the hotkeys explained
