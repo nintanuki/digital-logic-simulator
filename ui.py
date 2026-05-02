@@ -370,6 +370,14 @@ class ComponentBank:
         if self.menu_button.rect.collidepoint(event.pos):
             self.menu_button.toggle()
             return True
+        # Click-outside-dismiss: while the popup is open, any click that
+        # misses both the popup body and the MENU button itself closes the
+        # popup. Mouse parallel of the Esc dismiss in
+        # `GameManager._handle_keydown`. We don't return — the click still
+        # falls through to the template loop / wires / empty space so a
+        # stray miss isn't punished with a second click.
+        if self.menu_button.is_open and not self.menu_button.popup_rect.collidepoint(event.pos):
+            self.menu_button.toggle()
         for tpl, spawn_fn in self._templates_and_spawners:
             if tpl.rect.collidepoint(event.pos):
                 spawn_fn(event.pos, components_list)

@@ -23,33 +23,42 @@ Once Save / Load / New Component / Save-as-Component arrive, the toolbar
 will have nowhere to put them. Add a Windows-style **MENU** button in the
 bottom-left corner of the bank. Clicking it pops up a vertical menu.
 
-- [x] New class `MenuButton` (or `BankMenu`) in `ui.py` or a new `menu.py`,
-  rendered inside the bank rect at the far left. Lives in `ui.py` next to
-  `TextTemplate`. `ComponentBank` owns it as `self.menu_button` and the
-  template row anchors its starting x to `menu_button.rect.right` so
-  layout stays consistent if MENU's size changes. Click handling and the
-  popup are still TODO — this bullet only adds the visual slot.
-- [ ] On click, draws a popup `pygame.Surface` above the bank with menu
-  items. First items: **New Project**, **Load Project**, **Save Project**,
-  **Save as Component**, **Quit**. Greyed-out / disabled state for items
-  that don't apply yet. *Half-done 2026-05-02*: clicking MENU now toggles
-  an empty placeholder popup above the bank (`MenuButton.is_open` +
-  `toggle()`, `ComponentBank.handle_event` routes the click before the
-  template loop). Items themselves still TODO.
-- [ ] Click outside the popup closes it. Click an item runs its action and
-  closes the popup.
-- [x] Keyboard escape also closes it. *Done 2026-05-02*:
-  `GameManager._handle_keydown` checks `self.bank.menu_button.is_open`
-  before treating Esc as quit; if the popup is open, Esc toggles it
-  closed and returns instead. Mirrors the text-box manager pattern
-  (Esc unfocuses the editor) so Esc never leaks through an active UI
-  layer to quit the game.
-- [ ] Treat the popup like the text-box manager: it intercepts events
-  before wires/components so a click on the popup can't start a wire on a
-  port underneath.
-- [X] Manual test: open the menu, click each item, confirm the popup
+- [x] **Visual slot.** New class `MenuButton` in `ui.py` next to
+  `TextTemplate`, rendered inside the bank rect at the far left.
+  `ComponentBank` owns it as `self.menu_button` and the template row
+  anchors its starting x to `menu_button.rect.right` so layout stays
+  consistent if MENU's size changes.
+- [x] **Click toggles the popup container.** Clicking MENU toggles
+  `MenuButton.is_open`; `draw()` paints a placeholder popup body above
+  the button while open. `ComponentBank.handle_event` routes the click
+  before the template loop. Items inside the popup are still TODO.
+- [x] **Esc dismisses the popup.** `GameManager._handle_keydown` checks
+  `self.bank.menu_button.is_open` before treating Esc as quit. Mirrors
+  the text-box manager pattern (Esc unfocuses the editor) so Esc never
+  leaks through an active UI layer to quit the game.
+- [x] **Click outside the popup closes it.** *Done 2026-05-02*: a
+  left-click that lands outside `popup_rect` while the popup is open
+  toggles it closed. Implemented in `ComponentBank.handle_event` between
+  the menu-button check and the template loop; the dismiss does not
+  consume the event so a stray miss still falls through to the template
+  loop / wires / empty space (no penalty click). The matching
+  intercept-before-wires step still owes us the case where the click
+  lands on a port that's drawn under the popup body — see the bullet
+  below.
+- [ ] **Populate the popup with items.** First items: **New Project**,
+  **Load Project**, **Save Project**, **Save as Component**, **Quit**.
+  Greyed-out / disabled state for items that don't apply yet. Each item
+  hit-tests its own rect and runs its action.
+- [ ] **Clicking an item runs its action and closes the popup.** Folds in
+  once items exist.
+- [ ] **Popup intercepts events before wires/components.** Treat the
+  popup like the text-box manager so a click on the popup body / an item
+  can't start a wire on a port that happens to sit underneath. Only
+  matters once items exist (today the popup is empty).
+- [ ] **Manual test.** Open the menu, click each item, confirm the popup
   closes and the action runs. Click outside — popup closes, no spurious
-  wire/component side effects.
+  wire/component side effects. *(The click-outside path can already be
+  manually exercised; the click-each-item path can't until items exist.)*
 
 ---
 
@@ -372,10 +381,6 @@ parking here so we don't lose them.
 Not bugs, just code-quality items worth fixing the next time the surrounding
 code is touched.
 
-- [x] ~~`pygame.font.init()` runs inside `Component.__init__`...~~ Done 2026-05-01. New `fonts.py` with a `Fonts` class loaded once by `GameManager.__init__`.
-- [x] ~~`Component.handle_event` falls off the end implicitly...~~ Done 2026-05-01. Explicit `return None` added.
-- [x] ~~`Component.__init__` defaults `width=100`, `height=60`...~~ Done 2026-05-01. Replaced with `ComponentSettings.DEFAULT_WIDTH` / `DEFAULT_HEIGHT` via a `None` sentinel default.
-- [x] ~~`crt.py::CRT` calls `super().__init__()`...~~ Done 2026-05-01. Removed.
 - [ ] **Add a few unit tests for the logic-only modules.** Pygame is hard
   to test, but `signals.py`, `wires._is_valid`, and `Wire.hit` are pure
   Python and trivial to cover. Three tests would catch the next signal
@@ -393,10 +398,8 @@ code is touched.
 Bugs that affect behavior. Repro → fix → log in `docs/CHANGELOG.md` → re-run
 the manual checklist in `docs/TESTING.md`.
 
-- [x] ~~**Components can be dragged behind the toolbox.**~~ Fixed 2026-05-01. `Component._clamp_to_workspace` clamps `rect.x`/`rect.y` after every drag-driven assignment so a component cannot enter the toolbox bank or leave the screen. Reported by user 2026-05-01.
 - [ ] **Wires only go in a straight line, can't be bent or curved.** Right now if a user wants to connect two components and there is another component between them, or they want to create a loop, this results in ugly straight lines everywhere. Perhaps allow them to create the wire in "segments" — see Brainstorming entry above for a sketch.
 - [ ] **Port highlighting is active inside the toolbox.** When hovering over the ports of a component in the toolbox, port highlighting works as if it was in the workspace. Low priority.
-- [x] ~~**Text boxes are mouse-inaccessible.**~~ Fixed 2026-05-02. The bank now ships a TEXT template that drops a focused TextBox under the cursor on click; the **T** hotkey is the keyboard parallel, not the only path.
 - [ ] **Popup menu overlaps the toolbar.** When the MENU button is
   clicked open, the popup's bottom edge overlaps the toolbar by a few
   pixels instead of resting flush on its top. Fix: anchor

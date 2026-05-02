@@ -4,6 +4,74 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-02 — Roadmap cleanup + click-outside closes the popup menu
+
+**File:** docs/TODO.md
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 20-52 (Now section), 359-364 (Polish/tech debt),
+386-389 (Known issues)
+**Why:** Housekeeping pass. The "Now — Bottom-left popup menu" section had
+drifted: one bullet packed two unrelated actions ("click outside closes" +
+"click an item runs its action"), the placeholder-popup work was buried
+inside an unchecked item with a "*Half-done*" annotation, and the manual-
+test bullet was checked even though the items it describes don't exist
+yet. Reshaped Now into one bullet per concrete step, marked the placeholder-
+popup work explicitly done, split out the items-populate work, split out
+"click an item runs its action," and unchecked the manual-test bullet so
+it actually reflects shippability. Also dropped four strikethrough-done
+entries from Polish/tech-debt and two from Known issues — they live in
+this CHANGELOG, no need to keep ghost entries in the active roadmap. Net
+effect: a fresh-session reader can scan Now top-to-bottom and the next
+unchecked bullet is the actual next thing to do.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** ui.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 363-387 (ComponentBank.handle_event)
+**Before:**
+    if self.menu_button.rect.collidepoint(event.pos):
+        self.menu_button.toggle()
+        return True
+    for tpl, spawn_fn in self._templates_and_spawners:
+        if tpl.rect.collidepoint(event.pos):
+            spawn_fn(event.pos, components_list)
+            return True
+    return False
+**After:**
+    if self.menu_button.rect.collidepoint(event.pos):
+        self.menu_button.toggle()
+        return True
+    # Click-outside-dismiss: while the popup is open, any click that
+    # misses both the popup body and the MENU button itself closes the
+    # popup. Mouse parallel of the Esc dismiss in
+    # `GameManager._handle_keydown`. We don't return — the click still
+    # falls through to the template loop / wires / empty space so a
+    # stray miss isn't punished with a second click.
+    if self.menu_button.is_open and not self.menu_button.popup_rect.collidepoint(event.pos):
+        self.menu_button.toggle()
+    for tpl, spawn_fn in self._templates_and_spawners:
+        if tpl.rect.collidepoint(event.pos):
+            spawn_fn(event.pos, components_list)
+            return True
+    return False
+**Why:** Smallest next step in the bottom-left popup-menu work and the
+mouse parallel of the Esc dismiss landed earlier today. Until this
+change, the only ways to close the popup were clicking MENU again or
+pressing Esc — clicking anywhere else left the popup hovering over the
+workspace, which is unusual UX for a Windows-style start menu and out of
+step with the project's mouse-first design principle. Implementation
+sits in `ComponentBank.handle_event` next to the existing menu-button
+check (single source of truth for bank-area click routing) and
+deliberately does not consume the event, so a click that misses the
+popup still flows into the template-spawn / wire / empty-space paths.
+The remaining edge case — a click that misses the popup but happens to
+land on a port drawn underneath — falls under the still-open
+"intercept events before wires/components" bullet in TODO.md, which is a
+separate architectural step that becomes load-bearing once items live
+inside the popup. Marked the corresponding TODO bullet done with that
+caveat noted inline.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## 2026-05-02 — Roadmap reorganization + Esc closes the popup menu
 
 **File:** docs/TODO.md
