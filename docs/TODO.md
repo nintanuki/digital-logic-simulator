@@ -133,41 +133,6 @@ characters are uppercase") is recorded so it isn't lost.
 
 ---
 
-## Done — Port highlighting (2026-05-01)
-
-Smallest visible win, and the test rig for the hover infrastructure that
-hover labels and wiring reuse.
-
-- [x] Add `self.hovered = False` in `Port.__init__`.
-- [x] Add `PORT_HIGHLIGHT_COLOR` to `ComponentSettings` in `settings.py`.
-- [x] In `Port.draw`, pick `PORT_HIGHLIGHT_COLOR` when `self.hovered`, else `PORT_COLOR`.
-- [x] In `GameManager._handle_mouse`, on `MOUSEMOTION` walk every component's `ports` and set `port.hovered = port.rect.collidepoint(event.pos)`. Toolbox templates count too. (Implemented as `_update_port_hover`.)
-- [X] Manual test: hover a port — it lights up. Move away — it un-lights. Drag a component — its ports stay hot under the cursor as expected. *(needs a human at a keyboard)*
-
----
-
-## Done — Port hover labels (2026-05-01)
-
-- [x] Add `PORT_LABEL_COLOR`, `PORT_LABEL_FONT_SIZE`, and `PORT_LABEL_OFFSET` to `ComponentSettings`.
-- [x] Cache one `pygame.font.Font` for port labels at the `GameManager` level. *(Implemented as a dedicated `Fonts` class — exposes `Fonts.component_label` and `Fonts.port_label`, init'd once at boot.)*
-- [x] Split out `Port.draw_label`. INPUT anchors right (label sits to the left of the port), OUTPUT anchors left. Called from Component.draw after the body so labels stay on top.
-- [X] Manual test: hover each port on a NAND, see "A", "B", "OUT". *(needs a human at a keyboard)*
-
----
-
-## Done — Wiring (2026-05-01)
-
-- [x] New `Wire` class in `wires.py`. Holds `(source, target)` Port references (no cached coordinates) so it follows when either component is dragged. Includes `hit(pos)` (point-to-segment distance) for right-click delete.
-- [x] `WireManager` (separate class — wiring grew enough state to deserve one). GameManager owns it as `self.wires`.
-- [x] Click-and-drag from a port starts a wire; release on a valid target port commits. Ghost line drawn in `WireSettings.GHOST_COLOR` while dragging.
-- [x] Cancel on right-click during drag, or release in empty space.
-- [x] Validation: output↔input only (auto-swap so the user can drag from either end), no self-connections (same parent rejected), one incoming wire per input (existing wire on the target is dropped before commit).
-- [x] Right-click an existing wire to delete it.
-- [x] Wires touching a deleted component are dropped via `WireManager.drop_wires_for_component`.
-- [X] Manual test: connect two NANDs, drag both, the wire follows both endpoints. *(needs a human at a keyboard)*
-
----
-
 ## Done — Live signal state (2026-05-02)
 
 - [x] Add `self.live = False` to `Port`. Add `PORT_LIVE_COLOR` to settings.
@@ -206,6 +171,41 @@ explain their circuits. No signal, no port, never on the toolbox bank.
 - [X] Manual test: press T, type a multi-line label, drag it around, and
   drop a NAND on top to confirm wires under it still work when the label
   is moved aside. *(needs a human at a keyboard)*
+
+---
+
+## Done — Wiring (2026-05-01)
+
+- [x] New `Wire` class in `wires.py`. Holds `(source, target)` Port references (no cached coordinates) so it follows when either component is dragged. Includes `hit(pos)` (point-to-segment distance) for right-click delete.
+- [x] `WireManager` (separate class — wiring grew enough state to deserve one). GameManager owns it as `self.wires`.
+- [x] Click-and-drag from a port starts a wire; release on a valid target port commits. Ghost line drawn in `WireSettings.GHOST_COLOR` while dragging.
+- [x] Cancel on right-click during drag, or release in empty space.
+- [x] Validation: output↔input only (auto-swap so the user can drag from either end), no self-connections (same parent rejected), one incoming wire per input (existing wire on the target is dropped before commit).
+- [x] Right-click an existing wire to delete it.
+- [x] Wires touching a deleted component are dropped via `WireManager.drop_wires_for_component`.
+- [X] Manual test: connect two NANDs, drag both, the wire follows both endpoints. *(needs a human at a keyboard)*
+
+---
+
+## Done — Port hover labels (2026-05-01)
+
+- [x] Add `PORT_LABEL_COLOR`, `PORT_LABEL_FONT_SIZE`, and `PORT_LABEL_OFFSET` to `ComponentSettings`.
+- [x] Cache one `pygame.font.Font` for port labels at the `GameManager` level. *(Implemented as a dedicated `Fonts` class — exposes `Fonts.component_label` and `Fonts.port_label`, init'd once at boot.)*
+- [x] Split out `Port.draw_label`. INPUT anchors right (label sits to the left of the port), OUTPUT anchors left. Called from Component.draw after the body so labels stay on top.
+- [X] Manual test: hover each port on a NAND, see "A", "B", "OUT". *(needs a human at a keyboard)*
+
+---
+
+## Done — Port highlighting (2026-05-01)
+
+Smallest visible win, and the test rig for the hover infrastructure that
+hover labels and wiring reuse.
+
+- [x] Add `self.hovered = False` in `Port.__init__`.
+- [x] Add `PORT_HIGHLIGHT_COLOR` to `ComponentSettings` in `settings.py`.
+- [x] In `Port.draw`, pick `PORT_HIGHLIGHT_COLOR` when `self.hovered`, else `PORT_COLOR`.
+- [x] In `GameManager._handle_mouse`, on `MOUSEMOTION` walk every component's `ports` and set `port.hovered = port.rect.collidepoint(event.pos)`. Toolbox templates count too. (Implemented as `_update_port_hover`.)
+- [X] Manual test: hover a port — it lights up. Move away — it un-lights. Drag a component — its ports stay hot under the cursor as expected. *(needs a human at a keyboard)*
 
 ---
 
@@ -400,14 +400,10 @@ the manual checklist in `docs/TESTING.md`.
 
 - [ ] **Wires only go in a straight line, can't be bent or curved.** Right now if a user wants to connect two components and there is another component between them, or they want to create a loop, this results in ugly straight lines everywhere. Perhaps allow them to create the wire in "segments" — see Brainstorming entry above for a sketch.
 - [ ] **Port highlighting is active inside the toolbox.** When hovering over the ports of a component in the toolbox, port highlighting works as if it was in the workspace. Low priority.
-- [ ] **Popup menu overlaps the toolbar.** When the MENU button is
-  clicked open, the popup's bottom edge overlaps the toolbar by a few
-  pixels instead of resting flush on its top. Fix: anchor
-  `popup_rect.bottom` to `BANK_RECT.top` (with a small gap) rather than
-  offsetting from the button's top. Reported by user 2026-05-02.
 - [ ] **MENU button looks too similar to the TEXT template.** Both are
   small dark squares with a four-letter white label, so it's not obvious
   which is a control and which is a draggable component. Fix: give MENU
   a distinct treatment — a different color, an icon (≡ / ☰), or a
   different shape — so it reads as a control surface, not an element.
   Reported by user 2026-05-02.
+- [ ] **Text inside components is not aligned or too large.** Text inside components need to be vertically and horizontally centered. Might be to be shrunk slightly as the word OUT barely fits insoude the OUT component. But text in IN and NAND are good and readable. Problem is the circle can barely fit three letters. Can the text size be dynamic to fit inside the component? Or can we resolve this when we change the shape and look of the INPUT switches and OUTPUT LEDs?

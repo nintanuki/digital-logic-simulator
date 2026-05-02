@@ -82,12 +82,17 @@ class MenuButton:
         # Empty tuple (not list) so accidental .append() in any walker would
         # fail loud rather than silently grow this button's "ports".
         self.ports = ()
-        # Popup rect floats above the button with a small gap so the two
-        # don't visually fuse. Anchored to the button's left edge so the
-        # popup grows up-and-right, matching the Windows Start menu shape.
+        # Popup rect rests flush above the toolbox bank with a small gap.
+        # Anchoring to BANK_RECT.top (rather than the button's top) keeps
+        # the popup's bottom edge aligned with the top of the bank no
+        # matter how the button is vertically centered inside it —
+        # otherwise the popup spills down across the bank's top edge by
+        # whatever inset the button uses. Anchored to the button's left
+        # edge so the popup grows up-and-right, matching the Windows
+        # Start menu shape.
         self.popup_rect = pygame.Rect(
             x,
-            y - MenuButtonSettings.POPUP_GAP - MenuButtonSettings.POPUP_HEIGHT,
+            UISettings.BANK_RECT.top - MenuButtonSettings.POPUP_GAP - MenuButtonSettings.POPUP_HEIGHT,
             MenuButtonSettings.POPUP_WIDTH,
             MenuButtonSettings.POPUP_HEIGHT,
         )

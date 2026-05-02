@@ -4,6 +4,69 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-02 — Roadmap reorder + popup-menu overlap fix
+
+**File:** docs/TODO.md
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 134-209 (Done blocks), 396-413 (Known issues)
+**Why:** Two reorganization passes plus the corresponding bug fix below.
+First, the Done blocks had drifted out of chronological order — the
+2026-05-02 "Live signal state" and "Text boxes" sections were sitting
+underneath the 2026-05-01 "Port highlighting / Port hover labels /
+Wiring" trio, so a fresh reader scanning Done was getting last week's
+work before yesterday's. Sorted Done newest-first within section so the
+top of Done is the most recent work and the bottom is the oldest.
+Second, dropped the resolved "Popup menu overlaps the toolbar" bullet
+from Known issues per the file's convention ("they live in this
+CHANGELOG, no need to keep ghost entries in the active roadmap"). The
+remaining Now/Next/Later/Brainstorming/Far future/Polish-tech-debt/
+Known-issues skeleton was intact and didn't need touching.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** ui.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 85-99 (MenuButton.__init__, popup_rect)
+**Before:**
+    # Popup rect floats above the button with a small gap so the two
+    # don't visually fuse. Anchored to the button's left edge so the
+    # popup grows up-and-right, matching the Windows Start menu shape.
+    self.popup_rect = pygame.Rect(
+        x,
+        y - MenuButtonSettings.POPUP_GAP - MenuButtonSettings.POPUP_HEIGHT,
+        MenuButtonSettings.POPUP_WIDTH,
+        MenuButtonSettings.POPUP_HEIGHT,
+    )
+**After:**
+    # Popup rect rests flush above the toolbox bank with a small gap.
+    # Anchoring to BANK_RECT.top (rather than the button's top) keeps
+    # the popup's bottom edge aligned with the top of the bank no
+    # matter how the button is vertically centered inside it —
+    # otherwise the popup spills down across the bank's top edge by
+    # whatever inset the button uses. Anchored to the button's left
+    # edge so the popup grows up-and-right, matching the Windows
+    # Start menu shape.
+    self.popup_rect = pygame.Rect(
+        x,
+        UISettings.BANK_RECT.top - MenuButtonSettings.POPUP_GAP - MenuButtonSettings.POPUP_HEIGHT,
+        MenuButtonSettings.POPUP_WIDTH,
+        MenuButtonSettings.POPUP_HEIGHT,
+    )
+**Why:** Reported bug: the popup's bottom edge overlapped the toolbar by
+a few pixels instead of resting flush on it. Root cause was using the
+button's top as the popup's anchor — because the button is vertically
+centered inside the bank (`(BANK_HEIGHT - SIZE) // 2 == 20px` of inset),
+`button.top - GAP - POPUP_HEIGHT` placed the popup's bottom edge 16px
+*below* `BANK_RECT.top` (one inset minus one gap), which is the overlap
+the user saw. Anchoring to `BANK_RECT.top` directly removes the inset
+from the equation, so the popup's bottom now sits exactly `POPUP_GAP`
+above the bank regardless of how the button is laid out inside it. No
+new constants needed — `UISettings` is already imported and
+`BANK_RECT.top` is the right reference point. The button itself
+(`self.rect`) is unaffected, so the click-target geometry doesn't
+change. Manual visual verification still owed (needs a human at a
+keyboard); checklist in `docs/TESTING.md` continues to apply.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## 2026-05-02 — Roadmap cleanup + click-outside closes the popup menu
 
 **File:** docs/TODO.md
