@@ -1,12 +1,90 @@
 # Roadmap
 
 A handoff-friendly task list for circuit-builder. Items are roughly ordered:
-do **Now** first, then **Next**, then **Later**. Each task lists the smallest
-concrete steps so the work can be resumed in a fresh session without
-rebuilding context. Known bugs live in **Known Issues** at the bottom.
+do **Now** first, then **Next**, then **Later**, then **Brainstorming**
+(design ideas not yet committed to a path), then **Far future** (the
+big-picture stretch goals). Each task lists the smallest concrete steps so
+the work can be resumed in a fresh session without rebuilding context.
+Known bugs live in **Known Issues** at the bottom.
 
 Before starting any item, read `docs/TESTING.md` (refactoring rules + manual
 test checklist) and skim recent entries in `docs/CHANGELOG.md`.
+
+**Design principle:** the program must be fully usable with the mouse alone.
+Keyboard shortcuts are for power users and exist alongside, never instead
+of, a clickable equivalent. Anything new that's only reachable by hotkey is
+incomplete.
+
+---
+
+## Now — Toolbar TEXT button
+
+Right now a text box can only be spawned by pressing **T**. The classroom
+target is mouse-only, so it also needs a clickable template on the bank
+alongside Switch / NAND / LED.
+
+- [ ] Add a new toolbox template that reads "TEXT" centered on its body.
+  Square is fine (matches Switch/LED size); it's a label, not a circuit
+  element, so no ports.
+- [ ] In `ui.py::ComponentBank`, special-case it: clicking the template
+  spawns a `TextBox` (not a `Component` subclass), so add a small adapter
+  rather than shoving TextBox into `TEMPLATE_CLASSES`. Two reasonable
+  options to weigh:
+  1. Generalize `TEMPLATE_CLASSES` to a list of `(template_drawable,
+     spawn_fn)` pairs and let TextBox spawn through the manager.
+  2. Add a separate `_text_template` rect that the bank also draws/handles,
+     parallel to the component templates.
+
+  Option 1 is cleaner long-term (Save-as-Component will need the same
+  generalization); pick that.
+- [ ] Spawned `TextBox` should immediately focus so the student can start
+  typing without an extra click.
+- [ ] Update the **N** / **T** hotkeys in `main.py::_handle_keydown` to
+  call the same spawn paths the bank uses, not duplicate them. Keeps the
+  two entry points honest.
+- [X] Manual test: click the TEXT template, drag a box onto the workspace,
+  type, drop. Then keyboard-spawn another with **T**. Both work the same.
+
+---
+
+## Now — Force uppercase in text boxes
+
+Quick win for visual consistency with the rest of the workspace (component
+labels, port names, IN/OUT — everything else is uppercase).
+
+- [ ] In `text_boxes.py::TextBox.handle_key`, uppercase `event.unicode`
+  before appending. `str.upper()` on a single character is safe for ASCII
+  and a no-op for symbols.
+- [ ] Decision: do we also force uppercase on existing text loaded from a
+  save file? Yes — the rule is "text boxes are uppercase," not "new
+  characters are uppercase." Apply `.upper()` once when the box is
+  populated from a save.
+- [X] Manual test: pressing 'a' shows 'A'. Pressing Shift+'a' also shows
+  'A' (no double-shift glitch). Numbers and symbols pass through unchanged.
+
+---
+
+## Next — Bottom-left popup menu (file ops)
+
+Once Save / Load / New Component / Save-as-Component arrive, the toolbar
+will have nowhere to put them. Add a Windows-style **MENU** button in the
+bottom-left corner of the bank. Clicking it pops up a vertical menu.
+
+- [ ] New class `MenuButton` (or `BankMenu`) in `ui.py` or a new `menu.py`,
+  rendered inside the bank rect at the far left.
+- [ ] On click, draws a popup `pygame.Surface` above the bank with menu
+  items. First items: **New Project**, **Load Project**, **Save Project**,
+  **Save as Component**, **Quit**. Greyed-out / disabled state for items
+  that don't apply yet.
+- [ ] Click outside the popup closes it. Click an item runs its action and
+  closes the popup.
+- [ ] Keyboard escape also closes it.
+- [ ] Treat the popup like the text-box manager: it intercepts events
+  before wires/components so a click on the popup can't start a wire on a
+  port underneath.
+- [X] Manual test: open the menu, click each item, confirm the popup
+  closes and the action runs. Click outside — popup closes, no spurious
+  wire/component side effects.
 
 ---
 
@@ -90,11 +168,116 @@ explain their circuits. No signal, no port, never on the toolbox bank.
 
 Bigger features, in roughly the order they unlock student workflows.
 
-- [ ] **Save / load a project:** JSON file containing components (type, position), ports, wires, and text boxes. Pick a schema version field early so future formats can migrate.
-- [ ] **Main menu:** "New Project" / "Load Project" before the workspace opens.
-- [ ] **Save as Component:** package the current workspace as a reusable named component that drops into the toolbox as a new template ("black box" abstraction). This is the keystone feature of the project — the moment students can build NOT/AND/OR from NAND and reuse them.
-- [ ] **Toolbox redesign:** shrink the templates so more fit; scroll if the toolbox overflows.
-- [ ] **Toolbox menu button:** "Save current circuit as component" / "Start a new workspace".
+- [ ] **Save / load a project.** JSON file containing components (type,
+  position, internal state e.g. Switch toggle), wires (source/target as
+  `(component_id, port_name)` pairs), and text boxes (position + text).
+  Pick a `schema_version` field early so future formats can migrate.
+  **Important:** when Save-as-Component lands, embed sub-circuit
+  definitions inside the project save, don't reference them by name —
+  otherwise sharing a project file breaks the moment the recipient is
+  missing one of the saved components.
+- [ ] **Project main menu (program startup).** Before the workspace opens,
+  show a menu screen with: **New Project**, **Load Project**, **Options**,
+  **Quit**. Replaces the current "drop straight into the workspace"
+  startup. Options can be empty for v1 (placeholder for fullscreen, audio,
+  CRT toggle, etc.).
+- [ ] **Save as Component** (the keystone feature). Package the current
+  workspace as a reusable named component that drops into the toolbox as a
+  new template — a "black box" abstraction. Sub-features:
+  - [ ] **Pick external pins.** Designate which internal Switches become
+    the new component's INPUT ports and which internal LEDs become its
+    OUTPUT ports. Order on the body matches order picked.
+  - [ ] **Choose a color.** Default body color is the existing
+    `MEDIUM_CARMINE`, but the save dialog should offer a swatch picker so
+    students can color-code their library. Color saves into the component
+    definition, not the project.
+  - [ ] **Rename.** Default name is whatever the student typed in the
+    "Save as..." dialog. **But:** if the saved component happens to match
+    the truth table of a known gate (NOT, AND, OR, NAND, NOR, XOR, XNOR),
+    the dialog pre-fills the recognized name as a reward for figuring it
+    out. Student can override; this is a hint, not a lock.
+  - [ ] **Detect known gates.** Brute-force truth-table comparison on
+    save. The space is small (≤4 inputs covers everything in this list)
+    and the comparison runs once on save, not per frame.
+- [ ] **Toolbox redesign for many components.** Once Save-as-Component
+  lands, the bank will overflow. Brainstorming options:
+  - Horizontal scroll on the bank.
+  - Shrink template icons + overflow into a "More..." popup.
+  - Move the full library to the bottom-left menu and keep a smaller
+    "favorites" row in the bank that students pin items into.
+  - Vertical sidebar instead of bottom bar for more real estate.
+  - Categories with tabs (gates, latches, custom).
+
+  Pick after we have real data on how many components a typical session
+  produces.
+
+---
+
+## Brainstorming
+
+Design ideas not yet committed to a path. Promote into Later when the
+shape is clearer.
+
+- [ ] **Dynamic text-box width.** Right now `TextBoxSettings.WIDTH` is
+  fixed and the box wraps text into it. If a student types just "A" they
+  get a wide box with one letter in it. Better: width = min(WIDTH,
+  font.size(longest_line) + 2*PADDING). Tricky parts: the wrap depends on
+  width, width depends on the wrap → either pick longest unbroken line or
+  iterate to a fixed point. Probably keep MAX_WIDTH so a paragraph still
+  wraps, but shrink for short labels.
+- [ ] **IN / OUT visual redesign.** Both Switch and LED currently render
+  as circles with different fill colors, which is confusing — they look
+  like the same component in two states. Better:
+  - **Switch** as a physical toggle: a rectangle with a sliding handle
+    that visibly moves left/right (or up/down) when toggled, plus a
+    ON/OFF label. Reads as "input you control."
+  - **LED** as a bulb: circle with a base/lead silhouette so it reads as
+    a bulb that's on or off. Maybe a halo/glow ring when HIGH.
+- [ ] **Pin-to-toolbar for saved components.** Right-click a saved
+  component in the menu library, "Pin to toolbar" / "Unpin." Solves the
+  toolbox-overflow question without committing to scroll.
+- [ ] **Wire bending / segments.** Already in Known Issues — restating
+  here for visibility because it overlaps with the toolbox-redesign
+  discussion (both are about visual clarity in dense circuits). Possible
+  approach: click waypoints during the wire drag to add bend points;
+  delete a waypoint by right-clicking it.
+- [ ] **Undo / redo.** Students will lose work to accidental deletes.
+  Even a 10-step undo would absorb most of the pain. Cleanest model:
+  every mutating action (place, delete, wire, unwire, edit text) routes
+  through a Command object with a `do()` and `undo()`. Manager pushes to
+  a deque, Ctrl+Z pops.
+- [ ] **Trash mode / delete button.** Right-click on a touchpad
+  (Chromebook, single-button mouse) is hard for kids. Optional toolbar
+  trash icon that puts the cursor into "delete mode" until the next
+  click would be more discoverable.
+- [ ] **Keyboard shortcut overlay.** Press `?` to flash a translucent
+  cheat-sheet of every shortcut. Lets the keyboard-curious discover the
+  hotkeys without the docs being mandatory.
+
+---
+
+## Far future
+
+Stretch goals — explicitly not for the next few sessions, but worth
+parking here so we don't lose them.
+
+- [ ] **Tutorials.** Interactive walkthroughs that introduce concepts in
+  order: "wire a NAND so its output is HIGH," "build a NOT gate from a
+  NAND," "build an AND gate from two NANDs." Each tutorial highlights
+  the relevant toolbox template and verifies the truth table on
+  completion.
+- [ ] **Puzzles / challenges.** "Build an XOR gate using only NANDs in 5
+  components or fewer." "Make an SR latch hold state." Auto-graded by
+  truth-table comparison. Optional leaderboard / star rating per puzzle.
+- [ ] **Component library sharing.** Export a saved component as a
+  shareable file students can email or hand off. Pairs with the
+  "embed-don't-reference" save-file decision above.
+- [ ] **Sound design.** Subtle click on placement, faint hum on HIGH
+  signal, a small "snap" when a wire commits. CRT scanlines already set
+  the toy-computer mood; audio would land the rest of it.
+- [ ] **Multi-bit ports / busses.** Once students build a 4-bit adder
+  they'll want a way to bundle four wires into one visual line. Big
+  semantic lift; park until adders happen.
 
 ---
 
@@ -107,6 +290,15 @@ code is touched.
 - [x] ~~`Component.handle_event` falls off the end implicitly...~~ Done 2026-05-01. Explicit `return None` added.
 - [x] ~~`Component.__init__` defaults `width=100`, `height=60`...~~ Done 2026-05-01. Replaced with `ComponentSettings.DEFAULT_WIDTH` / `DEFAULT_HEIGHT` via a `None` sentinel default.
 - [x] ~~`crt.py::CRT` calls `super().__init__()`...~~ Done 2026-05-01. Removed.
+- [ ] **Add a few unit tests for the logic-only modules.** Pygame is hard
+  to test, but `signals.py`, `wires._is_valid`, and `Wire.hit` are pure
+  Python and trivial to cover. Three tests would catch the next signal
+  refactor: NAND truth table, wire validation rejects same-direction /
+  same-parent, and an SR latch built in code holds state across two
+  `SignalManager.update` calls.
+- [ ] **Wrap the per-frame loop in a top-level try/except** that flashes
+  a banner and keeps the app alive. Crashes mid-class are the worst
+  possible UX.
 
 ---
 
@@ -116,5 +308,7 @@ Bugs that affect behavior. Repro → fix → log in `docs/CHANGELOG.md` → re-r
 the manual checklist in `docs/TESTING.md`.
 
 - [x] ~~**Components can be dragged behind the toolbox.**~~ Fixed 2026-05-01. `Component._clamp_to_workspace` clamps `rect.x`/`rect.y` after every drag-driven assignment so a component cannot enter the toolbox bank or leave the screen. Reported by user 2026-05-01.
-- [ ] ~~**Wires only go in a straight line, can't be bent or curved.**~~ Right now if a user wants to connect to components and there is another component between them, or they want to create a loop, this results in ugly straight lines everywhere. Perhaps allow them to create the wire in "segments"
--  [ ] ~~**Port highlighting is active inside the toolbox.** When hovering over the ports of a component in the toolbox port highlighting works as if it was in the workspace. This is a low priority issue.
+- [ ] **Wires only go in a straight line, can't be bent or curved.** Right now if a user wants to connect two components and there is another component between them, or they want to create a loop, this results in ugly straight lines everywhere. Perhaps allow them to create the wire in "segments" — see Brainstorming entry above for a sketch.
+- [ ] **Port highlighting is active inside the toolbox.** When hovering over the ports of a component in the toolbox, port highlighting works as if it was in the workspace. Low priority.
+- [ ] **Text boxes accept lowercase input.** Should force uppercase to match the rest of the workspace. Tracked under "Now — Force uppercase in text boxes" above.
+- [ ] **Text boxes are mouse-inaccessible.** Only the **T** hotkey spawns one; mouse-only users can't make a text box. Tracked under "Now — Toolbar TEXT button" above.
