@@ -156,3 +156,31 @@ template below, with one `**File:** ... **Why:** ...` block per file touched.
                 return "DELETE"
 **Why:** The right-click branch was missing the `collidepoint(event.pos)` hit-test that the left-click branch already had, so every Component returned "DELETE" on every right-click. main.py iterates components in reverse and breaks on the first delete, which meant the most recently placed component was always the one deleted, regardless of cursor position. Reported by user. Also fixed the spurious extra indentation on the `return "DELETE"` line that was a hint the logic was incomplete.
 **Editor:** Claude (Opus)
+
+## 2026-05-01 — Curate TODO.md as a session-handoff roadmap
+
+**File:** docs/TODO.md
+**Lines (at time of edit):** 1-10 (replaced; file grew to ~110 lines)
+**Before:**
+        - [ ] Add port highlighting
+        - [ ] Add port text on hover (INPUT A, INPUT B, OUT, etc)
+        - [ ] Ports should be connectable with wires
+        - [ ] Add logic for when ports are "live"
+        - [ ] Allow text boxes that can be dragged, dropped and edited.
+        - [ ] Allow ports to connect
+        - [ ] Allow student to save a project
+        - [ ] Add menu that allows the student to start a new project or load a new one
+        - [ ] Shrink and simplify components on toolbox for a cleaner more compact UI
+        - [ ] Add Menu button to toolbox for saving components and creating new workspace to make a new component
+**After:**
+        # Roadmap
+        ## Now — Port highlighting
+        ## Next — Port hover labels
+        ## Next — Wiring
+        ## Next — Live signal state
+        ## Later
+        ## Polish / tech debt
+        ## Known issues
+        (each section has concrete substeps; full text in the file)
+**Why:** Original list was a flat bag of intent — fine for the author mid-flow, hard to resume in a fresh session. New layout phases the work (Now / Next / Later) and breaks each item into substeps small enough that future-me can pick one up cold. Removed the duplicate "Allow ports to connect" entry. Added a "Polish / tech debt" section capturing items raised but not addressed this session (font init in Component, implicit return in handle_event, magic widths/heights, redundant super().__init__ in CRT). Added a "Known issues" section with the toolbox-occlusion bug reported by the user (components can currently be dragged below `UISettings.BANK_RECT.top`).
+**Editor:** Claude (Opus)

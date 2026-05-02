@@ -5,6 +5,7 @@ Run this after major changes to ensure nothing broke:
 * Game loads
 * Drag and drop still works
 * Components can still be moved from toolbox to workspace
+* Right click still deletes components
 
 # Refactoring Rules
 * Update CHANGELOG.md for every code change (timestamp, file, line numbers, before/after, why) including which AI model made the change. Read it first before making changes so you know the current state.
