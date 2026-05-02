@@ -58,19 +58,20 @@ class TextTemplate:
 
 
 class MenuButton:
-    """Bottom-left bank button — visual anchor for the future file-ops popup.
+    """Bottom-left bank button + the popup it toggles above the bank.
 
     Lives at the far-left of the toolbox bank as a Windows-style "Start"
-    button. This first cut owns the rect and the draw only — popup, click
-    handling, and menu items arrive in a follow-up step so the slot can be
-    introduced without touching event flow. `ports = ()` mirrors
-    `TextTemplate` so GameManager's port-hover walker can iterate this
-    object the same way it iterates Component templates without a special
-    case (if it's ever asked to).
+    button. Clicking the button toggles `is_open`; while open, a placeholder
+    popup rect is drawn directly above the button. Menu items, click-outside
+    dismissal, and Esc dismissal arrive in follow-up steps — keeping those
+    out of this cut means the toggle can be introduced and verified in
+    isolation. `ports = ()` mirrors `TextTemplate` so GameManager's
+    port-hover walker can iterate this object the same way it iterates
+    Component templates without a special case (if it's ever asked to).
     """
 
     def __init__(self, x, y):
-        """Lay out the button rect and pre-render its static label.
+        """Lay out the button + popup rects and pre-render the static label.
 
         Args:
             x (int): Top-left x in screen coordinates.
@@ -81,6 +82,18 @@ class MenuButton:
         # Empty tuple (not list) so accidental .append() in any walker would
         # fail loud rather than silently grow this button's "ports".
         self.ports = ()
+        # Popup rect floats above the button with a small gap so the two
+        # don't visually fuse. Anchored to the button's left edge so the
+        # popup grows up-and-right, matching the Windows Start menu shape.
+        self.popup_rect = pygame.Rect(
+            x,
+            y - MenuButtonSettings.POPUP_GAP - MenuButtonSettings.POPUP_HEIGHT,
+            MenuButtonSettings.POPUP_WIDTH,
+            MenuButtonSettings.POPUP_HEIGHT,
+        )
+        # Driven by toggle(); flipped from outside via ComponentBank's click
+        # routing. Defaults to False so the popup is hidden on startup.
+        self.is_open = False
         # The label never changes, so render it once and blit per frame.
         self._label_surf = Fonts.text_box.render(
             MenuButtonSettings.LABEL,
@@ -88,8 +101,20 @@ class MenuButton:
             MenuButtonSettings.LABEL_COLOR,
         )
 
+    def toggle(self):
+        """Flip the popup open/closed.
+
+        Exposed as a method (not a direct attribute write) so future
+        side-effects on open/close — focus stealing, item state refresh —
+        have a single place to land.
+        """
+        self.is_open = not self.is_open
+
     def draw(self, surface):
-        """Render the button body, border, and centered MENU label.
+        """Render the button and, if open, the placeholder popup above it.
+
+        The popup is drawn before any menu items would be (none yet) so
+        future item glyphs can blit on top without z-order gymnastics.
 
         Args:
             surface (pygame.Surface): The surface to draw onto.
@@ -103,6 +128,18 @@ class MenuButton:
         )
         label_rect = self._label_surf.get_rect(center=self.rect.center)
         surface.blit(self._label_surf, label_rect)
+        if self.is_open:
+            pygame.draw.rect(
+                surface,
+                MenuButtonSettings.POPUP_BODY_COLOR,
+                self.popup_rect,
+            )
+            pygame.draw.rect(
+                surface,
+                MenuButtonSettings.POPUP_BORDER_COLOR,
+                self.popup_rect,
+                MenuButtonSettings.POPUP_BORDER_THICKNESS,
+            )
 
 
 class ComponentBank:
@@ -325,6 +362,14 @@ class ComponentBank:
         """
         if event.type != pygame.MOUSEBUTTONDOWN or event.button != InputSettings.LEFT_CLICK:
             return False
+        # MENU is checked before templates so a click on the button always
+        # toggles the popup, never falls through to a template underneath
+        # (the layout puts MENU at x=BANK_PADDING_X so this is defensive
+        # rather than load-bearing today, but keeps the rule honest if
+        # spacing ever shrinks).
+        if self.menu_button.rect.collidepoint(event.pos):
+            self.menu_button.toggle()
+            return True
         for tpl, spawn_fn in self._templates_and_spawners:
             if tpl.rect.collidepoint(event.pos):
                 spawn_fn(event.pos, components_list)

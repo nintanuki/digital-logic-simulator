@@ -66,7 +66,10 @@ bottom-left corner of the bank. Clicking it pops up a vertical menu.
 - [ ] On click, draws a popup `pygame.Surface` above the bank with menu
   items. First items: **New Project**, **Load Project**, **Save Project**,
   **Save as Component**, **Quit**. Greyed-out / disabled state for items
-  that don't apply yet.
+  that don't apply yet. *Half-done 2026-05-02*: clicking MENU now toggles
+  an empty placeholder popup above the bank (`MenuButton.is_open` +
+  `toggle()`, `ComponentBank.handle_event` routes the click before the
+  template loop). Items themselves still TODO.
 - [ ] Click outside the popup closes it. Click an item runs its action and
   closes the popup.
 - [ ] Keyboard escape also closes it.
@@ -335,3 +338,4 @@ the manual checklist in `docs/TESTING.md`.
 - [ ] Decide if we want to stick with the pale blue for the background or a more circuit board style green (supposed to emulate a circuit board cutting mat) or better yet, let students choose that in options
 - [ ] Toggle sound effects in options
 - [ ] Add easy mode? Students start with some components already such as AND/OR/NOT
+- [ ] Right now the blank context menu that pops up when you click the menu button overlaps a bit with the toolbar. I'd prefer if it floated above or rested right on top of the top of the toolbar. The menu button also looks too similar to the text component, it's hard to tell which one is a button for options and which one is a component you can drag

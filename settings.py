@@ -183,9 +183,9 @@ class MenuButtonSettings:
     """Visual constants for the bottom-left MENU button on the toolbox bank.
 
     Anchors the far-left of the bank as a Windows-style "Start" affordance.
-    The button itself only renders for now; clicking it will eventually open
-    a vertical popup with project file ops (New / Load / Save / Quit). Sized
-    to match the existing template row so the bank reads as one consistent
+    Clicking the button toggles a popup that floats above the bank — file
+    ops items (New / Load / Save / Quit) land in a follow-up step. Sized to
+    match the existing template row so the bank reads as one consistent
     strip.
     """
     SIZE = 60
@@ -196,6 +196,19 @@ class MenuButtonSettings:
     BORDER_THICKNESS = 1
     LABEL = "MENU"
     LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    # Popup container that appears above the button when the menu is open.
+    # Width/height are placeholders for an empty popup; once menu items
+    # exist, height will be derived from the item count instead of pinned
+    # here. Color matches the button body so the popup reads as an
+    # extension of the same control.
+    POPUP_WIDTH = 180
+    POPUP_HEIGHT = 160
+    POPUP_BODY_COLOR = (60, 60, 60)
+    POPUP_BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    POPUP_BORDER_THICKNESS = 1
+    # Vertical gap between the top of the button and the bottom of the
+    # popup so the popup doesn't visually fuse with the button.
+    POPUP_GAP = 4
 
 
 class AudioSettings:

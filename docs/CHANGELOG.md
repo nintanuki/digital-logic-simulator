@@ -4,6 +4,95 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-02 — MENU button click toggles a placeholder popup
+
+**File:** settings.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 182-198 (modified, class grew by ~12 lines)
+**Before:**
+    class MenuButtonSettings:
+        """...The button itself only renders for now; clicking it will eventually open
+        a vertical popup..."""
+        SIZE = 60
+        BODY_COLOR = (60, 60, 60)
+        BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+        BORDER_THICKNESS = 1
+        LABEL = "MENU"
+        LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+**After:**
+    [docstring updated to reflect that the button now toggles a popup]
+    [...existing fields unchanged...]
+    POPUP_WIDTH = 180
+    POPUP_HEIGHT = 160
+    POPUP_BODY_COLOR = (60, 60, 60)
+    POPUP_BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    POPUP_BORDER_THICKNESS = 1
+    POPUP_GAP = 4
+**Why:** Smallest concrete progress on the "Next — Bottom-left popup menu"
+TODO bullet. Constants for the popup container are added now so the
+button-click toggle has somewhere to draw to. Items will populate the
+popup in a follow-up step.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** ui.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** 60-105 (MenuButton class body modified)
+**Before:**
+    class MenuButton:
+        """Bottom-left bank button — visual anchor for the future file-ops popup..."""
+        def __init__(self, x, y):
+            ...
+            self.rect = pygame.Rect(x, y, size, size)
+            self.ports = ()
+            self._label_surf = Fonts.text_box.render(...)
+        def draw(self, surface):
+            [draws body + border + label only]
+**After:**
+    class MenuButton:
+        """Bottom-left bank button + the popup it toggles above the bank..."""
+        def __init__(self, x, y):
+            ...
+            self.rect = pygame.Rect(x, y, size, size)
+            self.ports = ()
+            self.popup_rect = pygame.Rect(x, y - POPUP_GAP - POPUP_HEIGHT,
+                                          POPUP_WIDTH, POPUP_HEIGHT)
+            self.is_open = False
+            self._label_surf = Fonts.text_box.render(...)
+        def toggle(self):
+            self.is_open = not self.is_open
+        def draw(self, surface):
+            [draws body + border + label, plus popup body+border when is_open]
+**Why:** Adds the popup container + open/closed state to MenuButton so the
+click toggle can show/hide it. `toggle()` is a method (not a direct
+attribute flip) so future open-side-effects (focus stealing, item state
+refresh) have one place to land.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** ui.py
+**Date and Time:** 5/2/2026
+**Lines (at time of edit):** ~325-340 (ComponentBank.handle_event)
+**Before:**
+    if event.type != pygame.MOUSEBUTTONDOWN or event.button != InputSettings.LEFT_CLICK:
+        return False
+    for tpl, spawn_fn in self._templates_and_spawners:
+        if tpl.rect.collidepoint(event.pos):
+            spawn_fn(event.pos, components_list)
+            return True
+    return False
+**After:**
+    if event.type != pygame.MOUSEBUTTONDOWN or event.button != InputSettings.LEFT_CLICK:
+        return False
+    if self.menu_button.rect.collidepoint(event.pos):
+        self.menu_button.toggle()
+        return True
+    for tpl, spawn_fn in self._templates_and_spawners:
+        ...
+**Why:** Click routing for the MENU button. Checked before the template
+loop so a click on MENU always toggles the popup, never falls through to
+a template (defensive — current layout already puts MENU at x=BANK_PADDING_X
+so there's no overlap, but spacing might shrink later).
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## Format
 
 Each entry covers one logical change (which may touch multiple files). Use the
