@@ -12,6 +12,7 @@ template below, with one `**File:** ... **Why:** ...` block per file touched.
     ## YYYY-MM-DD HH:MM — short summary
 
     **File:** path/to/file.py
+    **Date and Time* e.g. 5/2/2026 @ 3:43PM
     **Lines (at time of edit):** 38-52 (modified)
     **Before:**
         [old code]
@@ -1019,4 +1020,46 @@ Done log, parks the load-from-save half of the decision inside the
 Save/Load Later bullet so it isn't lost when that work begins, and drops
 the now-resolved "Text boxes accept lowercase input" entry from Known
 Issues.
+**Editor:** Claude (Opus 4.7)
+
+## 2026-05-02 — Generalize bank templates to (drawable, spawn_fn) pairs
+
+**File:** ui.py
+**Lines (at time of edit):** 1-101 (whole file rewritten in place; ~145
+lines after)
+**Before:**
+    TEMPLATE_CLASSES = (Switch, Component, LED)
+    ...
+    self.templates = self._build_templates()
+    ...
+    # _build_templates returned list[Component]
+    ...
+    # handle_event inlined the spawn protocol:
+    new_comp = type(tpl)(
+        event.pos[0] - tpl.rect.width // 2,
+        event.pos[1] - tpl.rect.height // 2,
+    )
+    new_comp.dragging = True
+    new_comp.offset_x = new_comp.rect.x - event.pos[0]
+    new_comp.offset_y = new_comp.rect.y - event.pos[1]
+    new_comp._moved_while_dragging = True
+    components_list.append(new_comp)
+**After:**
+    # Internal storage is now list[(template_drawable, spawn_fn)] held on
+    # self._templates_and_spawners. Build pairs each template with a
+    # closure produced by _make_component_spawner(tpl, cls). draw and
+    # handle_event iterate the tuples; handle_event delegates the actual
+    # placement to spawn_fn(event.pos, components_list). A `templates`
+    # @property still returns just the drawables for back-compat with
+    # GameManager._update_port_hover.
+**Why:** First step of the "Now — Toolbar TEXT button" task in
+docs/TODO.md. The plan there explicitly chose Option 1 ("Generalize
+TEMPLATE_CLASSES to a list of (template_drawable, spawn_fn) pairs") so a
+TEXT label — which spawns a TextBox via the manager, not a Component
+into components_list — can drop into the bank without special-casing,
+and so the same generalization will carry the future Save-as-Component
+templates. This commit is behavior-preserving: no new template added,
+no signature change to ComponentBank.handle_event, no change to
+GameManager wiring. The new TEXT entry plus the N/T hotkey
+consolidation are deliberate follow-ups.
 **Editor:** Claude (Opus 4.7)
