@@ -4,6 +4,260 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-03 00:30 UTC — Pass 1 step 1: rough Save-as-Component dialog
+
+**File:** settings.py
+**Date and Time:** 2026-05-03 00:30 UTC
+**Lines (at time of edit):** 242-334 (new SaveComponentDialogSettings class
+inserted before AudioSettings)
+**Before:**
+    [no SaveComponentDialogSettings class — the previous bottom of the
+    file went straight from MenuButtonSettings to AudioSettings]
+**After:**
+    class SaveComponentDialogSettings:
+        """Visual + interaction constants for the SAVE AS COMPONENT
+        dialog. ..."""
+        WIDTH = 520
+        HEIGHT = 400
+        BODY_COLOR = (40, 40, 40)
+        ...
+        # Picker (used for both INPUTS and OUTPUTS).
+        PICKER_HEIGHT = 168
+        PICKER_ROW_HEIGHT = 28
+        ...
+        PICKER_COLUMN_WIDTH = (WIDTH - 2 * PADDING - PICKER_COLUMN_GAP) // 2
+        ...
+        BUTTON_BG_ENABLED = (70, 110, 70)
+        BUTTON_BG_DISABLED = (60, 60, 60)
+        BUTTON_BG_CANCEL = (110, 60, 60)
+        ...
+        BACKDROP_COLOR = (0, 0, 0)
+        BACKDROP_ALPHA = 140
+**Why:** All the dialog's geometry, colors, copy strings, and behavioral
+caps (NAME_MAX_LENGTH, NAME_CARET_BLINK_MS) live in settings per the
+no-magic-numbers rule. Class docstring captures the two design calls
+that aren't obvious from the constants: (1) modal — every event the
+dialog sees is consumed, mirroring the text-box manager's pre-emption
+in `_process_events`, and (2) click-outside is a no-op rather than a
+dismiss, deliberately diverging from the bottom-left popup's
+click-outside-cancels because losing a multi-field form to a stray
+click is a much worse footgun than losing a tiny menu. PICKER_COLUMN_WIDTH
+is computed from the dialog WIDTH so the two side-by-side pickers always
+fit; PICKER_BG_SELECTED uses a carmine-family tint so a selected row
+reads as "live" against the dark backdrop without screaming. BACKDROP_ALPHA
+of 140 (out of 255) pushes the workspace back enough to read as paused
+without flattening the dialog into a void. NAME_MAX_LENGTH=24 fits
+"FULL ADDER" / "RIPPLE CARRY ADDER 4BIT" with room to spare; longer is a
+smell anyway. Two BUTTON_BG_* tints (green for Save, red for Cancel) and
+a third for disabled-Save (matches PICKER_ROW_BG so disabled-Save reads
+as a placeholder rather than a live affordance). The full set sits in one
+class so a future palette pass touches one place.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** save_component_dialog.py
+**Date and Time:** 2026-05-03 00:30 UTC
+**Lines (at time of edit):** (new file)
+**Before:**
+    (file did not exist)
+**After:**
+    Module exposing `SaveComponentDialog` plus two private helpers
+    `_NameField` and `_Picker`. Public class layout:
+        SaveComponentDialog(components, on_save, on_cancel)
+            .handle_event(event) -> bool   # always True (modal)
+            .draw(surface)
+    Sub-widgets: a single-line _NameField (uppercase printable input,
+    backspace, blink caret, NAME_MAX_LENGTH cap), and two _Pickers (one
+    for Switches → INPUT ports, one for LEDs → OUTPUT ports; click order
+    determines port order; selected rows show a `#N` badge). Save button
+    stays disabled until the form is valid (non-empty trimmed name AND
+    ≥1 input AND ≥1 output) and consumes its click without firing
+    on_save when disabled — same disabled-vs-enabled discipline the
+    bottom-left popup uses for unwired items. Esc and the Cancel button
+    both call on_cancel; the dialog itself does not auto-dismiss after
+    on_save (the caller's `_finalize_save_as_component` is what triggers
+    `_dismiss_dialog`), so close-vs-stay-open policy stays with the
+    caller, not the dialog.
+**Why:** Pass 1 step 1 of the Save-as-Component spine. Lifted into its own
+module rather than inlined in ui.py because the dialog is multi-widget
+state with its own event routing and its own draw order — same separation
+text_boxes.py earned for the same reasons. Two private helpers
+(_NameField, _Picker) keep the dialog class itself short and let each
+widget own its hit-test, render, and (where applicable) keystroke
+handling. Picker rows past `picker_height // row_height` are truncated
+rather than scrolled — Pass 4's toolbox-overflow work will produce a
+reusable list/scroll pattern this picker can adopt; until then,
+truncation is the right rough trade-off because Pass 1 use cases (NOT,
+AND, OR, XOR, SR latch) all stay well under six switches/LEDs. The
+on_save callback signature is `(name, ordered input switches, ordered
+output LEDs)` — Pass 1 steps 2 (toolbox template) and 3
+(spawn-as-working-component) will reshape this to also pass the
+embedded sub-circuit (components + wires + port mapping); leaving that
+out here was deliberate so the dialog ships and tests in isolation
+before the sub-circuit packaging machinery lands. Picker rows are
+labelled "IN 1" / "OUT 1" by workspace order, not by component
+position — a position-string was tempting for disambiguation but reads
+as noise on a list of three switches; a 1-based ordinal matches the
+mental model students already have from the existing IN/OUT components
+on the workspace. The selected-row badge `#N` reflects current order
+in `selected`, so deselecting + reselecting visibly renumbers — the
+re-numbering IS the feedback that ordering changed, no separate
+"reorder" affordance needed in the rough cut. Backdrop is a one-time
+alpha surface built at construction and blit per frame, not
+re-rendered on every draw — same render-once / blit-per-frame
+discipline used by MenuButton's pre-rendered label surfaces.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** main.py
+**Date and Time:** 2026-05-03 00:30 UTC
+**Lines (at time of edit):** 7 (new import), 41-70 (constructor:
+self.dialog, self.saved_components, expanded menu_actions),
+87-138 (new save_as_component / _finalize_save_as_component /
+_dismiss_dialog methods), 154-163 (modal pre-empt in _process_events),
+303-309 (dialog.draw call in _draw)
+**Before:**
+    from elements import Component
+    from fonts import Fonts
+    from settings import *
+    ...
+        self.text_boxes = TextBoxManager()
+        self.bank = ComponentBank(
+            self.text_boxes,
+            menu_actions={"QUIT": self.close_game},
+        )
+    ...
+    [no save_as_component / _finalize_save_as_component / _dismiss_dialog]
+    ...
+    def _process_events(self) -> None:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.close_game()
+                continue
+            if self.text_boxes.handle_event(event):
+                continue
+            ...
+    ...
+    def _draw(self):
+        ...
+        self.bank.draw(self.screen)
+**After:**
+    from elements import Component
+    from fonts import Fonts
+    from save_component_dialog import SaveComponentDialog
+    from settings import *
+    ...
+        self.text_boxes = TextBoxManager()
+        # Active modal dialog, or None when no dialog is open.
+        self.dialog = None
+        # Saved component records produced by the SAVE AS COMPONENT
+        # dialog. Pass 1 step 1 stub.
+        self.saved_components = []
+        self.bank = ComponentBank(
+            self.text_boxes,
+            menu_actions={
+                "SAVE AS COMPONENT": self.save_as_component,
+                "QUIT": self.close_game,
+            },
+        )
+    ...
+    def save_as_component(self):
+        """Open the SAVE AS COMPONENT dialog over the current workspace."""
+        self.dialog = SaveComponentDialog(
+            self.components,
+            on_save=self._finalize_save_as_component,
+            on_cancel=self._dismiss_dialog,
+        )
+
+    def _finalize_save_as_component(self, name, input_switches, output_leds):
+        """Stash the user's dialog inputs and dismiss the dialog. ..."""
+        self.saved_components.append({
+            "name": name,
+            "inputs": input_switches,
+            "outputs": output_leds,
+        })
+        self._dismiss_dialog()
+
+    def _dismiss_dialog(self):
+        """Close whichever dialog is currently open."""
+        self.dialog = None
+    ...
+    def _process_events(self) -> None:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.close_game()
+                continue
+            # Modal dialog claims every event before text_boxes.
+            if self.dialog is not None:
+                self.dialog.handle_event(event)
+                continue
+            if self.text_boxes.handle_event(event):
+                continue
+            ...
+    ...
+    def _draw(self):
+        ...
+        self.bank.draw(self.screen)
+        if self.dialog is not None:
+            self.dialog.draw(self.screen)
+**Why:** Wires the dialog into the GameManager surface that the bottom-
+left popup's SAVE AS COMPONENT item now reaches. Five concrete moves:
+(1) the menu_actions dict gains a second enabled entry, so MenuButton
+renders SAVE AS COMPONENT in the live (white) color and the bank's
+dispatch path runs `save_as_component` on click. The popup itself
+already closes-then-runs-the-action (see the 2026-05-02 popup-dispatch
+entry), so the popup → dialog hand-off is one toggle + one bound-method
+call. (2) `self.dialog` and `self.saved_components` join the GameManager
+state. The dialog slot is initialized before `bank` because the bank's
+menu_actions dict references `self.save_as_component`, which dereferences
+`self.dialog` — even though no callback fires before the first event
+loop tick, ordering them defensively is cheaper than tracing a
+NameError later. (3) Three new methods isolate the dialog lifecycle:
+`save_as_component` opens, `_finalize_save_as_component` is the on_save
+callback (stubbed for Pass 1 step 1 — appends a dict to
+`saved_components`; Pass 1 steps 2-3 will reshape the record to embed
+the sub-circuit), and `_dismiss_dialog` is the on_cancel callback (and
+also the tail of finalize so the dialog goes away whether the user
+saved or cancelled). (4) `_process_events` gets a modal pre-empt ahead
+of `text_boxes.handle_event` — same shape the text-box manager uses
+when a box is focused, just one layer up. The dialog's `handle_event`
+always claims the event (returns True) so a click on a text box that
+happens to lie under the dimmed backdrop edits the dialog, not the
+box. (5) `_draw` blits the dialog above the bank so its backdrop
+covers the whole workspace including the toolbox; CRT still draws on
+top in `_render_frame` so the retro overlay is consistent. The Esc
+chain in `_handle_keydown` (popup → quit) is intentionally NOT
+extended to include the dialog — the dialog never lets Esc reach
+`_handle_keydown` because the modal pre-empt in `_process_events`
+swallows the KEYDOWN first. Splitting the dispatch this way (modal
+intercept up top, layered-Esc lower down) keeps the layers from
+fighting over which one owns Esc.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-03 00:30 UTC
+**Lines (at time of edit):** 42-48 (the Pass 1 "Save-as-Component
+dialog (rough)" bullet)
+**Before:**
+    - [ ] **Save-as-Component dialog (rough).** Triggered from the
+      bottom-left popup menu (the SAVE AS COMPONENT item is already there,
+      disabled). The rough dialog only needs four things: a name field, a
+      picker for which Switches become INPUT ports (and in what order), a
+      picker for which LEDs become OUTPUT ports, and Save / Cancel buttons.
+      Skip color choice, skip truth-table auto-detect, skip the "you
+      discovered NAND!" celebration — those are Pass 3.
+**After:**
+    - [x] **Save-as-Component dialog (rough).** [...same body — bullet
+      checked off; payload stashed on GameManager.saved_components as a
+      dict for Pass 1 steps 2-3 to consume.]
+**Why:** Marks the bullet done in the roadmap. Manual test of the
+TESTING.md checklist (game loads, drag-and-drop, wire, IO logic,
+right-click delete) plus the dialog-specific paths (open / type / pick
+inputs / pick outputs / Save with valid form / Cancel / Esc / disabled
+Save with empty form / no-switches empty-state) is owed in a follow-up
+session — pygame is not installable in the sandbox this entry was
+written from, so the runtime check needs to happen on hardware that
+has pygame.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## 2026-05-03 00:11 UTC — Pivot TODO from milestones to passes
 
 **File:** docs/TODO.md

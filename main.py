@@ -4,6 +4,7 @@ import pygame
 import sys
 from elements import Component
 from fonts import Fonts
+from save_component_dialog import SaveComponentDialog
 from settings import *
 from signals import SignalManager
 from text_boxes import TextBoxManager
@@ -37,16 +38,35 @@ class GameManager:
         # in its spawn closure. Spawnable from the bank's TEXT template
         # and from the T keyboard shortcut at the cursor position.
         self.text_boxes = TextBoxManager()
-        # Menu actions: only QUIT has a backing path today (close_game),
-        # so it's the only enabled item in the bottom-left popup. The
-        # other four items (NEW PROJECT, LOAD PROJECT, SAVE PROJECT,
-        # SAVE AS COMPONENT) ship disabled until the Save/Load and
-        # Save-as-Component features land in TODO's Later section. The
+        # Active modal dialog, or None when no dialog is open. Currently
+        # only set by `save_as_component` (the SAVE AS COMPONENT popup
+        # action); future dialogs (e.g. confirm-quit in Pass 2, project
+        # main menu in Pass 3) will reuse this slot via the same
+        # "active UI layer claims its events first" pattern. Initialized
+        # before `bank` because `save_as_component` is bound into the
+        # bank's menu_actions and would dereference `self.dialog` if a
+        # click-through somehow fired before the next event loop tick.
+        self.dialog = None
+        # Saved component records produced by the SAVE AS COMPONENT
+        # dialog. Pass 1 step 1 stub: each entry is a dict snapshotting
+        # the user's dialog inputs. Pass 1 steps 2 (toolbox template)
+        # and 3 (spawn-as-working-component) will replace this list
+        # with the live (template_drawable, spawn_fn) pairs the bank
+        # consumes. In-session only by design — disk persistence is
+        # Pass 3.
+        self.saved_components = []
+        # Menu actions: QUIT (close_game) and SAVE AS COMPONENT
+        # (open the rough Pass-1 dialog) are the two enabled items.
+        # The other three (NEW PROJECT, LOAD PROJECT, SAVE PROJECT)
+        # ship disabled until disk persistence lands in Pass 3. The
         # dict's keys mirror MenuButtonSettings.ITEM_LABELS exactly so
         # MenuButton can pre-render each label in the right color.
         self.bank = ComponentBank(
             self.text_boxes,
-            menu_actions={"QUIT": self.close_game},
+            menu_actions={
+                "SAVE AS COMPONENT": self.save_as_component,
+                "QUIT": self.close_game,
+            },
         )
         self.components = [] # Start with an empty workspace. Components will be added by the user.
         self.wires = WireManager()
@@ -64,6 +84,59 @@ class GameManager:
     # GAMEPLAY ACTIONS
     # -------------------------
 
+    def save_as_component(self):
+        """Open the SAVE AS COMPONENT dialog over the current workspace.
+
+        Bound into the bottom-left popup's menu_actions for the SAVE AS
+        COMPONENT label. The dialog snapshots the workspace's switches
+        and LEDs at construction time, so opening, dragging the
+        underlying components, and then saving still wires the ports
+        the user originally selected — drift would be a confusing
+        Pass 1 footgun.
+        """
+        self.dialog = SaveComponentDialog(
+            self.components,
+            on_save=self._finalize_save_as_component,
+            on_cancel=self._dismiss_dialog,
+        )
+
+    def _finalize_save_as_component(self, name, input_switches, output_leds):
+        """Stash the user's dialog inputs and dismiss the dialog.
+
+        Pass 1 step 1 deliberately keeps this stub minimal: it captures
+        the form payload and closes the dialog. Pass 1 steps 2 (toolbox
+        template) and 3 (spawn-as-working-component) consume this list
+        and add the embedded sub-circuit (components + wires + the
+        external port mapping) to each record. Splitting the work this
+        way lets the dialog ship and be tested in isolation before the
+        sub-circuit packaging machinery lands.
+
+        Args:
+            name (str): Saved component's display name (uppercase,
+                already trimmed by the dialog).
+            input_switches (list[Switch]): Workspace switches in the
+                order the user clicked them; index 0 becomes the saved
+                component's first INPUT port.
+            output_leds (list[LED]): Workspace LEDs in click order;
+                index 0 becomes the first OUTPUT port.
+        """
+        self.saved_components.append({
+            "name": name,
+            "inputs": input_switches,
+            "outputs": output_leds,
+        })
+        self._dismiss_dialog()
+
+    def _dismiss_dialog(self):
+        """Close whichever dialog is currently open.
+
+        Reaching this with `self.dialog is None` should not happen in
+        practice — both Cancel and Esc paths inside the dialog go
+        through here, and a no-op is the right safe default if a
+        future caller somehow double-dismisses.
+        """
+        self.dialog = None
+
     # -------------------------
     # AUDIO / VOLUME ACTIONS
     # -------------------------
@@ -76,6 +149,17 @@ class GameManager:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.close_game()
+                continue
+
+            # While a modal dialog is open it owns every event — the
+            # workspace beneath is paused. Sits ahead of text_boxes so
+            # a click that happens to land on a text box under the
+            # dimmed backdrop edits the dialog, not the box. The dialog
+            # itself routes Save / Cancel / Esc back through callbacks
+            # that null out `self.dialog`, so the next event loop tick
+            # falls through here normally.
+            if self.dialog is not None:
+                self.dialog.handle_event(event)
                 continue
 
             # Text boxes get every event first: keystrokes while a box is
@@ -213,8 +297,16 @@ class GameManager:
         # area anyway, but drawing under it costs nothing and keeps the
         # toolbox visually authoritative.
         self.text_boxes.draw(self.screen)
-        # Draw the bank last so it stays on top of everything
+        # Draw the bank above text boxes and components so the toolbox
+        # always reads as the topmost workspace surface.
         self.bank.draw(self.screen)
+        # Modal dialog draws above everything else (including the bank
+        # and its popup) so its dimmed backdrop covers the workspace
+        # uniformly. The CRT overlay still draws on top of this in
+        # _render_frame, which keeps the retro aesthetic consistent
+        # with the rest of the screen.
+        if self.dialog is not None:
+            self.dialog.draw(self.screen)
 
     def _draw_grid(self):
         grid_color = (ColorSettings.WORD_COLORS["WHITE"]) # Subtle light blue

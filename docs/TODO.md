@@ -39,13 +39,16 @@ and keep climbing the abstraction ladder. **In-session only — closing
 the program loses everything.** That's a deliberate Pass-1 trade-off; disk
 persistence comes in Pass 3.
 
-- [ ] **Save-as-Component dialog (rough).** Triggered from the
+- [x] **Save-as-Component dialog (rough).** Triggered from the
   bottom-left popup menu (the SAVE AS COMPONENT item is already there,
   disabled). The rough dialog only needs four things: a name field, a
   picker for which Switches become INPUT ports (and in what order), a
   picker for which LEDs become OUTPUT ports, and Save / Cancel buttons.
   Skip color choice, skip truth-table auto-detect, skip the "you
   discovered NAND!" celebration — those are Pass 3.
+  *(Done 2026-05-03. Dialog ships in `save_component_dialog.py`; payload
+  stashes on `GameManager.saved_components` as a dict awaiting Pass 1
+  steps 2-3.)*
 - [ ] **Saved component appears as a new template in the toolbox.** The
   bank already supports `(template_drawable, spawn_fn)` pairs (see the
   TEXT template), so a saved component is just a new pair appended to

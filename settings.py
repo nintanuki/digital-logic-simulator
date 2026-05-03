@@ -239,5 +239,100 @@ class MenuButtonSettings:
     POPUP_GAP = 4
 
 
+class SaveComponentDialogSettings:
+    """Visual + interaction constants for the SAVE AS COMPONENT dialog.
+
+    A modal panel that opens from the bottom-left popup's SAVE AS COMPONENT
+    item. Pass 1 item 1 ships the rough cut: a name field, a picker for
+    which Switches become INPUT ports (click order = port order), a picker
+    for which LEDs become OUTPUT ports (also click order = port order), and
+    Save / Cancel buttons. Color choice, truth-table auto-detect, and the
+    "you discovered NAND!" celebration are deferred to Pass 3.
+
+    Modal: while the dialog is open it consumes every mouse + keyboard
+    event so the workspace beneath it is paused (mirrors how text-box
+    editing pre-empts the rest of the input pipeline). Click-outside is
+    deliberately a no-op rather than a dismiss — a multi-field form is
+    too easy to lose accidentally, unlike the bottom-left popup where
+    click-outside-cancels is fine because there's no in-flight work.
+    """
+    # Centered on the screen. Width is sized to fit two side-by-side
+    # pickers comfortably; height accommodates title + name field + the
+    # picker columns + the Save/Cancel row, with PADDING around each.
+    WIDTH = 520
+    HEIGHT = 400
+    BODY_COLOR = (40, 40, 40)
+    BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    BORDER_THICKNESS = 2
+    PADDING = 16
+    # Vertical gap between adjacent labelled sections so they don't fuse.
+    SECTION_GAP = 10
+
+    # Title
+    TITLE = "SAVE AS COMPONENT"
+    TITLE_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+
+    # Section header labels (e.g. "NAME", "INPUTS", "OUTPUTS"). Dimmer
+    # than body text so they read as captions rather than content.
+    SECTION_LABEL_COLOR = (180, 180, 180)
+    NAME_SECTION_LABEL = "NAME"
+    INPUTS_SECTION_LABEL = "INPUTS — CLICK SWITCHES IN ORDER"
+    OUTPUTS_SECTION_LABEL = "OUTPUTS — CLICK LEDS IN ORDER"
+
+    # Name field
+    NAME_FIELD_HEIGHT = 32
+    NAME_FIELD_BG = (60, 60, 60)
+    NAME_FIELD_BORDER = (120, 120, 120)
+    NAME_FIELD_BORDER_FOCUSED = ColorSettings.WORD_COLORS["WHITE"]
+    NAME_FIELD_TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    NAME_FIELD_PLACEHOLDER = "TYPE A NAME..."
+    NAME_FIELD_PLACEHOLDER_COLOR = (140, 140, 140)
+    NAME_FIELD_PADDING_X = 8
+    # Caps both rendered width and save-file bloat. 24 fits "FULL ADDER"
+    # / "RIPPLE CARRY ADDER 4BIT" comfortably; longer is a smell anyway.
+    NAME_MAX_LENGTH = 24
+    NAME_CARET_BLINK_MS = 1000
+    NAME_CARET_WIDTH = 2
+
+    # Picker (used for both INPUTS and OUTPUTS). Two columns side-by-side
+    # under the name field; each column owns half the inner width minus
+    # the inter-column gap.
+    PICKER_HEIGHT = 168
+    PICKER_ROW_HEIGHT = 28
+    PICKER_ROW_BG = (60, 60, 60)
+    # Subtle carmine-family tint so the selected row reads as "live"
+    # against the dark backdrop without screaming.
+    PICKER_ROW_BG_SELECTED = (90, 60, 60)
+    PICKER_ROW_BORDER = (120, 120, 120)
+    PICKER_ROW_TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    PICKER_ROW_TEXT_DIM = (140, 140, 140)
+    PICKER_BADGE_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    PICKER_EMPTY_TEXT = "(NONE IN WORKSPACE)"
+    # Horizontal gap between the two picker columns inside the dialog.
+    PICKER_COLUMN_GAP = 16
+    # Inter-column width: half of (dialog inner width minus the gap).
+    PICKER_COLUMN_WIDTH = (WIDTH - 2 * PADDING - PICKER_COLUMN_GAP) // 2
+
+    # Save / Cancel buttons
+    BUTTON_WIDTH = 120
+    BUTTON_HEIGHT = 36
+    BUTTON_GAP = 12
+    BUTTON_BG_ENABLED = (70, 110, 70)
+    BUTTON_BG_DISABLED = (60, 60, 60)
+    BUTTON_BG_CANCEL = (110, 60, 60)
+    BUTTON_TEXT_COLOR_ENABLED = ColorSettings.WORD_COLORS["WHITE"]
+    BUTTON_TEXT_COLOR_DISABLED = (140, 140, 140)
+    BUTTON_BORDER_COLOR = (120, 120, 120)
+    BUTTON_LABEL_SAVE = "SAVE"
+    BUTTON_LABEL_CANCEL = "CANCEL"
+
+    # Translucent backdrop dim while the dialog is open so the workspace
+    # behind reads as "paused." Alpha is moderate — enough to push the
+    # workspace back without making the dialog feel like it's floating in
+    # the void.
+    BACKDROP_COLOR = (0, 0, 0)
+    BACKDROP_ALPHA = 140
+
+
 class AudioSettings:
     pass
