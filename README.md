@@ -19,7 +19,11 @@ The point is abstraction: once a circuit works, students stop worrying about its
 
 ## Current Status
 
-Working prototype. Drag-and-drop, wiring, port logic, live signal propagation, the Switch / LED input-output components, and free-floating annotation text boxes are all in. **Save / load** and **Save as Component** (the keystone feature for student progression) are next; see `docs/TODO.md` for the full roadmap.
+Working prototype. Drag-and-drop, wiring, port logic, live signal propagation, the Switch / LED input-output components, and free-floating annotation text boxes are all in.
+
+**Next up: Pass 1 — Save as Component (in-session).** The selling point of this project is the abstraction loop — build a circuit from NANDs, save it as a named component, drop it into the next circuit as a black box, build with that, save *that*, and keep climbing the layers. Pass 1 gets the loop working end-to-end as a rough first version (everything lives in memory; closing the program loses the saved components). Disk save/load comes in Pass 3. See `docs/TODO.md` for the full pass-based roadmap.
+
+The roadmap is organized around iterative passes rather than milestones — the project goes through the codebase several times, each pass leaving it more usable than the last. There is no deadline; this is an enrichment project for a future classroom unit, not a product.
 
 The program is designed to be fully usable with the mouse alone. Keyboard shortcuts exist as a convenience for power users but never replace a clickable equivalent.
 

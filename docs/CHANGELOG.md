@@ -4,6 +4,53 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-03 00:11 UTC — Pivot TODO from milestones to passes
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-03 00:11 UTC
+**Lines (at time of edit):** 1-298 (full rewrite, second one in ~45 minutes)
+**Before:**
+    Six numbered Milestones (M1 Mouse-First Polish → M6 Far Future) with
+    Save/Load (M2) listed as the prerequisite to Save-as-Component (M3).
+    Implicit deadline framing — "ship a complete classroom-ready product"
+    after M3. Issues / Bugs and Polish & Tech Debt as standalone sections.
+    Idea bucket carried IN/OUT visual redesign, undo/redo, trash mode,
+    pin-to-toolbar, dynamic text-box width, keyboard shortcut overlay.
+**After:**
+    Seven Passes (Pass 1 Spine → Pass 7+ Treats) with explicit "do this
+    rough first, polish later" framing. Save-as-Component reframed as
+    Pass 1 (in-session only, no disk persistence). Pass 2 polishes the
+    spine AND adds the safety net (undo/redo, IN/OUT redesign, trash
+    mode, try/except seatbelt, MENU-vs-TEXT visual fix, F11 mouse path,
+    Esc layered behavior). Disk persistence pushed to Pass 3 alongside
+    the Options page, project main menu, truth-table auto-detect, color
+    picker, and the program rename. Curriculum split across Pass 5
+    (rough lessons) and Pass 6 (polish + discoverability layer). New
+    Risks & Notes section captures forward-looking concerns that aren't
+    tasks (classroom hardware reality, schema versioning from day one,
+    Fonts refactor, ADR log, the "you discovered NAND!" pedagogical
+    payoff being non-negotiable). Ideas section drained to empty — the
+    rewrite absorbed every prior idea into a pass.
+**Why:** User explicitly framed the project as a no-deadline enrichment
+side-project ("I don't care when this will be 'done' if ever") and
+asked for a pass-based plan that gets something stable and rough first,
+then refines and polishes in waves. Milestones implied a finish line
+that doesn't exist for this project; passes admit the iteration cycle
+honestly. The single biggest reframe: Save-as-Component is Pass 1, not
+a downstream milestone, because the user identified the abstraction
+loop (build → save → use in next circuit → save → repeat) as the
+literal selling point. In-session-only is good enough to prove the loop;
+disk persistence is a separate concern that can wait. Three scope
+calls confirmed via AskUserQuestion before writing: undo/redo lands in
+Pass 2 (after the spine, before more features), IN/OUT visual redesign
+lands in Pass 2 (Switch and LED looking identical is a real teaching
+obstacle), disk persistence lands in Pass 3 (after the in-session
+spine + polish). The new Risks & Notes section is the place for "I'm
+worried about X" entries that aren't tasks but should be re-read at
+the start of each pass — captures my forward-looking concerns from the
+analysis without polluting the task list.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## 2026-05-02 23:18 UTC — Date+time format and TODO restructure
 
 **File:** docs/CHANGELOG.md
