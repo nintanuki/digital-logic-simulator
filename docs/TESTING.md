@@ -5,6 +5,8 @@ Run this after major changes to ensure nothing broke:
 * Game loads
 * Drag and drop still works
 * Components can still be moved from toolbox to workspace
+* Wiring still works
+* Input/Output logic still works
 * Right click still deletes components
 
 # Refactoring Rules
