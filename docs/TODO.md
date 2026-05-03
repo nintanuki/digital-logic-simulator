@@ -351,7 +351,7 @@ case for shipping weakens, or add new ones as they come up)*
 Bugs that affect behavior. Repro → fix → log in `docs/CHANGELOG.md` →
 re-run the manual checklist in `docs/TESTING.md`.
 
-- [ ] **Wires only go in a straight line, can't be bent or curved.** When choosing save component, the user has to move the mouse to the text box and click it to type the name. They should be able to type the name immediately on choosing save component.
+- [ ] **Extra annoying step just to type the name of the component.** When choosing save component, the user has to move the mouse to the text box and click it to type the name. They should be able to type the name immediately on choosing save component.
 - [ ] **Wires only go in a straight line, can't be bent or curved.** If
   a user wants to connect two components and there is another component
   between them, or they want to create a loop, the result is ugly
