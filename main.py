@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pygame
 import sys
-from elements import Component
+from elements import Component, LED, Switch
 from fonts import Fonts
 from save_component_dialog import SaveComponentDialog
 from settings import *
@@ -85,41 +85,54 @@ class GameManager:
     # -------------------------
 
     def save_as_component(self):
-        """Open the SAVE AS COMPONENT dialog over the current workspace.
+        """Open the SAVE AS COMPONENT dialog.
 
         Bound into the bottom-left popup's menu_actions for the SAVE AS
-        COMPONENT label. The dialog snapshots the workspace's switches
-        and LEDs at construction time, so opening, dragging the
-        underlying components, and then saving still wires the ports
-        the user originally selected — drift would be a confusing
-        Pass 1 footgun.
+        COMPONENT label. The dialog itself only collects the name; the
+        workspace snapshot (switches → INPUTs, LEDs → OUTPUTs, both
+        ordered by Y) happens here in `_finalize_save_as_component` at
+        Save time. Reading the workspace at finalize is safe because
+        the dialog is modal — events that could mutate `self.components`
+        are blocked while the dialog is open.
         """
         self.dialog = SaveComponentDialog(
-            self.components,
             on_save=self._finalize_save_as_component,
             on_cancel=self._dismiss_dialog,
         )
 
-    def _finalize_save_as_component(self, name, input_switches, output_leds):
-        """Stash the user's dialog inputs and dismiss the dialog.
+    def _finalize_save_as_component(self, name):
+        """Auto-infer ports from the workspace, stash the record, dismiss.
 
-        Pass 1 step 1 deliberately keeps this stub minimal: it captures
-        the form payload and closes the dialog. Pass 1 steps 2 (toolbox
-        template) and 3 (spawn-as-working-component) consume this list
-        and add the embedded sub-circuit (components + wires + the
-        external port mapping) to each record. Splitting the work this
-        way lets the dialog ship and be tested in isolation before the
-        sub-circuit packaging machinery lands.
+        Per the "Save-as-Component port inference rule" in TODO Risks &
+        Notes: every Switch in the workspace becomes an INPUT port and
+        every LED becomes an OUTPUT port; ordering is ascending Y so
+        the top-of-screen IN is port 0, the next one down is port 1,
+        and so on. Y was picked over component-creation-order because
+        the visual top-to-bottom column is what the student actually
+        sees — picking the order from something invisible would break
+        the spatial intuition.
+
+        Pass 1 step 1 (v2) keeps this stub minimal: capture the
+        inferred record and dismiss. Pass 1 step 2 (toolbox template)
+        will consume `saved_components` to materialize each record as
+        a clickable bank template, and step 3 (spawn-as-working-
+        component) will turn that template into a usable sub-circuit.
 
         Args:
             name (str): Saved component's display name (uppercase,
                 already trimmed by the dialog).
-            input_switches (list[Switch]): Workspace switches in the
-                order the user clicked them; index 0 becomes the saved
-                component's first INPUT port.
-            output_leds (list[LED]): Workspace LEDs in click order;
-                index 0 becomes the first OUTPUT port.
         """
+        # `sorted(...)` returns a fresh list; the workspace's own
+        # `self.components` ordering is left alone so the user's
+        # bottom-of-stack drag/draw priority isn't disturbed.
+        input_switches = sorted(
+            (c for c in self.components if isinstance(c, Switch)),
+            key=lambda s: s.rect.y,
+        )
+        output_leds = sorted(
+            (c for c in self.components if isinstance(c, LED)),
+            key=lambda l: l.rect.y,
+        )
         self.saved_components.append({
             "name": name,
             "inputs": input_switches,

@@ -41,19 +41,38 @@ persistence comes in Pass 3.
 
 - [x] **Save-as-Component dialog (rough).** Triggered from the
   bottom-left popup menu (the SAVE AS COMPONENT item is already there,
-  disabled). The rough dialog only needs four things: a name field, a
-  picker for which Switches become INPUT ports (and in what order), a
-  picker for which LEDs become OUTPUT ports, and Save / Cancel buttons.
-  Skip color choice, skip truth-table auto-detect, skip the "you
-  discovered NAND!" celebration — those are Pass 3.
-  *(Done 2026-05-03. Dialog ships in `save_component_dialog.py`; payload
-  stashes on `GameManager.saved_components` as a dict awaiting Pass 1
-  steps 2-3.)*
+  disabled). The rough dialog only needs **two** things: a name field
+  and Save / Cancel buttons. Whatever switches and LEDs are in the
+  workspace at save time become the new component's INPUT and OUTPUT
+  ports; **port order is workspace top-to-bottom by Y position**
+  (matches the physical-circuit-board intuition — inputs run top-to-
+  bottom on the left, outputs the same on the right). No picker UI —
+  the original spec had pickers for which Switches/LEDs to include and
+  in what order, but the first draft surfaced the obvious problem:
+  in the common case (e.g. AND-from-NANDs with 2 INs + 1 OUT) the
+  student has nothing to pick. Pickers earn their keep only if the
+  student has unused IN/OUT components they don't want to expose, or
+  if they want a non-Y-sorted port order; both are rare enough to
+  defer to a future "advanced save" toggle (Pass 3+) instead of
+  taxing every save with picker friction. Skip color choice, skip
+  truth-table auto-detect, skip the "you discovered NAND!"
+  celebration — those are Pass 3.
+  *(Done 2026-05-03. Dialog v1 shipped with pickers; v2 ripped them
+  out the same day after testing showed the picker UI added friction
+  without value. Auto-inference moved to
+  `GameManager._finalize_save_as_component`. Payload still stashes on
+  `GameManager.saved_components` as a dict awaiting Pass 1 steps
+  2-3.)*
 - [ ] **Saved component appears as a new template in the toolbox.** The
   bank already supports `(template_drawable, spawn_fn)` pairs (see the
   TEXT template), so a saved component is just a new pair appended to
   the bank's template list. Body color = `MEDIUM_CARMINE` for now, label
-  = the saved name.
+  = the saved name. **Land this together with any future change to the
+  save dialog or its callback** — keeping save and "you can see the
+  result" in the same cut means each landing is end-to-end testable.
+  The first split (step 1 alone, step 2 deferred) made "did save work?"
+  answerable only by reading code, which forced an in-flight redesign
+  of the dialog after step 1 shipped. Don't repeat that.
 - [ ] **Spawning a saved component creates a working component.** The
   saved definition holds the embedded sub-circuit (components + wires +
   the input/output port mappings). Spawning instantiates a fresh copy of
@@ -395,6 +414,30 @@ actionable.
   payoff.** Don't let the truth-table auto-detect slip out of Pass 3.
   Without it, Save-as-Component is "save your work"; with it, it's
   "discover the building blocks of computation." Big difference.
+- [ ] **Save-as-Component port inference rule.** Decided 2026-05-03
+  during the dialog v2 simplification: at save time, every Switch in
+  the workspace becomes an INPUT port and every LED becomes an OUTPUT
+  port; ordering is **ascending Y** (top of the workspace = port 0).
+  Y was picked over component-creation-order because the visual
+  top-to-bottom column is what the student actually sees, and picking
+  the order based on something invisible (creation timestamp) would
+  break the spatial intuition. If two components share the same Y the
+  ordering is undefined for now — Pass 3 can stabilize on (Y, X) once
+  the rule has actually bitten anyone, since for a Pass 1 circuit
+  (NOT, AND, OR, XOR, SR latch) ties are vanishingly rare. The
+  "advanced save" path that would let students reorder or exclude is
+  parked under Pass 3+ and only earns its keep if classroom usage
+  shows the rule is wrong, not preemptively.
+- [ ] **Sub-step splits should stay end-to-end testable.** Pass 1
+  step 1 (dialog only) shipped without step 2 (toolbox template) and
+  produced an "is this even saving?" black box that the user could
+  only verify by reading code. The dialog itself then needed an
+  in-flight redesign because the picker UI couldn't be evaluated
+  without the rest of the loop. Lesson: when splitting a pass-level
+  bullet into multiple landings, each landing must produce a visible
+  user-facing change, even if it's stub-quality. Future splits should
+  pair "input form" and "output appears" in the same cut, not
+  separate ones.
 
 ---
 

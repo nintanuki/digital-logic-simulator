@@ -4,6 +4,217 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-03 00:45 UTC — Save-as-Component dialog v2: strip pickers, name only
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-03 00:45 UTC
+**Lines (at time of edit):** 42-58 (Pass 1 step 1 bullet rewritten +
+done-note rewritten), 61-67 (Pass 1 step 2 bullet gains a "land
+together" instruction), Risks & Notes appended with two new bullets
+(port inference rule + sub-step splits should be end-to-end testable)
+**Before:**
+    [Pass 1 step 1 bullet described the v1 picker design — name field
+     plus pickers for which Switches / LEDs to use and in what order;
+     done-note pointed only at the v1 module location. Pass 1 step 2
+     bullet had no instruction about pairing with future redesigns.
+     Risks & Notes ended at "you discovered NAND!"]
+**After:**
+    [Pass 1 step 1 bullet now describes the v2 minimum-viable design —
+     name field + Save/Cancel only; whatever Switches/LEDs are in the
+     workspace at save time become the new component's INPUT/OUTPUT
+     ports, ordered ascending Y. Done-note records the v1→v2 pivot.
+     Pass 1 step 2 bullet gains: "Land this together with any future
+     change to the save dialog or its callback — keeping save and 'you
+     can see the result' in the same cut means each landing is end-to-
+     end testable." Two new Risks & Notes bullets: (i) the port
+     inference rule pinned to ascending Y because top-to-bottom
+     position is what the student sees, with ties left undefined for
+     Pass 1 use; (ii) sub-step splits must produce a visible user-
+     facing change per landing — Pass 1 step 1 shipping without step 2
+     produced a black box that forced the in-flight redesign this
+     entry documents.]
+**Why:** Roadmap correction in response to a first-light test of the
+v1 dialog. User reported three problems: (1) overlapping section
+labels (the "INPUTS — CLICK SWITCHES IN ORDER" / "OUTPUTS — CLICK LEDS
+IN ORDER" captions ran into each other at the column boundary), (2)
+the picker UX read as busywork — for the common case (e.g. AND-from-
+NANDs with 2 INs and 1 OUT) there's nothing to pick, the answer is
+already obvious from the workspace, and (3) Save did nothing visible,
+so the user couldn't tell whether the click had any effect. (1) is a
+mechanical bug that goes away once the captions go away. (2) is a
+real design wrong-turn: the original spec assumed the picker earned
+its keep, but seeing it in motion showed the picker only matters in
+edge cases (unused IN/OUT components, non-spatial port order) that
+deserve an opt-in path, not the default. (3) is a process problem
+about how Pass 1 was sliced — splitting "the form" from "the result"
+left no testable surface for the form alone. Captured the decisions
+in TODO before any code changes, per the user's explicit instruction,
+so the design call is durable even if the code edits don't all land.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** settings.py
+**Date and Time:** 2026-05-03 00:45 UTC
+**Lines (at time of edit):** 242-313 (SaveComponentDialogSettings:
+shrunk from ~93 lines to ~72; picker-related constants and the
+INPUTS/OUTPUTS section labels removed; WIDTH 520→420, HEIGHT 400→200)
+**Before:**
+    class SaveComponentDialogSettings:
+        ...
+        WIDTH = 520
+        HEIGHT = 400
+        ...
+        # Section header labels (e.g. "NAME", "INPUTS", "OUTPUTS").
+        SECTION_LABEL_COLOR = (180, 180, 180)
+        NAME_SECTION_LABEL = "NAME"
+        INPUTS_SECTION_LABEL = "INPUTS — CLICK SWITCHES IN ORDER"
+        OUTPUTS_SECTION_LABEL = "OUTPUTS — CLICK LEDS IN ORDER"
+        ...
+        # Picker (used for both INPUTS and OUTPUTS).
+        PICKER_HEIGHT = 168
+        PICKER_ROW_HEIGHT = 28
+        PICKER_ROW_BG = (60, 60, 60)
+        PICKER_ROW_BG_SELECTED = (90, 60, 60)
+        PICKER_ROW_BORDER = (120, 120, 120)
+        PICKER_ROW_TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+        PICKER_ROW_TEXT_DIM = (140, 140, 140)
+        PICKER_BADGE_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+        PICKER_EMPTY_TEXT = "(NONE IN WORKSPACE)"
+        PICKER_COLUMN_GAP = 16
+        PICKER_COLUMN_WIDTH = (WIDTH - 2 * PADDING - PICKER_COLUMN_GAP) // 2
+        ...
+**After:**
+    class SaveComponentDialogSettings:
+        """[...v2 docstring noting the pivot and the click-outside-no-op
+        modal contract...]"""
+        WIDTH = 420
+        HEIGHT = 200
+        ...
+        # [no SECTION_LABEL_*, no PICKER_*]
+        # Title, name field, save/cancel buttons, backdrop only.
+**Why:** Drops every constant the picker UI used and shrinks the
+dialog footprint to match the smaller content set. Title + name
+field + button row + paddings comes out to ~158px of vertical
+content, so 200 is a comfortable HEIGHT with room to breathe.
+WIDTH 420 keeps Save (120) + Cancel (120) + GAP (12) + 2*PADDING
+(32) = 284px of fixed real estate with 136px of name-field room
+either side, and reads as a "small dialog" rather than the big
+form the v1 footprint did. The picker color set (PICKER_ROW_BG_*,
+PICKER_BADGE_COLOR, etc.) is gone in full — keeping it for "future
+advanced save" would be premature, and the future opt-in path can
+re-derive whatever palette it actually needs once the use case
+shows up. NAME_SECTION_LABEL was removed because the placeholder
+"TYPE A NAME..." inside the field plus the "SAVE AS COMPONENT" title
+already says what the field is for; a separate "NAME" caption above
+it is redundant noise.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** save_component_dialog.py
+**Date and Time:** 2026-05-03 00:45 UTC
+**Lines (at time of edit):** 1-296 (full rewrite — file shrunk from
+576 lines to ~296)
+**Before:**
+    [v1 module: SaveComponentDialog took (components, on_save, on_cancel)
+     and instantiated two _Picker widgets plus a _NameField. on_save
+     fired with (name, ordered input switches, ordered output LEDs).
+     ~576 lines including _Picker.]
+**After:**
+    [v2 module: SaveComponentDialog takes (on_save, on_cancel) only —
+     no `components` parameter. Internal sub-widgets shrink to one
+     (_NameField); the _Picker class is gone in full. on_save now
+     fires with just `(name)` — auto-inference moved to the manager.
+     Validation: name non-empty after strip. ~296 lines.]
+**Why:** Mirrors the redesigned settings. The dialog no longer needs
+to know about Switch / LED — auto-inference happens at the manager
+which already owns `self.components`, so the dialog is decoupled
+from element types and the `from elements import LED, Switch` line
+is gone. on_save's signature shrinks from three values to one,
+which means callers that only have a name (e.g. a future
+quick-save shortcut) wire up trivially without faking out the
+ports lists. Modal contract is unchanged: handle_event still claims
+every event, click-outside-the-body is still a no-op (and the
+docstring explicitly contrasts this against the popup's
+click-outside-cancels — losing a typed name is a much worse
+footgun than losing a tiny menu). The Pass-1-limitation comment
+about row truncation is gone because there are no rows. _Picker
+deletion is "less code is better" applied at full force — a 100-
+line internal class disappears with no replacement because the
+feature it supported was the wrong feature.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
+**File:** main.py
+**Date and Time:** 2026-05-03 00:45 UTC
+**Lines (at time of edit):** 5 (import gains LED, Switch),
+87-141 (save_as_component / _finalize_save_as_component bodies
+rewritten — dialog constructor loses `components`, finalize gains
+the auto-inference logic and now takes only `name`)
+**Before:**
+    from elements import Component
+    ...
+    def save_as_component(self):
+        """Open the SAVE AS COMPONENT dialog over the current workspace."""
+        self.dialog = SaveComponentDialog(
+            self.components,
+            on_save=self._finalize_save_as_component,
+            on_cancel=self._dismiss_dialog,
+        )
+
+    def _finalize_save_as_component(self, name, input_switches, output_leds):
+        """[v1 stub — appended a record using whatever the dialog
+         passed back]"""
+        self.saved_components.append({
+            "name": name,
+            "inputs": input_switches,
+            "outputs": output_leds,
+        })
+        self._dismiss_dialog()
+**After:**
+    from elements import Component, LED, Switch
+    ...
+    def save_as_component(self):
+        """Open the SAVE AS COMPONENT dialog. ..."""
+        self.dialog = SaveComponentDialog(
+            on_save=self._finalize_save_as_component,
+            on_cancel=self._dismiss_dialog,
+        )
+
+    def _finalize_save_as_component(self, name):
+        """Auto-infer ports from the workspace, stash the record,
+        dismiss. ..."""
+        input_switches = sorted(
+            (c for c in self.components if isinstance(c, Switch)),
+            key=lambda s: s.rect.y,
+        )
+        output_leds = sorted(
+            (c for c in self.components if isinstance(c, LED)),
+            key=lambda l: l.rect.y,
+        )
+        self.saved_components.append({
+            "name": name,
+            "inputs": input_switches,
+            "outputs": output_leds,
+        })
+        self._dismiss_dialog()
+**Why:** Wires the v2 dialog's narrower contract into the manager and
+moves the workspace snapshot from open-time (v1 dialog __init__) to
+save-time (here). Reading `self.components` at finalize is safe
+because the dialog is modal — events that could mutate the workspace
+are blocked while the dialog is open, so open-time and save-time see
+the same set. Sort by `rect.y` ascending implements the rule
+documented in TODO Risks & Notes: top-of-screen IN is port 0, the
+next one down is port 1, etc. Generator expressions fed into
+`sorted(...)` are cheaper than building intermediate lists and let
+Python sort with the `key=` directly. The `from elements import`
+gains LED + Switch (Component was already there) — these are now
+referenced by `isinstance` here. The dialog itself no longer
+imports element types, completing the "dialog doesn't know about
+component kinds" decoupling. Manual test still owed (sandbox has no
+pygame); the user observed the v1 bugs on hardware and this entry
+covers the redesign that fixes them. Once the user confirms the v2
+dialog renders cleanly and Save/Cancel/Esc all behave, the next
+landing should bundle Pass 1 step 2 (toolbox template) with any
+future tweaks so each cut stays end-to-end testable.
+**Editor:** Claude (Opus 4.7, via Cowork)
+
 ## 2026-05-03 00:30 UTC — Pass 1 step 1: rough Save-as-Component dialog
 
 **File:** settings.py

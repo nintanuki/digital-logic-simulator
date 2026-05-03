@@ -242,42 +242,41 @@ class MenuButtonSettings:
 class SaveComponentDialogSettings:
     """Visual + interaction constants for the SAVE AS COMPONENT dialog.
 
-    A modal panel that opens from the bottom-left popup's SAVE AS COMPONENT
-    item. Pass 1 item 1 ships the rough cut: a name field, a picker for
-    which Switches become INPUT ports (click order = port order), a picker
-    for which LEDs become OUTPUT ports (also click order = port order), and
-    Save / Cancel buttons. Color choice, truth-table auto-detect, and the
-    "you discovered NAND!" celebration are deferred to Pass 3.
+    A small modal panel that opens from the bottom-left popup's SAVE AS
+    COMPONENT item. Pass 1 step 1 (v2): the dialog asks for a name and
+    nothing else. Whatever Switches/LEDs are in the workspace at save
+    time become the new component's INPUT/OUTPUT ports — see TODO's
+    "Save-as-Component port inference rule" Risks & Notes entry for the
+    ordering rule (ascending Y). Color choice, truth-table auto-detect,
+    and the "you discovered NAND!" celebration are deferred to Pass 3.
+    The earlier picker-based v1 was scrapped after a first-light test
+    showed the picker UI added friction without value in the common case.
 
     Modal: while the dialog is open it consumes every mouse + keyboard
-    event so the workspace beneath it is paused (mirrors how text-box
+    event so the workspace beneath is paused (mirrors how text-box
     editing pre-empts the rest of the input pipeline). Click-outside is
-    deliberately a no-op rather than a dismiss — a multi-field form is
-    too easy to lose accidentally, unlike the bottom-left popup where
+    deliberately a no-op rather than a dismiss — a typed-in name is too
+    easy to lose accidentally, unlike the bottom-left popup where
     click-outside-cancels is fine because there's no in-flight work.
     """
-    # Centered on the screen. Width is sized to fit two side-by-side
-    # pickers comfortably; height accommodates title + name field + the
-    # picker columns + the Save/Cancel row, with PADDING around each.
-    WIDTH = 520
-    HEIGHT = 400
+    # Centered on the screen. Width is sized to fit the title plus a
+    # comfortable name field; height fits title + name field + button
+    # row with PADDING around each. Smaller than v1 because the picker
+    # columns are gone — keeping the old 520x400 footprint would leave
+    # the dialog mostly empty space and read as overdesigned for the
+    # one input it actually wants.
+    WIDTH = 420
+    HEIGHT = 200
     BODY_COLOR = (40, 40, 40)
     BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     BORDER_THICKNESS = 2
     PADDING = 16
-    # Vertical gap between adjacent labelled sections so they don't fuse.
-    SECTION_GAP = 10
+    # Vertical gap between the title and the name field.
+    SECTION_GAP = 12
 
     # Title
     TITLE = "SAVE AS COMPONENT"
     TITLE_COLOR = ColorSettings.WORD_COLORS["WHITE"]
-
-    # Section header labels (e.g. "NAME", "INPUTS", "OUTPUTS"). Dimmer
-    # than body text so they read as captions rather than content.
-    SECTION_LABEL_COLOR = (180, 180, 180)
-    NAME_SECTION_LABEL = "NAME"
-    INPUTS_SECTION_LABEL = "INPUTS — CLICK SWITCHES IN ORDER"
-    OUTPUTS_SECTION_LABEL = "OUTPUTS — CLICK LEDS IN ORDER"
 
     # Name field
     NAME_FIELD_HEIGHT = 32
@@ -293,25 +292,6 @@ class SaveComponentDialogSettings:
     NAME_MAX_LENGTH = 24
     NAME_CARET_BLINK_MS = 1000
     NAME_CARET_WIDTH = 2
-
-    # Picker (used for both INPUTS and OUTPUTS). Two columns side-by-side
-    # under the name field; each column owns half the inner width minus
-    # the inter-column gap.
-    PICKER_HEIGHT = 168
-    PICKER_ROW_HEIGHT = 28
-    PICKER_ROW_BG = (60, 60, 60)
-    # Subtle carmine-family tint so the selected row reads as "live"
-    # against the dark backdrop without screaming.
-    PICKER_ROW_BG_SELECTED = (90, 60, 60)
-    PICKER_ROW_BORDER = (120, 120, 120)
-    PICKER_ROW_TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
-    PICKER_ROW_TEXT_DIM = (140, 140, 140)
-    PICKER_BADGE_COLOR = ColorSettings.WORD_COLORS["WHITE"]
-    PICKER_EMPTY_TEXT = "(NONE IN WORKSPACE)"
-    # Horizontal gap between the two picker columns inside the dialog.
-    PICKER_COLUMN_GAP = 16
-    # Inter-column width: half of (dialog inner width minus the gap).
-    PICKER_COLUMN_WIDTH = (WIDTH - 2 * PADDING - PICKER_COLUMN_GAP) // 2
 
     # Save / Cancel buttons
     BUTTON_WIDTH = 120

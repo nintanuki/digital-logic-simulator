@@ -1,6 +1,5 @@
 import pygame
 
-from elements import LED, Switch
 from fonts import Fonts
 from settings import (
     InputSettings,
@@ -131,182 +130,37 @@ class _NameField:
         return (elapsed % DS.NAME_CARET_BLINK_MS) < half
 
 
-class _Picker:
-    """Vertical click-to-select list that captures port ordering.
-
-    One row per workspace component of the matching kind (Switch for the
-    INPUTS picker, LED for the OUTPUTS picker). Clicking an unselected
-    row appends it to `selected` in click order; clicking a selected row
-    removes it (and the rows after it shift their badge numbers down by
-    one). The badge `#N` on each selected row reflects its current
-    position in `selected`, which is the port order the dialog hands
-    back on Save. When the workspace contains zero matching components
-    the picker shows an empty-state line and accepts no clicks.
-
-    Pass-1 limitation: rows past `rect.height // PICKER_ROW_HEIGHT` are
-    truncated rather than scrolled. The Pass 4 toolbox-overflow work
-    (see TODO) will likely produce a reusable scroll/list pattern that
-    this picker can adopt — until then, dropping the bottom rows is the
-    right rough trade-off because a workspace with more than ~6 inputs
-    or outputs is past Pass 1's intended use anyway.
-    """
-
-    def __init__(self, x, y, width, height, items, label_prefix):
-        """Lay out the picker rect and pre-build per-row hit-rects.
-
-        Args:
-            x (int): Top-left x in screen coordinates.
-            y (int): Top-left y in screen coordinates.
-            width (int): Picker width in pixels.
-            height (int): Picker height in pixels. Determines how many
-                items are visible (overflow is truncated — see class
-                docstring).
-            items (list): Workspace components of the matching kind, in
-                workspace order. The picker neither owns nor mutates
-                this list.
-            label_prefix (str): Per-row label prefix, e.g. "IN" / "OUT".
-                Rows render as "<prefix> <index>" (1-based) so a list of
-                three switches reads "IN 1", "IN 2", "IN 3".
-        """
-        self.rect = pygame.Rect(x, y, width, height)
-        self._label_prefix = label_prefix
-        # Truncate to whatever fits — the dialog is rough by design and
-        # Pass 1 use cases stay well under the visible row count.
-        max_rows = self.rect.height // DS.PICKER_ROW_HEIGHT
-        self._items = items[:max_rows]
-        # Ordered selection — index in this list IS the port order on
-        # save (first clicked → port 0, second clicked → port 1, etc.).
-        self.selected = []
-        self._row_rects = [
-            pygame.Rect(
-                self.rect.x,
-                self.rect.y + index * DS.PICKER_ROW_HEIGHT,
-                self.rect.width,
-                DS.PICKER_ROW_HEIGHT,
-            )
-            for index in range(len(self._items))
-        ]
-
-    def hit(self, pos):
-        """Return True if pos lies anywhere inside the picker's body.
-
-        Used by the dialog's click router to decide whether a click is
-        for this picker before delegating to handle_click.
-
-        Args:
-            pos (tuple[int, int]): Cursor position in screen coordinates.
-
-        Returns:
-            bool: True if the cursor is over this picker.
-        """
-        return self.rect.collidepoint(pos)
-
-    def handle_click(self, pos):
-        """Toggle selection of the row under pos, if any.
-
-        Args:
-            pos (tuple[int, int]): Cursor position in screen coordinates.
-
-        Returns:
-            bool: True if a row was hit and toggled, False if pos missed
-                every row (e.g. landed on the empty padding under the
-                last visible row).
-        """
-        for row, item in zip(self._row_rects, self._items):
-            if not row.collidepoint(pos):
-                continue
-            if item in self.selected:
-                self.selected.remove(item)
-            else:
-                self.selected.append(item)
-            return True
-        return False
-
-    def draw(self, surface):
-        """Render every visible row plus its selection state and badge.
-
-        Empty workspaces (zero items) render a single dim caption line so
-        the picker reads as "nothing to pick" rather than as a blank
-        ready-to-click area. Otherwise each row gets a fill, a border, a
-        left-aligned label, and (if selected) a right-aligned `#N` badge
-        showing its 1-based selection order.
-
-        Args:
-            surface (pygame.Surface): The surface to draw onto.
-        """
-        if not self._items:
-            self._draw_empty_state(surface)
-            return
-        font = Fonts.text_box
-        for index, (row, item) in enumerate(zip(self._row_rects, self._items)):
-            is_selected = item in self.selected
-            bg = (DS.PICKER_ROW_BG_SELECTED if is_selected
-                  else DS.PICKER_ROW_BG)
-            pygame.draw.rect(surface, bg, row)
-            pygame.draw.rect(surface, DS.PICKER_ROW_BORDER, row, 1)
-            label = f"{self._label_prefix} {index + 1}"
-            label_surf = font.render(label, True, DS.PICKER_ROW_TEXT_COLOR)
-            label_y = row.y + (row.height - label_surf.get_height()) // 2
-            surface.blit(label_surf,
-                         (row.x + DS.NAME_FIELD_PADDING_X, label_y))
-            if is_selected:
-                badge_text = f"#{self.selected.index(item) + 1}"
-                badge_surf = font.render(badge_text, True,
-                                         DS.PICKER_BADGE_COLOR)
-                badge_x = (row.right
-                           - badge_surf.get_width()
-                           - DS.NAME_FIELD_PADDING_X)
-                surface.blit(badge_surf, (badge_x, label_y))
-
-    def _draw_empty_state(self, surface):
-        """Render the dim '(NONE IN WORKSPACE)' caption inside the picker.
-
-        Args:
-            surface (pygame.Surface): The surface to draw onto.
-        """
-        font = Fonts.text_box
-        surf = font.render(DS.PICKER_EMPTY_TEXT, True, DS.PICKER_ROW_TEXT_DIM)
-        x = self.rect.x + DS.NAME_FIELD_PADDING_X
-        y = self.rect.y + (DS.PICKER_ROW_HEIGHT - font.get_height()) // 2
-        surface.blit(surf, (x, y))
-
-
 class SaveComponentDialog:
     """Modal "Save as Component" dialog opened from the bottom-left popup.
 
-    Pass 1 item 1 — rough scope:
-      * name field (single-line, uppercase, capped at NAME_MAX_LENGTH)
-      * picker for which Switches become INPUT ports (click order
-        determines port order)
-      * picker for which LEDs become OUTPUT ports (also click order)
-      * Save / Cancel buttons; Save stays disabled until the form is
-        valid (non-empty name, ≥1 input switch, ≥1 output LED)
+    Pass 1 step 1 (v2) — minimum-viable scope:
+      * single-line name field (uppercase, capped at NAME_MAX_LENGTH)
+      * Save / Cancel buttons; Save stays disabled until the name is
+        non-empty after stripping whitespace
 
-    Color choice, truth-table auto-detect, and the "you discovered NAND!"
-    celebration are deferred to Pass 3 by design — adding them here would
-    pad an already-rough first cut.
+    Whatever Switches and LEDs are in the workspace at save time
+    become the new component's INPUT and OUTPUT ports — the dialog
+    itself never asks the user to pick or order them. Auto-inference
+    happens in `GameManager._finalize_save_as_component` (which sees
+    the live workspace), not here, so the dialog stays decoupled from
+    component types. See TODO's "Save-as-Component port inference
+    rule" entry for the ordering logic.
 
-    Modal: while the dialog is open it consumes every mouse and keyboard
-    event so the workspace beneath it is paused. Esc dismisses (mirrors
-    the bottom-left popup's Esc dismiss in
+    Modal: while the dialog is open it consumes every mouse and
+    keyboard event so the workspace beneath it is paused. Esc
+    dismisses (mirrors the bottom-left popup's Esc dismiss in
     `GameManager._handle_keydown`). Click-outside-the-body is a no-op
-    (NOT dismiss) — a multi-field form is too easy to lose accidentally,
-    unlike the bottom-left popup where click-outside-cancels is fine
-    because there's no in-flight work.
+    (NOT dismiss) — a typed name is too easy to lose accidentally,
+    unlike the popup where click-outside-cancels is fine because
+    there's no in-flight work.
     """
 
-    def __init__(self, components, on_save, on_cancel):
+    def __init__(self, on_save, on_cancel):
         """Lay out the dialog and its sub-widgets centered on the screen.
 
         Args:
-            components (list): The current workspace components. Filtered
-                here into Switch / LED lists so the pickers see only the
-                relevant kinds. Not retained — the dialog snapshots
-                ordering at open time and never queries the workspace
-                again.
-            on_save (Callable[[str, list[Switch], list[LED]], None]):
-                Called with (name, ordered input switches, ordered
-                output LEDs) when the user clicks the enabled Save
+            on_save (Callable[[str], None]): Called with the trimmed
+                uppercase name when the user clicks the enabled Save
                 button. The dialog itself does not dismiss after Save —
                 the caller is expected to dispose of the dialog as part
                 of finalize so close-vs-stay-open stays the caller's
@@ -314,11 +168,9 @@ class SaveComponentDialog:
             on_cancel (Callable[[], None]): Called with no args when the
                 user clicks Cancel or presses Esc.
         """
-        switches = [c for c in components if isinstance(c, Switch)]
-        leds = [c for c in components if isinstance(c, LED)]
         self._on_save = on_save
         self._on_cancel = on_cancel
-        # Centered in the screen.
+        # Centered on screen.
         self.rect = pygame.Rect(0, 0, DS.WIDTH, DS.HEIGHT)
         self.rect.center = (ScreenSettings.WIDTH // 2,
                             ScreenSettings.HEIGHT // 2)
@@ -335,47 +187,18 @@ class SaveComponentDialog:
         )
         self._backdrop.fill(DS.BACKDROP_COLOR)
         self._backdrop.set_alpha(DS.BACKDROP_ALPHA)
-        # Lay out widgets top-to-bottom inside the dialog body using a
-        # running cursor so adding/removing a section only requires
-        # editing this block, not every Y coordinate.
+        # Lay out the (small) widget set top-to-bottom inside the
+        # dialog body. Title at top-left of the inner padding; name
+        # field below it; Save/Cancel anchored to the bottom-right so
+        # any earlier-section size tweak doesn't shove them off-rect.
         cursor_y = self.rect.y + DS.PADDING
-        # Title sits at the very top, left-aligned to the inner padding.
         self._title_pos = (self.rect.x + DS.PADDING, cursor_y)
         cursor_y += self._title_surf.get_height() + DS.SECTION_GAP
-        # NAME section: caption + single-line input field.
-        self._name_label_pos = (self.rect.x + DS.PADDING, cursor_y)
-        cursor_y += Fonts.text_box.get_height() + DS.SECTION_GAP // 2
         inner_width = DS.WIDTH - 2 * DS.PADDING
         self._name_field = _NameField(
             self.rect.x + DS.PADDING, cursor_y, inner_width,
         )
-        cursor_y += DS.NAME_FIELD_HEIGHT + DS.SECTION_GAP
-        # INPUTS / OUTPUTS section: two side-by-side pickers below
-        # parallel captions. Captions and pickers share a y so the two
-        # columns read as a single horizontal pair rather than two
-        # disjoint blocks.
-        left_x = self.rect.x + DS.PADDING
-        right_x = (self.rect.x + DS.PADDING
-                   + DS.PICKER_COLUMN_WIDTH + DS.PICKER_COLUMN_GAP)
-        self._inputs_label_pos = (left_x, cursor_y)
-        self._outputs_label_pos = (right_x, cursor_y)
-        cursor_y += Fonts.text_box.get_height() + DS.SECTION_GAP // 2
-        self._inputs_picker = _Picker(
-            left_x, cursor_y,
-            DS.PICKER_COLUMN_WIDTH, DS.PICKER_HEIGHT,
-            switches, "IN",
-        )
-        self._outputs_picker = _Picker(
-            right_x, cursor_y,
-            DS.PICKER_COLUMN_WIDTH, DS.PICKER_HEIGHT,
-            leds, "OUT",
-        )
-        cursor_y += DS.PICKER_HEIGHT + DS.SECTION_GAP
-        # Save / Cancel row: anchored to the bottom of the dialog body
-        # rather than to cursor_y, so any earlier-section size tweak
-        # doesn't shove the buttons off-rect. Cancel sits to the left of
-        # Save (the destructive action gets the less-prominent slot;
-        # Save is the right-edge primary).
+        # Buttons: Save right-edge primary, Cancel to its left.
         button_y = (self.rect.bottom
                     - DS.PADDING - DS.BUTTON_HEIGHT)
         self._save_rect = pygame.Rect(
@@ -408,20 +231,15 @@ class SaveComponentDialog:
     def _is_save_enabled(self):
         """Return True if the form is in a valid save state.
 
-        Save requires (1) a non-empty trimmed name, (2) at least one
-        input switch selected, and (3) at least one output LED selected.
-        Any of these missing keeps the Save button visually disabled and
-        a click on it does nothing — same pattern the popup uses for
-        items without a wired action.
+        Save requires only that the name is non-empty after stripping
+        whitespace. Inputs/outputs are not the dialog's concern in v2 —
+        they're auto-inferred by the manager from the workspace at
+        save time.
 
         Returns:
             bool: True if Save should be clickable this frame.
         """
-        return (
-            bool(self._name_field.text.strip())
-            and bool(self._inputs_picker.selected)
-            and bool(self._outputs_picker.selected)
-        )
+        return bool(self._name_field.text.strip())
 
     # -------------------------
     # EVENT HANDLING
@@ -469,38 +287,22 @@ class SaveComponentDialog:
     def _handle_left_click(self, pos):
         """Route a left-click to the right widget inside the dialog body.
 
-        Click priority: Save → Cancel → name field → pickers → anywhere
-        else inside the body (unfocus the name field). A click outside
-        the body is consumed (modal) but does nothing.
+        Click priority: Save → Cancel → name field → anywhere else
+        inside the body (unfocus the name field). A click outside the
+        body is consumed (modal) but does nothing.
 
         Args:
             pos (tuple[int, int]): Cursor position in screen coordinates.
         """
         if self._save_rect.collidepoint(pos):
             if self._is_save_enabled():
-                self._on_save(
-                    self._name_field.text.strip(),
-                    list(self._inputs_picker.selected),
-                    list(self._outputs_picker.selected),
-                )
+                self._on_save(self._name_field.text.strip())
             return
         if self._cancel_rect.collidepoint(pos):
             self._on_cancel()
             return
         if self._name_field.hit(pos):
             self._name_field.focus()
-            return
-        # Clicking a picker row updates selection AND moves focus off the
-        # name field — otherwise the caret keeps blinking on a field the
-        # user has visibly stopped editing, which reads as the dialog
-        # ignoring the click.
-        if self._inputs_picker.hit(pos):
-            self._name_field.blur()
-            self._inputs_picker.handle_click(pos)
-            return
-        if self._outputs_picker.hit(pos):
-            self._name_field.blur()
-            self._outputs_picker.handle_click(pos)
             return
         # Click on dialog body but not on any widget: drop focus from
         # the name field so a stray click on padding can't leave the
@@ -523,29 +325,8 @@ class SaveComponentDialog:
         pygame.draw.rect(surface, DS.BORDER_COLOR, self.rect,
                          DS.BORDER_THICKNESS)
         surface.blit(self._title_surf, self._title_pos)
-        self._draw_section_label(surface, DS.NAME_SECTION_LABEL,
-                                 self._name_label_pos)
         self._name_field.draw(surface)
-        self._draw_section_label(surface, DS.INPUTS_SECTION_LABEL,
-                                 self._inputs_label_pos)
-        self._draw_section_label(surface, DS.OUTPUTS_SECTION_LABEL,
-                                 self._outputs_label_pos)
-        self._inputs_picker.draw(surface)
-        self._outputs_picker.draw(surface)
         self._draw_buttons(surface)
-
-    def _draw_section_label(self, surface, text, pos):
-        """Render one dim caption above a section.
-
-        Args:
-            surface (pygame.Surface): The surface to draw onto.
-            text (str): The caption text (already uppercase per project
-                convention — see settings constants).
-            pos (tuple[int, int]): Top-left position for the rendered
-                caption in screen coordinates.
-        """
-        surf = Fonts.text_box.render(text, True, DS.SECTION_LABEL_COLOR)
-        surface.blit(surf, pos)
 
     def _draw_buttons(self, surface):
         """Render the Save and Cancel buttons in their current states.
