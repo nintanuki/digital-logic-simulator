@@ -4,7 +4,7 @@ A digital logic sandbox written in Python with Pygame. Students drag NAND gates 
 
 ## Background
 
-Inspired by Sebastian Lague's [Digital Logic Sim](https://github.com/SebLague/Digital-Logic-Sim). The original is written in C# and Unity; this is a from-scratch reimagining in Python so it can be modified, extended, and used as a teaching tool in my classroom without an engine in the way.
+Inspired by Sebastian Lague's [Digital Logic Sim](https://github.com/SebLague/Digital-Logic-Sim) to follow along with the video [Exploring How Computers Work](https://www.youtube.com/watch?v=QZwneRb-zqA). The original is written in C# and Unity; this is a from-scratch reimagining in Python so it can be modified, extended, and used as a teaching tool in my classroom without an engine in the way.
 
 ## Classroom Use
 
