@@ -76,17 +76,21 @@ persistence comes in Pass 3.
   *(Done 2026-05-04. `GameManager._finalize_save_as_component` now
   appends a template through `ComponentBank.add_saved_component_template`
   at save time, so the result is immediately visible in the toolbox.
-  Spawn path is intentionally a step-2 stub (`SavedComponentStub`):
-  drag/drop works for visual verification, but wrapped sub-circuit
-  behavior still lands in Pass 1 step 3.)*
-- [ ] **Spawning a saved component creates a working component.** The
+  Spawn path now constructs `SavedComponent` instances, with the
+  sub-circuit runtime model completed in Pass 1 step 3.)*
+- [x] **Spawning a saved component creates a working component.** The
   saved definition holds the embedded sub-circuit (components + wires +
   the input/output port mappings). Spawning instantiates a fresh copy of
   the sub-circuit hidden inside a single Component-shaped wrapper that
   exposes only the chosen external ports. SignalManager already does
   two-phase propagation, so the wrapped sub-circuit just runs as part of
   the same per-frame pass — no new simulator work needed.
-- [ ] **Dynamic component sizing.** Once Save-as-Component starts
+  *(Done 2026-05-04. Save now snapshots `components + wires +`
+  input/output mappings into a serialized definition, and bank spawns
+  `SavedComponent` wrappers that run a hidden cloned sub-circuit each
+  frame. Wrapper INPUT ports drive the saved input switches; saved LED
+  states publish onto wrapper OUTPUT ports.)*
+- [x] **Dynamic component sizing.** Once Save-as-Component starts
   producing components with more than the default 2 inputs / 1 output,
   bodies need to grow tall enough to fit all ports without overlap.
   Pick a per-port vertical pitch and recompute height from
@@ -94,6 +98,11 @@ persistence comes in Pass 3.
   name is wide, but height is the urgent one for port spacing. **This
   has to land in Pass 1, not later** — a 4-input adder with stacked
   ports breaks the magic.
+  *(Done 2026-05-04. `SavedComponent` now computes wrapper size from
+  exposed port count and label width. Height uses a per-port pitch and
+  vertical padding (`ComponentSettings.SAVED_PORT_PITCH` and
+  `ComponentSettings.SAVED_PORT_VERTICAL_PADDING`) so ports stay
+  non-overlapping for >2 inputs/outputs.)*
 
 End of Pass 1: a student in one class period can build NOT, AND, OR,
 XOR, and an SR latch entirely from NANDs, with each one saved as a

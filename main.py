@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pygame
 import sys
-from elements import Component, LED, Switch
+from copy import deepcopy
+
+from elements import Component, LED, SavedComponent, Switch
 from fonts import Fonts
 from save_component_dialog import SaveComponentDialog
 from settings import *
@@ -133,16 +135,107 @@ class GameManager:
             (c for c in self.components if isinstance(c, LED)),
             key=lambda l: l.rect.y,
         )
-        self.saved_components.append({
+        definition = self._snapshot_workspace_definition(
+            input_switches,
+            output_leds,
+        )
+        record = {
             "name": name,
+            "color": ColorSettings.WORD_COLORS["MEDIUM_CARMINE"],
             "inputs": input_switches,
             "outputs": output_leds,
-        })
+            "definition": definition,
+        }
+        self.saved_components.append(record)
         self.bank.add_saved_component_template(
             name,
-            ColorSettings.WORD_COLORS["MEDIUM_CARMINE"],
+            record["color"],
+            deepcopy(definition),
         )
         self._dismiss_dialog()
+
+    def _snapshot_workspace_definition(self, input_switches, output_leds):
+        """Serialize the current workspace into a saved-component definition.
+
+        Args:
+            input_switches (list[Switch]): Switches selected as external inputs.
+            output_leds (list[LED]): LEDs selected as external outputs.
+
+        Returns:
+            dict: Serialized sub-circuit payload for SavedComponent runtime.
+        """
+        component_indices = {
+            comp: idx for idx, comp in enumerate(self.components)
+        }
+        component_defs = [
+            self._serialize_component(comp) for comp in self.components
+        ]
+        wire_defs = []
+        for wire in self.wires.wires:
+            source_parent = wire.source.parent
+            target_parent = wire.target.parent
+            if source_parent not in component_indices:
+                continue
+            if target_parent not in component_indices:
+                continue
+            wire_defs.append({
+                "source_component_index": component_indices[source_parent],
+                "source_port_index": source_parent.ports.index(wire.source),
+                "target_component_index": component_indices[target_parent],
+                "target_port_index": target_parent.ports.index(wire.target),
+            })
+        return {
+            "components": component_defs,
+            "wires": wire_defs,
+            "input_component_indices": [
+                component_indices[switch]
+                for switch in input_switches
+                if switch in component_indices
+            ],
+            "output_component_indices": [
+                component_indices[led]
+                for led in output_leds
+                if led in component_indices
+            ],
+        }
+
+    @staticmethod
+    def _serialize_component(comp):
+        """Serialize one workspace component into a definition record.
+
+        Args:
+            comp (Component): Component instance to serialize.
+
+        Returns:
+            dict: Serialized component payload.
+        """
+        if isinstance(comp, Switch):
+            return {
+                "type": "switch",
+                "x": comp.rect.x,
+                "y": comp.rect.y,
+                "state": comp._state,
+            }
+        if isinstance(comp, LED):
+            return {
+                "type": "led",
+                "x": comp.rect.x,
+                "y": comp.rect.y,
+            }
+        if isinstance(comp, SavedComponent):
+            return {
+                "type": "saved_component",
+                "x": comp.rect.x,
+                "y": comp.rect.y,
+                "name": comp.name,
+                "color": list(comp.color),
+                "definition": deepcopy(comp.definition),
+            }
+        return {
+            "type": "nand",
+            "x": comp.rect.x,
+            "y": comp.rect.y,
+        }
 
     def _dismiss_dialog(self):
         """Close whichever dialog is currently open.

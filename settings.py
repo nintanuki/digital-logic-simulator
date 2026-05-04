@@ -72,6 +72,11 @@ class ComponentSettings:
     # Vertical inset of the two input ports from the component's top and bottom
     # edges, in pixels. Used by Component when laying out its default ports.
     INPUT_PORT_INSET = 15
+    # Saved-component wrappers compute height from exposed port count so
+    # multi-input/output abstractions keep clear spacing. Height formula:
+    # (max_ports - 1) * SAVED_PORT_PITCH + 2 * SAVED_PORT_VERTICAL_PADDING.
+    SAVED_PORT_PITCH = 18
+    SAVED_PORT_VERTICAL_PADDING = 15
 
     # Font settings for component labels
     FONT = AssetPaths.FONT

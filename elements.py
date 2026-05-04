@@ -1,4 +1,5 @@
 import pygame
+from copy import deepcopy
 
 from fonts import Fonts
 
@@ -415,34 +416,191 @@ class LED(Component):
         )
 
 
-class SavedComponentStub(Component):
-    """Pass-1 placeholder for a user-saved component.
+class _InternalWire:
+    """Minimal internal wire used by SavedComponent's hidden simulation.
 
-    This is the visual/runtime stub used by Pass 1 step 2 so a freshly
-    saved component can appear in the toolbox and be dropped into the
-    workspace right away. It intentionally has no ports and no logic yet;
-    Pass 1 step 3 will replace it with the working wrapped sub-circuit
-    runtime model.
+    Kept local to this module so SavedComponent can run a private
+    sub-circuit without importing the draw-oriented `Wire` class from
+    wires.py (which would create a circular import).
     """
 
-    def __init__(self, x, y, name, color):
-        """Create a rectangular component stub with a custom label/color.
+    def __init__(self, source, target):
+        """Store source/target internal Port references.
+
+        Args:
+            source (Port): Internal OUTPUT port.
+            target (Port): Internal INPUT port.
+        """
+        self.source = source
+        self.target = target
+
+
+class SavedComponent(Component):
+    """A wrapped sub-circuit that exposes only inferred external ports.
+
+    Runtime model for Pass 1 step 3: each instance owns a hidden clone of
+    the saved sub-circuit (components + wires), then maps wrapper INPUT
+    ports into the sub-circuit's saved input switches and maps saved output
+    LEDs back out through wrapper OUTPUT ports.
+    """
+
+    def __init__(self, x, y, name, color, definition):
+        """Create a wrapped saved component from a serialized definition.
 
         Args:
             x (int): Initial top-left x in screen coordinates.
             y (int): Initial top-left y in screen coordinates.
-            name (str): Saved component display name.
+            name (str): Display name shown on the wrapper body.
             color (tuple[int, int, int]): RGB body color.
+            definition (dict): Serialized sub-circuit definition.
         """
-        super().__init__(x, y, name=name)
+        self.definition = deepcopy(definition)
+        self._input_count = len(self.definition["input_component_indices"])
+        self._output_count = len(self.definition["output_component_indices"])
+        width, height = self._compute_body_size(name)
+        super().__init__(x, y, width=width, height=height, name=name)
         self.color = color
-        # No exposed ports in the step-2 stub.
-        self.ports = []
+        self._inner_components = []
+        self._inner_wires = []
+        self._inner_input_switches = []
+        self._inner_output_leds = []
+        self._build_internal_runtime()
 
-    def update_logic(self, output_buffer):
-        """No-op: step-2 stubs have no ports and no simulation behavior.
+    def _compute_body_size(self, name):
+        """Compute wrapper body size from port count and label width.
 
         Args:
-            output_buffer (dict[Port, bool]): Unused by this placeholder.
+            name (str): Wrapper label text.
+
+        Returns:
+            tuple[int, int]: (width, height) in pixels.
         """
-        return
+        max_ports = max(self._input_count, self._output_count, 1)
+        dynamic_height = (
+            (max_ports - 1) * ComponentSettings.SAVED_PORT_PITCH
+            + 2 * ComponentSettings.SAVED_PORT_VERTICAL_PADDING
+        )
+        height = max(ComponentSettings.DEFAULT_HEIGHT, dynamic_height)
+        label_width = Fonts.component_label.size(name)[0]
+        width = max(ComponentSettings.DEFAULT_WIDTH, label_width + 24)
+        return width, height
+
+    def _build_ports(self):
+        """Build wrapper-side ports from saved input/output counts.
+
+        Returns:
+            list[Port]: INPUT ports first, then OUTPUT ports.
+        """
+        ports = []
+        for index, y in enumerate(self._port_y_offsets(self._input_count)):
+            ports.append(Port(self, 0, y, f"I{index}", Port.INPUT))
+        for index, y in enumerate(self._port_y_offsets(self._output_count)):
+            ports.append(Port(self, self.rect.width, y, f"O{index}", Port.OUTPUT))
+        return ports
+
+    def _port_y_offsets(self, count):
+        """Return evenly spaced y offsets for `count` ports.
+
+        Args:
+            count (int): Number of ports on one side.
+
+        Returns:
+            list[int]: Port-center y offsets inside this component rect.
+        """
+        if count <= 0:
+            return []
+        if count == 1:
+            return [self.rect.height // 2]
+        top = ComponentSettings.SAVED_PORT_VERTICAL_PADDING
+        bottom = self.rect.height - ComponentSettings.SAVED_PORT_VERTICAL_PADDING
+        span = bottom - top
+        return [top + (span * idx) // (count - 1) for idx in range(count)]
+
+    def _build_internal_runtime(self):
+        """Instantiate hidden internal components/wires from definition."""
+        for comp_def in self.definition["components"]:
+            self._inner_components.append(self._instantiate_component(comp_def))
+
+        for wire_def in self.definition["wires"]:
+            source_comp = self._inner_components[wire_def["source_component_index"]]
+            target_comp = self._inner_components[wire_def["target_component_index"]]
+            source_port = source_comp.ports[wire_def["source_port_index"]]
+            target_port = target_comp.ports[wire_def["target_port_index"]]
+            self._inner_wires.append(_InternalWire(source_port, target_port))
+
+        self._inner_input_switches = [
+            self._inner_components[index]
+            for index in self.definition["input_component_indices"]
+        ]
+        self._inner_output_leds = [
+            self._inner_components[index]
+            for index in self.definition["output_component_indices"]
+        ]
+
+    def _instantiate_component(self, comp_def):
+        """Build one internal component instance from its serialized record.
+
+        Args:
+            comp_def (dict): One serialized component record.
+
+        Returns:
+            Component: Fresh internal component instance.
+        """
+        comp_type = comp_def["type"]
+        if comp_type == "switch":
+            comp = Switch(comp_def["x"], comp_def["y"])
+            comp._state = comp_def.get("state", False)
+            return comp
+        if comp_type == "led":
+            return LED(comp_def["x"], comp_def["y"])
+        if comp_type == "saved_component":
+            return SavedComponent(
+                comp_def["x"],
+                comp_def["y"],
+                comp_def["name"],
+                tuple(comp_def["color"]),
+                comp_def["definition"],
+            )
+        return Component(comp_def["x"], comp_def["y"])
+
+    def _input_ports(self):
+        """Return wrapper INPUT ports in saved-order mapping.
+
+        Returns:
+            list[Port]: External INPUT ports.
+        """
+        return self.ports[:self._input_count]
+
+    def _output_ports(self):
+        """Return wrapper OUTPUT ports in saved-order mapping.
+
+        Returns:
+            list[Port]: External OUTPUT ports.
+        """
+        return self.ports[self._input_count:]
+
+    def update_logic(self, output_buffer):
+        """Advance hidden sub-circuit and publish wrapper output values.
+
+        Args:
+            output_buffer (dict[Port, bool]): Parent simulation output map.
+        """
+        for ext_port, switch in zip(self._input_ports(), self._inner_input_switches):
+            switch._state = ext_port.live
+
+        internal_output_buffer = {}
+        for comp in self._inner_components:
+            comp.update_logic(internal_output_buffer)
+
+        for port, value in internal_output_buffer.items():
+            port.live = value
+
+        for comp in self._inner_components:
+            for port in comp.ports:
+                if port.direction == Port.INPUT:
+                    port.live = False
+        for wire in self._inner_wires:
+            wire.target.live = wire.source.live
+
+        for ext_port, led in zip(self._output_ports(), self._inner_output_leds):
+            output_buffer[ext_port] = led.ports[0].live

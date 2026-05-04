@@ -1,6 +1,7 @@
 import pygame
+from copy import deepcopy
 
-from elements import Component, LED, SavedComponentStub, Switch
+from elements import Component, LED, SavedComponent, Switch
 from fonts import Fonts
 from settings import (
     ComponentSettings,
@@ -410,31 +411,31 @@ class ComponentBank:
         # Spawned via template click, so suppress click action on release.
         new_comp._moved_while_dragging = True
 
-    def add_saved_component_template(self, name, color):
+    def add_saved_component_template(self, name, color, definition):
         """Append a new saved-component template to the right end of the bank.
 
         Pass 1 step 2: this exposes save results immediately in-session.
-        The spawned runtime object is currently a `SavedComponentStub`
-        (visual placeholder); step 3 will swap in the real wrapped
-        sub-circuit runtime.
+        In step 3+, spawned instances are working wrapped sub-circuits.
 
         Args:
             name (str): Saved component display name.
             color (tuple[int, int, int]): RGB body color.
+            definition (dict): Serialized sub-circuit definition.
         """
         x = self.menu_button.rect.right + UISettings.BANK_TEMPLATE_GAP
         if self._templates_and_spawners:
             last_tpl, _last_spawn = self._templates_and_spawners[-1]
             x = last_tpl.rect.right + UISettings.BANK_TEMPLATE_GAP
-        y = self.rect.y + (self.rect.height - ComponentSettings.DEFAULT_HEIGHT) // 2
-        template = SavedComponentStub(x, y, name, color)
+        template = SavedComponent(x, 0, name, color, definition)
+        template.rect.y = self.rect.y + (self.rect.height - template.rect.height) // 2
 
         def spawn(event_pos, components_list):
-            new_comp = SavedComponentStub(
+            new_comp = SavedComponent(
                 event_pos[0] - template.rect.width // 2,
                 event_pos[1] - template.rect.height // 2,
                 name,
                 color,
+                deepcopy(definition),
             )
             self._prime_spawn_drag(new_comp, event_pos)
             components_list.append(new_comp)

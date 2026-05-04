@@ -4,6 +4,158 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-04 00:52 UTC — Pass 1 step 4: dynamic saved-component sizing
+
+**File:** settings.py
+**Date and Time:** 2026-05-04 00:52 UTC
+**Lines (at time of edit):** 75-80 (new saved-wrapper sizing constants)
+**Before:**
+    [No dedicated constants for multi-port saved-wrapper sizing.]
+**After:**
+    ComponentSettings.SAVED_PORT_PITCH = 18
+    ComponentSettings.SAVED_PORT_VERTICAL_PADDING = 15
+**Why:** Moves dynamic sizing knobs into settings so `SavedComponent` can
+compute stable per-port spacing without magic numbers.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** elements.py
+**Date and Time:** 2026-05-04 00:52 UTC
+**Lines (at time of edit):** 447-477 (`SavedComponent.__init__` + `_compute_body_size`), 499-501 (`_port_y_offsets`)
+**Before:**
+    SavedComponent inherited default 100x60 size regardless of exposed
+    port count, so high-fanout wrappers could overlap ports.
+**After:**
+    width, height = self._compute_body_size(name)
+    super().__init__(..., width=width, height=height, ...)
+    ...
+    dynamic_height = (max_ports - 1) * SAVED_PORT_PITCH +
+                     2 * SAVED_PORT_VERTICAL_PADDING
+    width = max(DEFAULT_WIDTH, rendered_label_width + 24)
+    ...
+    _port_y_offsets now uses SAVED_PORT_VERTICAL_PADDING for top/bottom anchors.
+**Why:** Implements Pass 1's dynamic sizing requirement so wrappers grow tall
+enough for many inputs/outputs and optionally widen for long labels.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui.py
+**Date and Time:** 2026-05-04 00:52 UTC
+**Lines (at time of edit):** 428-429 (`add_saved_component_template`)
+**Before:**
+    Template y-position assumed `ComponentSettings.DEFAULT_HEIGHT`.
+**After:**
+    Template is instantiated first and then vertically centered using
+    `template.rect.height`.
+**Why:** Keeps bank-row centering correct after SavedComponent became
+dynamically sized.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-04 00:52 UTC
+**Lines (at time of edit):** 90-101 (dynamic sizing checkbox + done note)
+**Before:**
+    Pass 1 dynamic sizing task was unchecked.
+**After:**
+    Pass 1 dynamic sizing task is checked with implementation details.
+**Why:** Roadmap status now matches shipped behavior.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** repository verification (diagnostics + terminal)
+**Date and Time:** 2026-05-04 00:52 UTC
+**Before:**
+    [No verification run for this dynamic sizing batch.]
+**After:**
+    1) VS Code diagnostics: no errors in `elements.py`, `ui.py`, `settings.py`.
+    2) Ran:
+       `c:/Users/bryan/Desktop/code/repos/digital-logic-simulator/.venv/Scripts/python.exe -m compileall c:/Users/bryan/Desktop/code/repos/digital-logic-simulator`
+       Result: compile completed with no syntax errors reported for changed files.
+**Why:** Follows TESTING.md post-change verification intent in this
+non-interactive environment.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-04 00:40 UTC — Pass 1 step 3: saved components spawn as working wrappers
+
+**File:** elements.py
+**Date and Time:** 2026-05-04 00:40 UTC
+**Lines (at time of edit):** 2 (new deepcopy import), 416-621 (replace stub with SavedComponent runtime)
+**Before:**
+    class SavedComponentStub(Component):
+        [name/color only, no ports, no logic]
+**After:**
+    class _InternalWire: ...
+    class SavedComponent(Component):
+        def __init__(..., definition): ...
+        def _build_ports(...): ...
+        def _build_internal_runtime(...): ...
+        def _instantiate_component(...): ...
+        def update_logic(...): ...
+**Why:** Implements the working sub-circuit wrapper model from Pass 1 step 3.
+Each spawned saved component now owns a hidden clone of the saved definition,
+runs a local two-phase simulation each frame, maps wrapper INPUT ports into
+the saved input switches, and publishes saved LED states out through wrapper
+OUTPUT ports. `_InternalWire` avoids importing `wires.py` from `elements.py`,
+which would create a circular import.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-04 00:40 UTC
+**Lines (at time of edit):** 6-9 (imports), 139-228 (`_finalize_save_as_component` + new serializers)
+**Before:**
+    Save finalized only with inferred switch/LED lists and registered a
+    visual-only saved template.
+**After:**
+    definition = self._snapshot_workspace_definition(...)
+    record = {"name", "color", "inputs", "outputs", "definition"}
+    self.bank.add_saved_component_template(name, color, deepcopy(definition))
+    ...
+    def _snapshot_workspace_definition(...):
+        [serialize components, wires, IO mappings]
+    def _serialize_component(...):
+        [switch/led/nand/saved_component records]
+**Why:** Save now captures an executable sub-circuit definition (components,
+wires, and external IO mapping) so spawn can build working wrappers rather
+than visual placeholders. Serializer supports nesting by recursively storing
+`SavedComponent` definitions.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui.py
+**Date and Time:** 2026-05-04 00:40 UTC
+**Lines (at time of edit):** 2 (new deepcopy import), 4 (SavedComponent import), 414-451
+**Before:**
+    add_saved_component_template(name, color)
+    [spawned SavedComponentStub placeholders]
+**After:**
+    add_saved_component_template(name, color, definition)
+    [template + spawn now create SavedComponent with the serialized definition]
+**Why:** Connects bank templates to the new runtime wrapper type so clicking a
+saved template places a functioning component instance immediately.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-04 00:40 UTC
+**Lines (at time of edit):** 73-90 (step-2 note adjusted, step-3 checked with done note)
+**Before:**
+    Step 2 note still said spawn path was a `SavedComponentStub`; step 3 unchecked.
+**After:**
+    Step 2 note now references `SavedComponent` runtime completion.
+    Step 3 is checked with an implementation summary note.
+**Why:** Keeps roadmap state aligned with shipped behavior and removes stale
+notes that would mislead the next pass.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** repository verification (terminal)
+**Date and Time:** 2026-05-04 00:40 UTC
+**Before:**
+    [No post-change syntax verification run for this edit batch.]
+**After:**
+    Ran:
+    `c:/Users/bryan/Desktop/code/repos/digital-logic-simulator/.venv/Scripts/python.exe -m compileall c:/Users/bryan/Desktop/code/repos/digital-logic-simulator`
+    Result: compile completed for changed modules (`elements.py`, `main.py`,
+    `ui.py`) with no syntax errors reported.
+**Why:** Follows TESTING.md's post-change verification intent in this
+headless environment where interactive pygame manual checks cannot be
+executed from chat.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-04 00:20 UTC — Pass 1 step 2: saved components appear in toolbox
 
 **File:** ui.py
