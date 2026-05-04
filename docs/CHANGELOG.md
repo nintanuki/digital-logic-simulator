@@ -4,6 +4,62 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-04 01:08 UTC — Save clears workspace + reduce saved-wrapper flicker + VS Code pygame env fix
+
+**File:** main.py
+**Date and Time:** 2026-05-04 01:08 UTC
+**Lines (at time of edit):** 149-169 (`_finalize_save_as_component` + new `_clear_workspace`)
+**Before:**
+    Save-as-Component appended the new saved template and dismissed the
+    dialog, but left the current workspace contents in place.
+**After:**
+    `_finalize_save_as_component` now calls `_clear_workspace()` after
+    registering the saved template and before dismissing the dialog.
+    `_clear_workspace` clears placed components, committed/pending wires,
+    and text-box annotations/focus.
+**Why:** Matches the user-observed UX expectation that saving a component
+should reset the canvas so the next abstraction layer starts immediately.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** elements.py
+**Date and Time:** 2026-05-04 01:08 UTC
+**Lines (at time of edit):** 588-605 (`SavedComponent.update_logic`)
+**Before:**
+    Internal saved sub-circuit simulation executed one pass per frame.
+**After:**
+    Internal simulation now executes `settle_steps = max(1, len(inner_components))`
+    passes per frame before exporting wrapper outputs.
+**Why:** Reduces visible output flicker on feedback-heavy saved circuits by
+allowing internal values to settle before wrapper outputs are published.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** Python environment (terminal)
+**Date and Time:** 2026-05-04 01:08 UTC
+**Before:**
+    VS Code workspace interpreter (`.venv`) did not have pygame installed,
+    causing `ModuleNotFoundError: No module named 'pygame'` in editor runs.
+**After:**
+    Ran:
+    `c:/Users/bryan/Desktop/code/repos/digital-logic-simulator/.venv/Scripts/python.exe -m pip install pygame`
+    Verified with:
+    `... -m pip show pygame` (version 2.6.1).
+**Why:** Explorer launch used a different Python install that already had
+pygame; VS Code was using `.venv`, so imports failed only inside VS Code.
+Installing pygame into `.venv` resolves the mismatch.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** repository verification (diagnostics + terminal)
+**Date and Time:** 2026-05-04 01:08 UTC
+**Before:**
+    [No verification pass for this behavior-fix batch.]
+**After:**
+    1) VS Code diagnostics: no errors in `main.py` and `elements.py`.
+    2) Ran:
+       `c:/Users/bryan/Desktop/code/repos/digital-logic-simulator/.venv/Scripts/python.exe -m compileall c:/Users/bryan/Desktop/code/repos/digital-logic-simulator`
+       Result: compile completed with no syntax errors reported for changed files.
+**Why:** Keeps with TESTING.md verification discipline after each code-edit batch.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-04 00:52 UTC — Pass 1 step 4: dynamic saved-component sizing
 
 **File:** settings.py

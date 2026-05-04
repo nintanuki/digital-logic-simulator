@@ -152,7 +152,21 @@ class GameManager:
             record["color"],
             deepcopy(definition),
         )
+        self._clear_workspace()
         self._dismiss_dialog()
+
+    def _clear_workspace(self):
+        """Reset the live workspace to an empty canvas.
+
+        Clears placed components, committed/pending wires, and text-box
+        annotations. Used after Save-as-Component so the student can start
+        the next abstraction layer immediately.
+        """
+        self.components.clear()
+        self.wires.wires.clear()
+        self.wires.pending_source = None
+        self.text_boxes.text_boxes.clear()
+        self.text_boxes.focused = None
 
     def _snapshot_workspace_definition(self, input_switches, output_leds):
         """Serialize the current workspace into a saved-component definition.

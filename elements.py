@@ -588,19 +588,23 @@ class SavedComponent(Component):
         for ext_port, switch in zip(self._input_ports(), self._inner_input_switches):
             switch._state = ext_port.live
 
-        internal_output_buffer = {}
-        for comp in self._inner_components:
-            comp.update_logic(internal_output_buffer)
+        # Run several internal passes so deep combinational chains and
+        # feedback-heavy sub-circuits settle before exporting wrapper outputs.
+        settle_steps = max(1, len(self._inner_components))
+        for _ in range(settle_steps):
+            internal_output_buffer = {}
+            for comp in self._inner_components:
+                comp.update_logic(internal_output_buffer)
 
-        for port, value in internal_output_buffer.items():
-            port.live = value
+            for port, value in internal_output_buffer.items():
+                port.live = value
 
-        for comp in self._inner_components:
-            for port in comp.ports:
-                if port.direction == Port.INPUT:
-                    port.live = False
-        for wire in self._inner_wires:
-            wire.target.live = wire.source.live
+            for comp in self._inner_components:
+                for port in comp.ports:
+                    if port.direction == Port.INPUT:
+                        port.live = False
+            for wire in self._inner_wires:
+                wire.target.live = wire.source.live
 
         for ext_port, led in zip(self._output_ports(), self._inner_output_leds):
             output_buffer[ext_port] = led.ports[0].live
