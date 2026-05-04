@@ -1,4 +1,4 @@
-# Circuit Builder
+# Digital Logic Simulator
 
 A digital logic sandbox written in Python with Pygame. Students drag NAND gates onto a grid, wire them together, and discover that every other gate (NOT, AND, OR, XOR, latches, adders) can be built from that one universal block.
 

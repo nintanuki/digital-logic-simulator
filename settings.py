@@ -22,7 +22,7 @@ class ScreenSettings:
     RESOLUTION = (WIDTH, HEIGHT)
     BG_COLOR = ColorSettings.WORD_COLORS["JELLYBEAN"]
     FPS = 60
-    TITLE = "Mr. Navarro's Logic Circuit Builder"
+    TITLE = "Digital Logic Simulator"
     CRT_ALPHA_RANGE = (75, 90)
     CRT_SCANLINE_HEIGHT = 3 # vertical pixels between scanlines drawn on the CRT overlay
     GRID_SIZE = 32
