@@ -4,6 +4,90 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-04 00:20 UTC — Pass 1 step 2: saved components appear in toolbox
+
+**File:** ui.py
+**Date and Time:** 2026-05-04 00:20 UTC
+**Lines (at time of edit):** 3 (imports), 427-485 (new saved-template append API + drag-priming helper)
+**Before:**
+    [ComponentBank built a fixed startup list of templates (Switch, NAND,
+     LED, TEXT). There was no runtime API to append new templates after
+     SAVE AS COMPONENT completed.]
+**After:**
+    from elements import Component, LED, SavedComponentStub, Switch
+    ...
+    class ComponentBank:
+        ...
+        @staticmethod
+        def _prime_spawn_drag(new_comp, event_pos): ...
+
+        def add_saved_component_template(self, name, color):
+            ...
+            template = SavedComponentStub(x, y, name, color)
+            def spawn(event_pos, components_list):
+                new_comp = SavedComponentStub(..., name, color)
+                self._prime_spawn_drag(new_comp, event_pos)
+                components_list.append(new_comp)
+            self._templates_and_spawners.append((template, spawn))
+**Why:** Implements Pass 1 step 2 exactly where the roadmap says it should
+land: appending a `(template_drawable, spawn_fn)` pair into the bank's
+existing list model. `add_saved_component_template` uses the same row
+layout and drag-on-spawn behavior as built-in templates so the new saved
+template immediately reads as first-class UI. The spawned runtime object is
+a step-2 placeholder (`SavedComponentStub`) so this landing stays scoped to
+"you can see and place what you saved" while leaving working sub-circuit
+behavior for Pass 1 step 3.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-04 00:20 UTC
+**Lines (at time of edit):** 139-146 (`_finalize_save_as_component`)
+**Before:**
+    self.saved_components.append({...})
+    self._dismiss_dialog()
+**After:**
+    self.saved_components.append({...})
+    self.bank.add_saved_component_template(
+        name,
+        ColorSettings.WORD_COLORS["MEDIUM_CARMINE"],
+    )
+    self._dismiss_dialog()
+**Why:** Wires save finalization to visible UI output in the same code path
+that already computes inferred ports. This closes the "did save work?"
+feedback gap from the prior split landing: clicking Save now causes an
+immediate observable toolbox change in-session.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** elements.py
+**Date and Time:** 2026-05-04 00:20 UTC
+**Lines (at time of edit):** 421-456 (new `SavedComponentStub` class)
+**Before:**
+    [File ended after LED class; no saved-component placeholder type existed.]
+**After:**
+    class SavedComponentStub(Component):
+        """Pass-1 placeholder for a user-saved component."""
+        def __init__(self, x, y, name, color): ...
+        def update_logic(self, output_buffer):
+            return
+**Why:** Adds a dedicated step-2 runtime type with clear constraints: custom
+name/color, no ports, no simulation logic. That avoids accidentally giving
+saved templates NAND behavior by reusing `Component` directly before Pass 1
+step 3's real wrapped-subcircuit runtime lands.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-04 00:20 UTC
+**Lines (at time of edit):** 64-76 (Pass 1 step 2 checkbox + done note)
+**Before:**
+    - [ ] **Saved component appears as a new template in the toolbox.** ...
+**After:**
+    - [x] **Saved component appears as a new template in the toolbox.** ...
+      *(Done 2026-05-04. ... appended via ComponentBank API; spawn remains
+      a step-2 stub and Pass 1 step 3 stays open.)*
+**Why:** Keeps roadmap state aligned with shipped behavior and explicitly
+documents what is complete vs intentionally deferred.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-03 00:45 UTC — Save-as-Component dialog v2: strip pickers, name only
 
 **File:** docs/TODO.md

@@ -413,3 +413,36 @@ class LED(Component):
             radius,
             LedSettings.BORDER_THICKNESS,
         )
+
+
+class SavedComponentStub(Component):
+    """Pass-1 placeholder for a user-saved component.
+
+    This is the visual/runtime stub used by Pass 1 step 2 so a freshly
+    saved component can appear in the toolbox and be dropped into the
+    workspace right away. It intentionally has no ports and no logic yet;
+    Pass 1 step 3 will replace it with the working wrapped sub-circuit
+    runtime model.
+    """
+
+    def __init__(self, x, y, name, color):
+        """Create a rectangular component stub with a custom label/color.
+
+        Args:
+            x (int): Initial top-left x in screen coordinates.
+            y (int): Initial top-left y in screen coordinates.
+            name (str): Saved component display name.
+            color (tuple[int, int, int]): RGB body color.
+        """
+        super().__init__(x, y, name=name)
+        self.color = color
+        # No exposed ports in the step-2 stub.
+        self.ports = []
+
+    def update_logic(self, output_buffer):
+        """No-op: step-2 stubs have no ports and no simulation behavior.
+
+        Args:
+            output_buffer (dict[Port, bool]): Unused by this placeholder.
+        """
+        return

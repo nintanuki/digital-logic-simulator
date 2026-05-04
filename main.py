@@ -138,6 +138,10 @@ class GameManager:
             "inputs": input_switches,
             "outputs": output_leds,
         })
+        self.bank.add_saved_component_template(
+            name,
+            ColorSettings.WORD_COLORS["MEDIUM_CARMINE"],
+        )
         self._dismiss_dialog()
 
     def _dismiss_dialog(self):

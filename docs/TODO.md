@@ -63,7 +63,7 @@ persistence comes in Pass 3.
   `GameManager._finalize_save_as_component`. Payload still stashes on
   `GameManager.saved_components` as a dict awaiting Pass 1 steps
   2-3.)*
-- [ ] **Saved component appears as a new template in the toolbox.** The
+- [x] **Saved component appears as a new template in the toolbox.** The
   bank already supports `(template_drawable, spawn_fn)` pairs (see the
   TEXT template), so a saved component is just a new pair appended to
   the bank's template list. Body color = `MEDIUM_CARMINE` for now, label
@@ -73,6 +73,12 @@ persistence comes in Pass 3.
   The first split (step 1 alone, step 2 deferred) made "did save work?"
   answerable only by reading code, which forced an in-flight redesign
   of the dialog after step 1 shipped. Don't repeat that.
+  *(Done 2026-05-04. `GameManager._finalize_save_as_component` now
+  appends a template through `ComponentBank.add_saved_component_template`
+  at save time, so the result is immediately visible in the toolbox.
+  Spawn path is intentionally a step-2 stub (`SavedComponentStub`):
+  drag/drop works for visual verification, but wrapped sub-circuit
+  behavior still lands in Pass 1 step 3.)*
 - [ ] **Spawning a saved component creates a working component.** The
   saved definition holds the embedded sub-circuit (components + wires +
   the input/output port mappings). Spawning instantiates a fresh copy of

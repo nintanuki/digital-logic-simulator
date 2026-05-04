@@ -1,8 +1,9 @@
 import pygame
 
-from elements import Component, LED, Switch
+from elements import Component, LED, SavedComponentStub, Switch
 from fonts import Fonts
 from settings import (
+    ComponentSettings,
     InputSettings,
     MenuButtonSettings,
     ScreenSettings,
@@ -394,6 +395,51 @@ class ComponentBank:
             # into the text-box manager and ignore the list.
             text_boxes.spawn_at(event_pos)
         return spawn
+
+    @staticmethod
+    def _prime_spawn_drag(new_comp, event_pos):
+        """Prime a freshly spawned component for drag-on-spawn behavior.
+
+        Args:
+            new_comp (Component): The spawned component instance.
+            event_pos (tuple[int, int]): Cursor position at spawn time.
+        """
+        new_comp.dragging = True
+        new_comp.offset_x = new_comp.rect.x - event_pos[0]
+        new_comp.offset_y = new_comp.rect.y - event_pos[1]
+        # Spawned via template click, so suppress click action on release.
+        new_comp._moved_while_dragging = True
+
+    def add_saved_component_template(self, name, color):
+        """Append a new saved-component template to the right end of the bank.
+
+        Pass 1 step 2: this exposes save results immediately in-session.
+        The spawned runtime object is currently a `SavedComponentStub`
+        (visual placeholder); step 3 will swap in the real wrapped
+        sub-circuit runtime.
+
+        Args:
+            name (str): Saved component display name.
+            color (tuple[int, int, int]): RGB body color.
+        """
+        x = self.menu_button.rect.right + UISettings.BANK_TEMPLATE_GAP
+        if self._templates_and_spawners:
+            last_tpl, _last_spawn = self._templates_and_spawners[-1]
+            x = last_tpl.rect.right + UISettings.BANK_TEMPLATE_GAP
+        y = self.rect.y + (self.rect.height - ComponentSettings.DEFAULT_HEIGHT) // 2
+        template = SavedComponentStub(x, y, name, color)
+
+        def spawn(event_pos, components_list):
+            new_comp = SavedComponentStub(
+                event_pos[0] - template.rect.width // 2,
+                event_pos[1] - template.rect.height // 2,
+                name,
+                color,
+            )
+            self._prime_spawn_drag(new_comp, event_pos)
+            components_list.append(new_comp)
+
+        self._templates_and_spawners.append((template, spawn))
 
     def spawn_component(self, cls, event_pos, components_list):
         """Spawn an instance of `cls` through the bank's own spawn path.
