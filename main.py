@@ -8,6 +8,7 @@ from copy import deepcopy
 from core.elements import Component, LED, SavedComponent, Switch
 from fonts import Fonts
 from ui.save_component_dialog import SaveComponentDialog
+from ui.quit_confirm_dialog import QuitConfirmDialog
 from settings import *
 from core.signals import SignalManager
 from ui.text_boxes import TextBoxManager
@@ -276,6 +277,13 @@ class GameManager:
         """
         self.dialog = None
 
+    def _show_quit_confirm(self):
+        """Open the quit-confirmation dialog; only YES closes the app."""
+        self.dialog = QuitConfirmDialog(
+            on_confirm=self.close_game,
+            on_cancel=self._dismiss_dialog,
+        )
+
     # -------------------------
     # AUDIO / VOLUME ACTIONS
     # -------------------------
@@ -328,11 +336,19 @@ class GameManager:
         if event.key == pygame.K_F11:
             pygame.display.toggle_fullscreen()
         if event.key == pygame.K_ESCAPE:
-            # Esc dismisses open UI layers before quitting.
+            # Layered Esc behavior (priority order):
+            # 1. Dialog/popup already open -> dialog handles its own Esc
+            #    (self.dialog routes events before _handle_keydown runs).
+            # 2. Menu popup open -> dismiss it.
             if self.bank.menu_button.is_open:
                 self.bank.menu_button.toggle()
                 return
-            self.close_game()
+            # 3. Fullscreen -> exit fullscreen.
+            if pygame.display.get_surface().get_flags() & pygame.FULLSCREEN:
+                pygame.display.toggle_fullscreen()
+                return
+            # 4. Show quit confirm dialog; only YES actually quits.
+            self._show_quit_confirm()
         if event.key == pygame.K_t:
             self.text_boxes.spawn_at(pygame.mouse.get_pos())
 
@@ -545,7 +561,7 @@ class GameManager:
             "CTRL+Y REDO",
             "T TEXT",
             "F11 FULLSCREEN",
-            "ESC MENU/QUIT",
+            "ESC QUIT",
         )
         font = Fonts.text_box
         if font is None:

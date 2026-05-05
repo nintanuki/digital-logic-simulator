@@ -37,13 +37,8 @@ Fix things a student would notice in five seconds. Add the safety net.
 - [x] **Random color for saved components.** 8-color curated palette in `ColorSettings`.
 - [x] **Wrap the per-frame loop in a try/except** that flashes a banner and keeps
   the app alive on unhandled exceptions.
-- [ ] **Esc should not quit silently.** Layered behavior, in priority
+- [X] **Esc should not quit silently.** Layered behavior, in priority
   order:
-  1. If a popup / dialog is open, Esc dismisses it. *(MenuButton popup
-     case already landed; future dialogs reuse the same gate.)*
-  2. Else if the game is fullscreen, Esc exits fullscreen (mirroring F11).
-  3. Else Esc shows an in-game "Are you sure you want to quit?" confirm
-     dialog. Only "Yes" actually quits.
 - [ ] **Fix MENU button vs TEXT template visual confusion.** Both are
   small dark squares with a four-letter white label, so it's not obvious
   which is a control and which is a draggable component. Give MENU a

@@ -416,5 +416,35 @@ class SaveComponentDialogSettings:
     BACKDROP_ALPHA = 140
 
 
+class QuitConfirmDialogSettings:
+    """Visual + interaction constants for the Esc quit-confirmation dialog."""
+
+    WIDTH = 300
+    HEIGHT = 160
+    BODY_COLOR = (40, 40, 40)
+    BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    BORDER_THICKNESS = 2
+    PADDING = 20
+    SECTION_GAP = 14
+
+    TITLE = "QUIT?"
+    TITLE_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    MESSAGE = "ARE YOU SURE?"
+    MESSAGE_COLOR = (200, 200, 200)
+
+    BUTTON_WIDTH = 100
+    BUTTON_HEIGHT = 36
+    BUTTON_GAP = 16
+    BUTTON_BG_YES = (130, 50, 50)
+    BUTTON_BG_NO = (60, 60, 60)
+    BUTTON_TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    BUTTON_BORDER_COLOR = (120, 120, 120)
+    BUTTON_LABEL_YES = "YES"
+    BUTTON_LABEL_NO = "NO"
+
+    BACKDROP_COLOR = (0, 0, 0)
+    BACKDROP_ALPHA = 140
+
+
 class AudioSettings:
     pass
