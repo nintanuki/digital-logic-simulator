@@ -144,6 +144,7 @@ class Component:
         self.dragging = False
         self.offset_x = 0
         self.offset_y = 0
+        self.selected = False
         # Tracks whether the cursor moved between MOUSEBUTTONDOWN and
         # MOUSEBUTTONUP. Used by handle_event to distinguish a stationary
         # click (which fires _on_click — useful for Switch) from a drag
@@ -206,6 +207,15 @@ class Component:
 
         # Body shape is delegated so Switch / LED can render circles.
         self._draw_body(surface)
+
+        if self.selected:
+            highlight_rect = self.rect.inflate(8, 8)
+            pygame.draw.rect(
+                surface,
+                ComponentSettings.SELECTION_COLOR,
+                highlight_rect,
+                ComponentSettings.SELECTION_BORDER_THICKNESS,
+            )
 
         # Draw the Name Label
         text_surf = Fonts.component_label.render(self.name, True, ColorSettings.WORD_COLORS["WHITE"])

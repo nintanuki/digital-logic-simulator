@@ -115,6 +115,19 @@ class ComponentSettings:
     PORT_LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     PORT_LABEL_FONT_SIZE = 12
     PORT_LABEL_OFFSET = PORT_RADIUS + 6
+    # Selection outline for selected components.
+    SELECTION_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    SELECTION_BORDER_THICKNESS = 2
+
+
+class SelectionBoxSettings:
+    """Visual constants for drag-to-select marquee rectangle."""
+
+    BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    FILL_COLOR = (255, 255, 255, 40)
+    BORDER_THICKNESS = 1
+    # Treat tiny drags as plain clicks (clear selection) instead of marquee.
+    MIN_DRAG_PIXELS = 4
 
 class WireSettings:
     """Visual + interaction constants for wires between component ports."""

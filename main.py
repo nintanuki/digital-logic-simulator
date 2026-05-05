@@ -80,6 +80,13 @@ class GameManager:
         self.components = [] # Start with an empty workspace. Components will be added by the user.
         self.wires = WireManager()
         self.signals = SignalManager()
+        self.selected_components = []
+        self._marquee_start = None
+        self._marquee_end = None
+        self._group_drag_anchor = None
+        self._group_drag_start_positions = {}
+        self._group_drag_moved = False
+        self._click_candidate_component = None
 
         # -------- Undo / redo --------
         self.history = History()
@@ -195,6 +202,9 @@ class GameManager:
         self.wires.pending_source = None
         self.text_boxes.text_boxes.clear()
         self.text_boxes.focused = None
+        self._set_selected_components([])
+        self._cancel_marquee()
+        self._cancel_group_drag()
         # History holds references to the old components and wires.  Clear
         # it so undo can't resurrect objects from the previous workspace.
         self.history.clear()
@@ -334,6 +344,7 @@ class GameManager:
 
     def _handle_keydown(self, event: pygame.event.Event) -> None:
         """Route a single keyboard press."""
+        self._prune_selection()
         # Undo / redo - checked before any other key so Ctrl+Z/Y are never
         # intercepted by a focused text box (the manager consumes keydowns
         # while a box is focused, so these lines are only reached when no
@@ -347,6 +358,10 @@ class GameManager:
             return
         if event.key == pygame.K_y and (mods & pygame.KMOD_CTRL):
             self.history.redo()
+            return
+
+        if event.key in (pygame.K_DELETE, pygame.K_BACKSPACE):
+            self._delete_selected_components()
             return
 
         # Global keys (always honored regardless of run state).
@@ -371,12 +386,21 @@ class GameManager:
 
     def _handle_mouse(self, event: pygame.event.Event) -> None:
         """Pass mouse events to the component manager or components directly."""
+        self._prune_selection()
         # Hover updates ride along with motion events. Done here (not inside
         # Component) because every port in the world — workspace and toolbox
         # template alike — needs to reflect the same cursor, and only
         # GameManager owns both collections.
         if event.type == pygame.MOUSEMOTION:
             self._update_port_hover(event.pos)
+
+        if self._is_group_dragging():
+            self._handle_group_drag_event(event)
+            return
+
+        if self._is_marquee_selecting():
+            self._handle_marquee_event(event)
+            return
 
         # When the bottom-left popup menu is open, any mouse-button press
         # that lands on the popup body belongs to the popup — intercept it
@@ -404,27 +428,33 @@ class GameManager:
         before = len(self.components)
         if self.bank.handle_event(event, self.components):
             if len(self.components) > before:
-                self.history.push(PlaceComponent(self.components, self.wires, self.components[-1]))
+                spawned_component = self.components[-1]
+                self.history.push(PlaceComponent(self.components, self.wires, spawned_component))
+                self._set_selected_components([spawned_component])
+                # Spawned components should drag immediately if the mouse is held.
+                self._start_group_drag(event.pos, click_candidate=None)
             return
 
-        # Check components (backwards for proper layering/removal)
-        for i in range(len(self.components) - 1, -1, -1):
-            comp = self.components[i]
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.LEFT_CLICK:
+            clicked = self._component_at(event.pos)
+            if clicked is None:
+                self._set_selected_components([])
+                self._start_marquee(event.pos)
+                return
+            if clicked in self.selected_components:
+                self._start_group_drag(event.pos, click_candidate=clicked)
+                return
+            self._set_selected_components([clicked])
+            self._start_group_drag(event.pos, click_candidate=clicked)
+            return
 
-            # Catch the return value from the component
-            action = comp.handle_event(event)
-
-            if action == "DELETE":
-                # Drop any wires touching this component before it disappears,
-                # otherwise wires would dangle on a freed Port reference.
-                affected_wires = [
-                    w for w in self.wires.wires
-                    if w.source.parent is comp or w.target.parent is comp
-                ]
-                self.wires.drop_wires_for_component(comp)
-                self.components.pop(i)
-                self.history.push(DeleteComponent(self.components, self.wires, comp, affected_wires, i))
-                break
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.RIGHT_CLICK:
+            for i in range(len(self.components) - 1, -1, -1):
+                comp = self.components[i]
+                action = comp.handle_event(event)
+                if action == "DELETE":
+                    self._delete_component_at_index(i)
+                    break
 
     def _update_port_hover(self, mouse_pos) -> None:
         """Refresh the hovered flag on every port given the current cursor.
@@ -442,6 +472,142 @@ class GameManager:
         for tpl in self.bank.templates:
             for port in tpl.ports:
                 port.hovered = port.rect.collidepoint(mouse_pos)
+
+    def _component_at(self, pos):
+        """Return the top-most workspace component under the cursor."""
+        for comp in reversed(self.components):
+            if comp.rect.collidepoint(pos):
+                return comp
+        return None
+
+    def _set_selected_components(self, components):
+        """Set the active component selection and sync visual flags."""
+        selected = [comp for comp in components if comp in self.components]
+        selected_ids = set(selected)
+        for comp in self.components:
+            comp.selected = comp in selected_ids
+        self.selected_components = selected
+
+    def _prune_selection(self):
+        """Drop stale selections when undo/redo removes selected components."""
+        live = [comp for comp in self.selected_components if comp in self.components]
+        if len(live) != len(self.selected_components):
+            self._set_selected_components(live)
+
+    def _delete_component_at_index(self, index):
+        """Delete one component and record undo history for it."""
+        comp = self.components[index]
+        affected_wires = [
+            w for w in self.wires.wires
+            if w.source.parent is comp or w.target.parent is comp
+        ]
+        self.wires.drop_wires_for_component(comp)
+        self.components.pop(index)
+        self.history.push(DeleteComponent(self.components, self.wires, comp, affected_wires, index))
+        if comp in self.selected_components:
+            self._set_selected_components(
+                [selected for selected in self.selected_components if selected is not comp]
+            )
+
+    def _delete_selected_components(self):
+        """Delete every selected component in one keypress."""
+        if not self.selected_components:
+            return
+        selected_ids = set(self.selected_components)
+        for index in range(len(self.components) - 1, -1, -1):
+            if self.components[index] in selected_ids:
+                self._delete_component_at_index(index)
+        self._set_selected_components([])
+        self._cancel_group_drag()
+        self._cancel_marquee()
+
+    def _start_group_drag(self, mouse_pos, click_candidate):
+        """Begin dragging all currently selected components together."""
+        if not self.selected_components:
+            return
+        self._group_drag_anchor = mouse_pos
+        self._group_drag_start_positions = {
+            comp: (comp.rect.x, comp.rect.y)
+            for comp in self.selected_components
+        }
+        self._group_drag_moved = False
+        self._click_candidate_component = click_candidate
+
+    def _is_group_dragging(self):
+        return self._group_drag_anchor is not None
+
+    def _cancel_group_drag(self):
+        self._group_drag_anchor = None
+        self._group_drag_start_positions = {}
+        self._group_drag_moved = False
+        self._click_candidate_component = None
+
+    def _handle_group_drag_event(self, event):
+        """Update or complete a multi-component drag gesture."""
+        if self._group_drag_anchor is None:
+            return
+        if event.type == pygame.MOUSEMOTION:
+            dx = event.pos[0] - self._group_drag_anchor[0]
+            dy = event.pos[1] - self._group_drag_anchor[1]
+            if dx or dy:
+                self._group_drag_moved = True
+            for comp, (start_x, start_y) in self._group_drag_start_positions.items():
+                comp.rect.x = start_x + dx
+                comp.rect.y = start_y + dy
+                comp._clamp_to_workspace()
+            return
+        if event.type == pygame.MOUSEBUTTONUP and event.button == InputSettings.LEFT_CLICK:
+            # Preserve click-without-drag behavior for single-component Switch toggles.
+            if (not self._group_drag_moved
+                    and self._click_candidate_component is not None
+                    and len(self.selected_components) == 1
+                    and self.selected_components[0] is self._click_candidate_component):
+                self._click_candidate_component._on_click()
+            self._cancel_group_drag()
+
+    def _start_marquee(self, mouse_pos):
+        """Start drawing a marquee selection rectangle."""
+        self._marquee_start = mouse_pos
+        self._marquee_end = mouse_pos
+
+    def _is_marquee_selecting(self):
+        return self._marquee_start is not None
+
+    def _cancel_marquee(self):
+        self._marquee_start = None
+        self._marquee_end = None
+
+    def _current_marquee_rect(self):
+        """Return normalized marquee rect from the current drag endpoints."""
+        if self._marquee_start is None or self._marquee_end is None:
+            return pygame.Rect(0, 0, 0, 0)
+        x0, y0 = self._marquee_start
+        x1, y1 = self._marquee_end
+        left = min(x0, x1)
+        top = min(y0, y1)
+        width = abs(x1 - x0)
+        height = abs(y1 - y0)
+        return pygame.Rect(left, top, width, height)
+
+    def _handle_marquee_event(self, event):
+        """Update or complete a marquee selection gesture."""
+        if event.type == pygame.MOUSEMOTION:
+            self._marquee_end = event.pos
+            return
+        if event.type == pygame.MOUSEBUTTONUP and event.button == InputSettings.LEFT_CLICK:
+            self._marquee_end = event.pos
+            marquee = self._current_marquee_rect()
+            if (marquee.width < SelectionBoxSettings.MIN_DRAG_PIXELS
+                    and marquee.height < SelectionBoxSettings.MIN_DRAG_PIXELS):
+                self._set_selected_components([])
+                self._cancel_marquee()
+                return
+            selected = [
+                comp for comp in self.components
+                if marquee.colliderect(comp.rect)
+            ]
+            self._set_selected_components(selected)
+            self._cancel_marquee()
 
     def _build_hotkey_bar_text_surfaces(self):
         """Render and cache per-hint text surfaces for the top bar."""
@@ -520,6 +686,7 @@ class GameManager:
         # area anyway, but drawing under it costs nothing and keeps the
         # toolbox visually authoritative.
         self.text_boxes.draw(self.screen)
+        self._draw_selection_marquee()
         # Draw the bank above text boxes and components so the toolbox
         # always reads as the topmost workspace surface.
         self.bank.draw(self.screen)
@@ -530,6 +697,23 @@ class GameManager:
         # with the rest of the screen.
         if self.dialog is not None:
             self.dialog.draw(self.screen)
+
+    def _draw_selection_marquee(self):
+        """Draw the active marquee rectangle while drag-selecting."""
+        if not self._is_marquee_selecting():
+            return
+        rect = self._current_marquee_rect()
+        if rect.width == 0 or rect.height == 0:
+            return
+        fill = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+        fill.fill(SelectionBoxSettings.FILL_COLOR)
+        self.screen.blit(fill, rect.topleft)
+        pygame.draw.rect(
+            self.screen,
+            SelectionBoxSettings.BORDER_COLOR,
+            rect,
+            SelectionBoxSettings.BORDER_THICKNESS,
+        )
 
     def _draw_grid(self):
         grid_color = (ColorSettings.WORD_COLORS["WHITE"]) # Subtle light blue
