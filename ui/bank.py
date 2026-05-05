@@ -78,16 +78,15 @@ class MenuButton:
     without a special case (if it's ever asked to).
     """
 
-    def __init__(self, x, y, enabled_labels):
+    def __init__(self, x, y, enabled_item_ids):
         """Lay out the button + popup rects, item hit-rects, and label surfaces.
 
         Args:
             x (int): Top-left x in screen coordinates.
             y (int): Top-left y in screen coordinates.
-            enabled_labels (set[str]): Item labels that have a backing
-                action and should render as live (white) affordances.
-                Labels not in the set render greyed out and will be
-                rejected by the bank's dispatch path.
+            enabled_item_ids (set[str]): Stable item IDs that have a
+                backing action and should render as live (white)
+                affordances. Labels are presentation-only.
         """
         size = MenuButtonSettings.SIZE
         self.rect = pygame.Rect(x, y, size, size)
@@ -108,6 +107,8 @@ class MenuButton:
             True,
             MenuButtonSettings.LABEL_COLOR,
         )
+        self._item_ids = [item_id for item_id, _label in MenuButtonSettings.ITEMS]
+        self._item_labels = [label for _item_id, label in MenuButtonSettings.ITEMS]
         # Built once at construction; geometry is fixed.
         self._item_rects = [
             pygame.Rect(
@@ -116,17 +117,17 @@ class MenuButton:
                 MenuButtonSettings.POPUP_WIDTH,
                 MenuButtonSettings.ITEM_HEIGHT,
             )
-            for index in range(len(MenuButtonSettings.ITEM_LABELS))
+            for index in range(len(MenuButtonSettings.ITEMS))
         ]
         self._item_label_surfs = [
             Fonts.text_box.render(
                 label,
                 True,
                 MenuButtonSettings.ITEM_ENABLED_COLOR
-                if label in enabled_labels
+                if item_id in enabled_item_ids
                 else MenuButtonSettings.ITEM_DISABLED_COLOR,
             )
-            for label in MenuButtonSettings.ITEM_LABELS
+            for item_id, label in MenuButtonSettings.ITEMS
         ]
 
     def toggle(self):
@@ -138,8 +139,8 @@ class MenuButton:
         """
         self.is_open = not self.is_open
 
-    def item_label_at(self, pos):
-        """Return the item label whose hit-rect contains `pos`, else None.
+    def item_id_at(self, pos):
+        """Return the stable item ID whose hit-rect contains `pos`, else None.
 
         Used by `ComponentBank.handle_event` to look up which popup item a
         click landed on without leaking the rect-array layout to the bank.
@@ -151,12 +152,12 @@ class MenuButton:
             pos (tuple[int, int]): Cursor position in screen space.
 
         Returns:
-            str | None: The matching label from ITEM_LABELS, or None if
-                no item's band contains the position.
+            str | None: The matching ID from `MenuButtonSettings.ITEMS`,
+                or None if no item's band contains the position.
         """
-        for rect, label in zip(self._item_rects, MenuButtonSettings.ITEM_LABELS):
+        for rect, item_id in zip(self._item_rects, self._item_ids):
             if rect.collidepoint(pos):
-                return label
+                return item_id
         return None
 
     def draw(self, surface):
@@ -221,15 +222,11 @@ class ComponentBank:
                 boxes. Captured by the TEXT template's spawn closure so a
                 click on that template can drop a focused TextBox without
                 routing back through GameManager.
-            menu_actions (dict[str, Callable[[], None]]): Map from popup
-                item label (matching an entry in
-                `MenuButtonSettings.ITEM_LABELS`) to the zero-arg callback
-                that runs when that item is clicked. Items whose label is
-                not a key in this dict render disabled and consume their
-                clicks without doing anything. The MenuButton is told the
-                set of enabled labels at construction so the rendered
-                labels match the live affordances without a per-frame
-                lookup.
+            menu_actions (dict[str, Callable[[], None]]): Map from stable
+                popup item ID (matching an entry in
+                `MenuButtonSettings.ITEM_IDS`) to the zero-arg callback that
+                runs when that item is clicked. Labels are presentation-only
+                and may change without affecting behavior.
         """
         self.rect = UISettings.BANK_RECT
         self._text_boxes = text_boxes
@@ -442,8 +439,8 @@ class ComponentBank:
         # Popup body click: dispatch action if enabled, dismiss on miss.
         if self.menu_button.is_open:
             if self.menu_button.popup_rect.collidepoint(event.pos):
-                label = self.menu_button.item_label_at(event.pos)
-                action = self._menu_actions.get(label) if label else None
+                item_id = self.menu_button.item_id_at(event.pos)
+                action = self._menu_actions.get(item_id) if item_id else None
                 if action is not None:
                     self.menu_button.toggle()
                     action()

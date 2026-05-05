@@ -279,18 +279,21 @@ class MenuButtonSettings:
     BORDER_THICKNESS = 1
     LABEL = "MENU"
     LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
-    # Items shown in the popup, top-to-bottom. All disabled (greyed out)
-    # in this cut — backing actions and click dispatch arrive in the
-    # follow-up step, so labels exist now to lock the popup's height and
-    # let the layout be verified independently of the wiring.
-    ITEM_LABELS = (
-        "NEW PROJECT",
-        "LOAD PROJECT",
-        "SAVE PROJECT",
-        "SAVE AS",
-        "SAVE AS COMPONENT",
-        "QUIT",
+    # Items shown in the popup, top-to-bottom.
+    #
+    # IMPORTANT: behavior dispatch must use stable IDs, not labels. Labels
+    # are presentation-only and can be renamed freely in settings without
+    # changing what each menu item does.
+    ITEMS = (
+        ("new_project", "NEW PROJECT"),
+        ("load_project", "LOAD PROJECT"),
+        ("save_project", "SAVE PROJECT"),
+        ("save_project_as", "SAVE PROJECT AS"),
+        ("save_as_component", "SAVE AS COMPONENT"),
+        ("quit", "QUIT"),
     )
+    ITEM_IDS = tuple(item_id for item_id, _label in ITEMS)
+    ITEM_LABELS = tuple(label for _item_id, label in ITEMS)
     # Vertical pitch per item inside the popup. The label baseline and
     # (once it lands) each item's hit-rect both anchor to this value, so
     # bumping it shifts both in sync.
@@ -314,7 +317,7 @@ class MenuButtonSettings:
     # entries only requires touching ITEM_LABELS. Color matches the
     # button body so the popup reads as an extension of the same control.
     POPUP_WIDTH = 220
-    POPUP_HEIGHT = len(ITEM_LABELS) * ITEM_HEIGHT
+    POPUP_HEIGHT = len(ITEMS) * ITEM_HEIGHT
     POPUP_BODY_COLOR = (60, 60, 60)
     POPUP_BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     POPUP_BORDER_THICKNESS = 1
@@ -492,7 +495,7 @@ class SaveProjectDialogSettings:
     NAME_CARET_WIDTH = 2
 
     # Warning shown when the typed name collides with an existing project.
-    WARNING_TEXT = "WARNING: WILL OVERWRITE EXISTING PROJECT"
+    WARNING_TEXT = "OVERWRITE AN EXISTING PROJECT?!"
     WARNING_COLOR = (220, 160, 60)
     WARNING_HEIGHT = 20
 

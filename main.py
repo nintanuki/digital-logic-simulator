@@ -51,12 +51,12 @@ class GameManager:
         self.bank = ComponentBank(
             self.text_boxes,
             menu_actions={
-                "NEW PROJECT": self._new_project,
-                "LOAD PROJECT": self._open_load_project_dialog,
-                "SAVE PROJECT": self._save_project,
-                "SAVE AS": self._open_save_as_dialog,
-                "SAVE AS COMPONENT": self.save_as_component,
-                "QUIT": self.close_game,
+                "new_project": self._new_project,
+                "load_project": self._open_load_project_dialog,
+                "save_project": self._save_project,
+                "save_project_as": self._open_save_as_dialog,
+                "save_as_component": self.save_as_component,
+                "quit": self.close_game,
             },
         )
         self.components = []
