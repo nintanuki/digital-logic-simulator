@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Digital Logic Simulator — saved projects (user data, not source)
+projects/*.json

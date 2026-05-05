@@ -45,13 +45,16 @@ class GameManager:
         self.dialog = None
         # In-session only; disk persistence is Pass 3.
         self.saved_components = []
+        # Name of the currently loaded/saved project, or None for a fresh unsaved project.
+        self._current_project_name: str | None = None
         # Keys mirror MenuButtonSettings.ITEM_LABELS; only wired items render enabled.
         self.bank = ComponentBank(
             self.text_boxes,
             menu_actions={
                 "NEW PROJECT": self._new_project,
                 "LOAD PROJECT": self._open_load_project_dialog,
-                "SAVE PROJECT": self._open_save_project_dialog,
+                "SAVE PROJECT": self._save_project,
+                "SAVE AS": self._open_save_as_dialog,
                 "SAVE AS COMPONENT": self.save_as_component,
                 "QUIT": self.close_game,
             },
@@ -279,8 +282,15 @@ class GameManager:
     # PROJECT SAVE / LOAD
     # -------------------------
 
-    def _open_save_project_dialog(self):
-        """Open the SAVE PROJECT dialog to collect a name, then write to disk."""
+    def _save_project(self):
+        """Save directly if a project name is already set; otherwise open Save As."""
+        if self._current_project_name is not None:
+            self._finalize_save_project(self._current_project_name)
+        else:
+            self._open_save_as_dialog()
+
+    def _open_save_as_dialog(self):
+        """Open the SAVE AS dialog (list of existing projects + name input)."""
         existing = self._list_project_names()
         self.dialog = SaveProjectDialog(
             existing_names=existing,
@@ -288,16 +298,21 @@ class GameManager:
             on_cancel=self._dismiss_dialog,
         )
 
+    # Keep old name as alias so any future callers still work.
+    def _open_save_project_dialog(self):
+        self._open_save_as_dialog()
+
     def _finalize_save_project(self, name):
-        """Serialize the workspace to projects/<name>.json."""
+        """Serialize the workspace to projects/<name>.json and remember the name."""
         os.makedirs(_PROJECTS_DIR, exist_ok=True)
-        payload = self._serialize_project(name)
         safe_name = "".join(
             c if c.isalnum() or c in (" ", "-", "_") else "_" for c in name
         ).strip()
+        payload = self._serialize_project(safe_name)
         path = os.path.join(_PROJECTS_DIR, safe_name + ".json")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
+        self._current_project_name = safe_name
         self._dismiss_dialog()
 
     def _serialize_project(self, name):
@@ -362,11 +377,17 @@ class GameManager:
         with open(path, "r", encoding="utf-8") as f:
             payload = json.load(f)
         self._dismiss_dialog()
+        self._current_project_name = safe_name
         self._load_project_payload(payload)
 
     def _load_project_payload(self, payload):
         """Reconstruct the workspace from a serialized project dict."""
         self._clear_workspace()
+
+        # Reset the saved-component library and bank templates so loading
+        # twice doesn't accumulate duplicate toolbox entries.
+        self.saved_components.clear()
+        self.bank._templates_and_spawners = self.bank._build_templates()
 
         # Restore saved-component library first so spawned SavedComponents
         # in the workspace exist in the bank toolbox.
@@ -402,6 +423,7 @@ class GameManager:
             )
             if tb is not None:
                 tb.text = tb_def.get("text", "")
+                tb._layout_to_text()
 
     @staticmethod
     def _deserialize_component(comp_def):
@@ -429,6 +451,7 @@ class GameManager:
         # Also reset the in-session saved-components library and bank templates.
         self.saved_components.clear()
         self.bank._templates_and_spawners = self.bank._build_templates()
+        self._current_project_name = None
 
     # -------------------------
     # DIALOG MANAGEMENT

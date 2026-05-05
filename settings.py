@@ -287,6 +287,7 @@ class MenuButtonSettings:
         "NEW PROJECT",
         "LOAD PROJECT",
         "SAVE PROJECT",
+        "SAVE AS",
         "SAVE AS COMPONENT",
         "QUIT",
     )
@@ -447,30 +448,53 @@ class QuitConfirmDialogSettings:
 
 
 class SaveProjectDialogSettings:
-    """Visual + interaction constants for the SAVE PROJECT dialog."""
+    """Visual + interaction constants for the SAVE AS dialog.
 
-    WIDTH = 340
-    HEIGHT = 160
+    The dialog shows a scrollable list of existing projects (click to select /
+    overwrite) plus a text field to type a new name.  A warning row appears
+    when the typed name matches an existing project that was *not* selected
+    from the list, reminding the user that saving will overwrite it.
+    """
+
+    WIDTH = 380
+    HEIGHT = 370
     BODY_COLOR = (40, 40, 40)
     BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     BORDER_THICKNESS = 2
     PADDING = 16
-    SECTION_GAP = 12
+    SECTION_GAP = 10
 
-    TITLE = "SAVE PROJECT"
+    TITLE = "SAVE AS"
     TITLE_COLOR = ColorSettings.WORD_COLORS["WHITE"]
 
+    # Scrollable list of existing projects (mirrors LoadProjectDialogSettings).
+    LIST_ITEM_HEIGHT = 32
+    LIST_ITEM_BG = (55, 55, 55)
+    LIST_ITEM_BG_HOVER = (80, 80, 80)
+    LIST_ITEM_BG_SELECTED = (60, 100, 60)
+    LIST_ITEM_TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    LIST_ITEM_BORDER = (80, 80, 80)
+    LIST_MAX_VISIBLE = 5
+    EMPTY_MESSAGE = "NO SAVED PROJECTS YET"
+    EMPTY_MESSAGE_COLOR = (140, 140, 140)
+
+    # Name input field shown below the list.
     NAME_FIELD_HEIGHT = 32
     NAME_FIELD_BG = (60, 60, 60)
     NAME_FIELD_BORDER = (120, 120, 120)
     NAME_FIELD_BORDER_FOCUSED = ColorSettings.WORD_COLORS["WHITE"]
     NAME_FIELD_TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
-    NAME_FIELD_PLACEHOLDER = "PROJECT NAME..."
+    NAME_FIELD_PLACEHOLDER = "NEW PROJECT NAME..."
     NAME_FIELD_PLACEHOLDER_COLOR = (140, 140, 140)
     NAME_FIELD_PADDING_X = 8
     NAME_MAX_LENGTH = 32
     NAME_CARET_BLINK_MS = 1000
     NAME_CARET_WIDTH = 2
+
+    # Warning shown when the typed name collides with an existing project.
+    WARNING_TEXT = "WARNING: WILL OVERWRITE EXISTING PROJECT"
+    WARNING_COLOR = (220, 160, 60)
+    WARNING_HEIGHT = 20
 
     BUTTON_WIDTH = 120
     BUTTON_HEIGHT = 36

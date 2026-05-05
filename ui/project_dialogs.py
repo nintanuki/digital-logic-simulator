@@ -88,20 +88,22 @@ def _draw_button(surface, rect, label, enabled, bg_enabled, bg_disabled,
 
 
 # ---------------------------------------------------------------------------
-# SaveProjectDialog
+# SaveProjectDialog  (used for "Save As" — list of existing + name field)
 # ---------------------------------------------------------------------------
 
 class SaveProjectDialog:
-    """Modal dialog that collects a project name before saving to disk.
+    """Modal dialog for saving a project under a new or existing name.
+
+    Shows a scrollable list of existing projects (clicking one fills the
+    name field so the user can overwrite it), a text input to type a fresh
+    name, an overwrite warning when the name collides with an existing
+    project, and SAVE / CANCEL buttons.
 
     Args:
-        existing_names (list[str]): Already-used project names so the
-            dialog can warn on overwrite (currently unused — placeholder
-            for future validation).
+        existing_names (list[str]): Already-saved project names.
         on_save (Callable[[str], None]): Called with the trimmed uppercase
-            name when the user clicks the enabled SAVE button.
-        on_cancel (Callable[[], None]): Called when the user clicks
-            CANCEL or presses Esc.
+            name when SAVE is confirmed.
+        on_cancel (Callable[[], None]): Called on CANCEL / Esc.
     """
 
     def __init__(self, existing_names, on_save, on_cancel):
@@ -109,35 +111,88 @@ class SaveProjectDialog:
         self._on_save = on_save
         self._on_cancel = on_cancel
 
+        self._selected_index = -1
+        self._scroll_offset = 0
+        self._hovered_index = -1
+
         self.rect = pygame.Rect(0, 0, SD.WIDTH, SD.HEIGHT)
         self.rect.center = (ScreenSettings.WIDTH // 2, ScreenSettings.HEIGHT // 2)
 
         self._title_surf = Fonts.text_box.render(SD.TITLE, True, SD.TITLE_COLOR)
+        self._warning_surf = Fonts.text_box.render(SD.WARNING_TEXT, True, SD.WARNING_COLOR)
 
         # Backdrop
         self._backdrop = pygame.Surface(ScreenSettings.RESOLUTION, pygame.SRCALPHA)
         self._backdrop.fill((*SD.BACKDROP_COLOR, SD.BACKDROP_ALPHA))
 
-        # Name field
-        field_x = self.rect.x + SD.PADDING
-        field_y = self.rect.y + SD.PADDING + self._title_surf.get_height() + SD.SECTION_GAP
+        # Layout from top:  padding → title → section_gap → list → section_gap
+        #                   → name_field → warning_row → section_gap → buttons → padding
+        title_bottom = self.rect.y + SD.PADDING + self._title_surf.get_height()
+        list_top = title_bottom + SD.SECTION_GAP
+        list_height = SD.LIST_MAX_VISIBLE * SD.LIST_ITEM_HEIGHT
+        list_width = SD.WIDTH - 2 * SD.PADDING
+        self._list_rect = pygame.Rect(
+            self.rect.x + SD.PADDING, list_top, list_width, list_height,
+        )
+
+        field_top = self._list_rect.bottom + SD.SECTION_GAP
         field_w = SD.WIDTH - 2 * SD.PADDING
-        self._name_field = _NameField(field_x, field_y, field_w, SD)
+        self._name_field = _NameField(
+            self.rect.x + SD.PADDING, field_top, field_w, SD,
+        )
         self._name_field.focus()
 
-        # Buttons — centered at the bottom of the dialog
         buttons_top = self.rect.bottom - SD.PADDING - SD.BUTTON_HEIGHT
         total_buttons_width = SD.BUTTON_WIDTH * 2 + SD.BUTTON_GAP
         buttons_left = self.rect.centerx - total_buttons_width // 2
-        self._save_rect = pygame.Rect(buttons_left, buttons_top,
-                                      SD.BUTTON_WIDTH, SD.BUTTON_HEIGHT)
+        self._save_rect = pygame.Rect(
+            buttons_left, buttons_top, SD.BUTTON_WIDTH, SD.BUTTON_HEIGHT,
+        )
         self._cancel_rect = pygame.Rect(
             buttons_left + SD.BUTTON_WIDTH + SD.BUTTON_GAP, buttons_top,
             SD.BUTTON_WIDTH, SD.BUTTON_HEIGHT,
         )
 
+        self._empty_surf = Fonts.text_box.render(
+            SD.EMPTY_MESSAGE, True, SD.EMPTY_MESSAGE_COLOR,
+        )
+
+    # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+
     def _save_enabled(self):
         return bool(self._name_field.text.strip())
+
+    def _name_collides(self):
+        """Return True when the typed name matches an existing project."""
+        return self._name_field.text.strip().upper() in (
+            n.upper() for n in self._existing_names
+        )
+
+    def _item_rect(self, slot_index):
+        return pygame.Rect(
+            self._list_rect.x,
+            self._list_rect.y + slot_index * SD.LIST_ITEM_HEIGHT,
+            self._list_rect.width,
+            SD.LIST_ITEM_HEIGHT,
+        )
+
+    def _clamp_scroll(self):
+        max_offset = max(0, len(self._existing_names) - SD.LIST_MAX_VISIBLE)
+        self._scroll_offset = max(0, min(self._scroll_offset, max_offset))
+
+    def _ensure_selected_visible(self):
+        if self._selected_index < 0:
+            return
+        if self._selected_index < self._scroll_offset:
+            self._scroll_offset = self._selected_index
+        elif self._selected_index >= self._scroll_offset + SD.LIST_MAX_VISIBLE:
+            self._scroll_offset = self._selected_index - SD.LIST_MAX_VISIBLE + 1
+
+    # ------------------------------------------------------------------
+    # events
+    # ------------------------------------------------------------------
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
@@ -147,32 +202,124 @@ class SaveProjectDialog:
             if event.key == pygame.K_RETURN and self._save_enabled():
                 self._on_save(self._name_field.text.strip())
                 return True
+            if event.key == pygame.K_DOWN and self._existing_names:
+                self._selected_index = min(
+                    self._selected_index + 1, len(self._existing_names) - 1,
+                )
+                self._ensure_selected_visible()
+                self._name_field.text = self._existing_names[self._selected_index]
+                self._name_field._focus_tick = pygame.time.get_ticks()
+                return True
+            if event.key == pygame.K_UP and self._existing_names:
+                if self._selected_index > 0:
+                    self._selected_index -= 1
+                    self._ensure_selected_visible()
+                    self._name_field.text = self._existing_names[self._selected_index]
+                    self._name_field._focus_tick = pygame.time.get_ticks()
+                return True
             self._name_field.handle_key(event)
+            # Typing de-selects any list item.
+            self._selected_index = -1
             return True
+
+        if event.type == pygame.MOUSEWHEEL:
+            self._scroll_offset -= event.y
+            self._clamp_scroll()
+            return True
+
+        if event.type == pygame.MOUSEMOTION:
+            pos = event.pos
+            self._hovered_index = -1
+            if self._list_rect.collidepoint(pos):
+                slot = (pos[1] - self._list_rect.y) // SD.LIST_ITEM_HEIGHT
+                actual = self._scroll_offset + slot
+                if 0 <= actual < len(self._existing_names):
+                    self._hovered_index = actual
+            return True
+
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.LEFT_CLICK:
-            if self._save_rect.collidepoint(event.pos) and self._save_enabled():
+            pos = event.pos
+            if self._save_rect.collidepoint(pos) and self._save_enabled():
                 self._on_save(self._name_field.text.strip())
                 return True
-            if self._cancel_rect.collidepoint(event.pos):
+            if self._cancel_rect.collidepoint(pos):
                 self._on_cancel()
                 return True
-            # Clicking inside the dialog body focuses the name field.
-            if self.rect.collidepoint(event.pos):
+            if self._list_rect.collidepoint(pos) and self._existing_names:
+                slot = (pos[1] - self._list_rect.y) // SD.LIST_ITEM_HEIGHT
+                actual = self._scroll_offset + slot
+                if 0 <= actual < len(self._existing_names):
+                    self._selected_index = actual
+                    self._name_field.text = self._existing_names[actual]
+                    self._name_field._focus_tick = pygame.time.get_ticks()
+            elif self.rect.collidepoint(pos):
                 self._name_field.focus()
             return True
+
         return True  # Consume all events while modal.
+
+    # ------------------------------------------------------------------
+    # draw
+    # ------------------------------------------------------------------
 
     def draw(self, surface):
         surface.blit(self._backdrop, (0, 0))
         pygame.draw.rect(surface, SD.BODY_COLOR, self.rect)
         pygame.draw.rect(surface, SD.BORDER_COLOR, self.rect, SD.BORDER_THICKNESS)
 
-        title_x = self.rect.x + SD.PADDING
-        title_y = self.rect.y + SD.PADDING
-        surface.blit(self._title_surf, (title_x, title_y))
+        # Title
+        surface.blit(self._title_surf, (self.rect.x + SD.PADDING, self.rect.y + SD.PADDING))
 
+        # Project list
+        if not self._existing_names:
+            empty_rect = self._empty_surf.get_rect(center=self._list_rect.center)
+            surface.blit(self._empty_surf, empty_rect)
+        else:
+            clip = surface.get_clip()
+            surface.set_clip(self._list_rect)
+            visible = self._existing_names[
+                self._scroll_offset: self._scroll_offset + SD.LIST_MAX_VISIBLE
+            ]
+            for slot_idx, name in enumerate(visible):
+                actual_idx = self._scroll_offset + slot_idx
+                item_rect = self._item_rect(slot_idx)
+                if actual_idx == self._selected_index:
+                    bg = SD.LIST_ITEM_BG_SELECTED
+                elif actual_idx == self._hovered_index:
+                    bg = SD.LIST_ITEM_BG_HOVER
+                else:
+                    bg = SD.LIST_ITEM_BG
+                pygame.draw.rect(surface, bg, item_rect)
+                pygame.draw.rect(surface, SD.LIST_ITEM_BORDER, item_rect, 1)
+                font = Fonts.text_box
+                text_surf = font.render(name, True, SD.LIST_ITEM_TEXT_COLOR)
+                text_y = item_rect.y + (item_rect.height - text_surf.get_height()) // 2
+                surface.blit(text_surf, (item_rect.x + 8, text_y))
+            surface.set_clip(clip)
+
+            # Scroll hint arrows
+            font = Fonts.text_box
+            if self._scroll_offset > 0:
+                arrow = font.render("▲", True, SD.LIST_ITEM_TEXT_COLOR)
+                surface.blit(arrow, (self._list_rect.right - arrow.get_width() - 6,
+                                     self._list_rect.top + 4))
+            if self._scroll_offset + SD.LIST_MAX_VISIBLE < len(self._existing_names):
+                arrow = font.render("▼", True, SD.LIST_ITEM_TEXT_COLOR)
+                surface.blit(arrow, (self._list_rect.right - arrow.get_width() - 6,
+                                     self._list_rect.bottom - arrow.get_height() - 4))
+
+        # Name field
         self._name_field.draw(surface)
 
+        # Overwrite warning (only when the name collides)
+        if self._save_enabled() and self._name_collides():
+            warn_x = self.rect.x + SD.PADDING
+            warn_y = (self._name_field.rect.bottom +
+                      (self._save_rect.top - self._name_field.rect.bottom
+                       - self._warning_surf.get_height()) // 2)
+            surface.blit(self._warning_surf, (warn_x, warn_y))
+
+        # Buttons
         enabled = self._save_enabled()
         _draw_button(surface, self._save_rect, SD.BUTTON_LABEL_SAVE,
                      enabled, SD.BUTTON_BG_ENABLED, SD.BUTTON_BG_DISABLED,
