@@ -11,7 +11,7 @@ from core.elements import Component, LED, SavedComponent, Switch
 from core.project_manager import ProjectManager
 from core.signals import SignalManager
 from core.workspace_controller import WorkspaceInteractionController
-from fonts import Fonts
+from ui.fonts import Fonts
 from ui.bank import ComponentBank
 from ui.crt import CRT
 from ui.project_dialogs import FileNotFoundWarningDialog, LoadProjectDialog, SaveProjectDialog

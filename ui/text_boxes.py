@@ -1,7 +1,7 @@
 import pygame
 from typing import Callable
 
-from fonts import Fonts
+from ui.fonts import Fonts
 from settings import (
     InputSettings,
     ScreenSettings,

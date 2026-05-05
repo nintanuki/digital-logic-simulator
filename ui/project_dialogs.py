@@ -1,6 +1,6 @@
 import pygame
 
-from fonts import Fonts
+from ui.fonts import Fonts
 from settings import (
     FileNotFoundWarningDialogSettings as FW,
     InputSettings,

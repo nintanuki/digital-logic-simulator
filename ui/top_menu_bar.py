@@ -6,7 +6,7 @@ Decouples menu logic from GameManager to reduce its size and complexity.
 
 from typing import Callable, Dict, Optional, Tuple
 import pygame
-from fonts import Fonts
+from ui.fonts import Fonts
 from settings import (
     TopMenuBarSettings,
     MenuButtonSettings,

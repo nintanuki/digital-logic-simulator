@@ -58,6 +58,126 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 13:58 UTC — Move Fonts module from root into ui package
+
+**File:** ui/fonts.py
+**Date and Time:** 2026-05-05 13:58 UTC
+**Lines (at time of edit):** (new file)
+**Before:**
+    (file did not exist)
+**After:**
+    import pygame
+    from settings import ComponentSettings, TextBoxSettings
+
+    class Fonts:
+        ...
+        @classmethod
+        def init(cls):
+            pygame.font.init()
+            cls.component_label = pygame.font.Font(...)
+            cls.port_label = pygame.font.Font(...)
+            cls.text_box = pygame.font.Font(...)
+**Why:** Moved the shared Fonts module into the ui package so UI concerns are grouped under `ui/` instead of the repository root.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** fonts.py
+**Date and Time:** 2026-05-05 13:58 UTC
+**Lines (at time of edit):** (deleted)
+**Before:**
+    import pygame
+    from settings import ComponentSettings, TextBoxSettings
+
+    class Fonts:
+        ...
+        @classmethod
+        def init(cls):
+            pygame.font.init()
+            cls.component_label = pygame.font.Font(...)
+            cls.port_label = pygame.font.Font(...)
+            cls.text_box = pygame.font.Font(...)
+**Why:** Removed the root-level Fonts module after relocating it to `ui/fonts.py`.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 13:58 UTC
+**Lines (at time of edit):** 14 (modified)
+**Before:**
+    from fonts import Fonts
+**After:**
+    from ui.fonts import Fonts
+**Why:** Updated import path to the relocated Fonts module.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** core/elements.py
+**Date and Time:** 2026-05-05 13:58 UTC
+**Lines (at time of edit):** 4 (modified)
+**Before:**
+    from fonts import Fonts
+**After:**
+    from ui.fonts import Fonts
+**Why:** Updated import path to the relocated Fonts module.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-05 13:58 UTC
+**Lines (at time of edit):** 5 (modified)
+**Before:**
+    from fonts import Fonts
+**After:**
+    from ui.fonts import Fonts
+**Why:** Updated import path to the relocated Fonts module.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/project_dialogs.py
+**Date and Time:** 2026-05-05 13:58 UTC
+**Lines (at time of edit):** 3 (modified)
+**Before:**
+    from fonts import Fonts
+**After:**
+    from ui.fonts import Fonts
+**Why:** Updated import path to the relocated Fonts module.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/quit_confirm_dialog.py
+**Date and Time:** 2026-05-05 13:58 UTC
+**Lines (at time of edit):** 3 (modified)
+**Before:**
+    from fonts import Fonts
+**After:**
+    from ui.fonts import Fonts
+**Why:** Updated import path to the relocated Fonts module.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/save_component_dialog.py
+**Date and Time:** 2026-05-05 13:58 UTC
+**Lines (at time of edit):** 3 (modified)
+**Before:**
+    from fonts import Fonts
+**After:**
+    from ui.fonts import Fonts
+**Why:** Updated import path to the relocated Fonts module.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/text_boxes.py
+**Date and Time:** 2026-05-05 13:58 UTC
+**Lines (at time of edit):** 4 (modified)
+**Before:**
+    from fonts import Fonts
+**After:**
+    from ui.fonts import Fonts
+**Why:** Updated import path to the relocated Fonts module.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/top_menu_bar.py
+**Date and Time:** 2026-05-05 13:58 UTC
+**Lines (at time of edit):** 9 (modified)
+**Before:**
+    from fonts import Fonts
+**After:**
+    from ui.fonts import Fonts
+**Why:** Updated import path to the relocated Fonts module.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-05 13:54 UTC — Clarify architecture rules and extract workspace interaction controller from GameManager
 
 **File:** docs/TESTING.md

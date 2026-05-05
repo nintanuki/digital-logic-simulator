@@ -2,7 +2,7 @@ import pygame
 from copy import deepcopy
 
 from core.elements import Component, LED, SavedComponent, Switch
-from fonts import Fonts
+from ui.fonts import Fonts
 from settings import (
     ComponentSettings,
     InputSettings,
