@@ -41,24 +41,21 @@ class GameManager:
         self.crt = CRT(self.screen)
 
         self.text_boxes = TextBoxManager()
-        # Active modal dialog, or None. Must be initialized before bank (menu_actions refs self.dialog).
+        # Active modal dialog, or None.
         self.dialog = None
         # In-session only; disk persistence is Pass 3.
         self.saved_components = []
         # Name of the currently loaded/saved project, or None for a fresh unsaved project.
         self._current_project_name: str | None = None
-        # Keys mirror MenuButtonSettings.ITEM_LABELS; only wired items render enabled.
-        self.bank = ComponentBank(
-            self.text_boxes,
-            menu_actions={
-                "new_project": self._new_project,
-                "load_project": self._open_load_project_dialog,
-                "save_project": self._save_project,
-                "save_project_as": self._open_save_as_dialog,
-                "save_as_component": self.save_as_component,
-                "quit": self.close_game,
-            },
-        )
+        self._menu_actions = {
+            "new_project": self._new_project,
+            "load_project": self._open_load_project_dialog,
+            "save_project": self._save_project,
+            "save_project_as": self._open_save_as_dialog,
+            "save_as_component": self.save_as_component,
+            "quit": self.close_game,
+        }
+        self.bank = ComponentBank(self.text_boxes)
         self.components = []
         self.wires = WireManager()
         self.signals = SignalManager()
@@ -85,8 +82,23 @@ class GameManager:
         self.text_boxes.on_delete = (
             lambda box, idx: self.history.push(DeleteTextBox(self.text_boxes, box, idx))
         )
+        text_font = Fonts.text_box
+        if text_font is None:
+            raise RuntimeError("Fonts.init() must run before UI text render")
         # Pre-render static hotkey hint text once; blit each frame.
         self._hotkey_hint_surfs = self._build_hotkey_bar_text_surfaces()
+        self._file_menu_item_surfs = self._build_file_menu_item_surfaces()
+        self._file_label_surf = text_font.render(
+            TopMenuBarSettings.FILE_LABEL,
+            True,
+            TopMenuBarSettings.TEXT_COLOR,
+        )
+        self._file_menu_open = False
+        self._file_menu_hover_index = 0
+        self._file_button_rect = pygame.Rect(0, 0, 0, 0)
+        self._file_menu_rect = pygame.Rect(0, 0, 0, 0)
+        self._file_menu_item_rects = []
+        self._rebuild_file_menu_geometry()
         # Recoverable-error state. Set to (exc_type_name, message, timestamp_ms)
         # by the per-frame try/except in run(); cleared automatically after
         # ErrorBannerSettings.DISPLAY_MS so it only flashes briefly.
@@ -496,6 +508,15 @@ class GameManager:
                 self.close_game()
                 continue
 
+            # FILE menu captures focus while open.
+            if self._file_menu_open:
+                if event.type == pygame.KEYDOWN:
+                    self._handle_keydown(event)
+                    continue
+                if event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN):
+                    self._handle_mouse(event)
+                    continue
+
             # Modal dialog owns all events while open.
             if self.dialog is not None:
                 self.dialog.handle_event(event)
@@ -515,6 +536,27 @@ class GameManager:
         """Route a single keyboard press."""
         self._prune_selection()
         mods = pygame.key.get_mods()
+        if self._file_menu_open:
+            if event.key == pygame.K_DOWN:
+                self._move_file_menu_selection(1)
+                return
+            if event.key == pygame.K_UP:
+                self._move_file_menu_selection(-1)
+                return
+            if event.key == pygame.K_RETURN:
+                self._activate_file_menu_selection()
+                return
+            if event.key == pygame.K_ESCAPE:
+                self._close_file_menu()
+                return
+
+        if event.key == pygame.K_f and not (mods & (pygame.KMOD_CTRL | pygame.KMOD_ALT)):
+            if self._file_menu_open:
+                self._close_file_menu()
+            else:
+                self._open_file_menu()
+            return
+
         if event.key == pygame.K_z and (mods & pygame.KMOD_CTRL):
             if mods & pygame.KMOD_SHIFT:
                 self.history.redo()
@@ -536,15 +578,11 @@ class GameManager:
             # Layered Esc behavior (priority order):
             # 1. Dialog/popup already open -> dialog handles its own Esc
             #    (self.dialog routes events before _handle_keydown runs).
-            # 2. Menu popup open -> dismiss it.
-            if self.bank.menu_button.is_open:
-                self.bank.menu_button.toggle()
-                return
-            # 3. Fullscreen -> exit fullscreen.
+            # 2. Fullscreen -> exit fullscreen.
             if pygame.display.get_surface().get_flags() & pygame.FULLSCREEN:
                 pygame.display.toggle_fullscreen()
                 return
-            # 4. Show quit confirm dialog; only YES actually quits.
+            # 3. Show quit confirm dialog; only YES actually quits.
             self._show_quit_confirm()
         if event.key == pygame.K_t:
             self.text_boxes.spawn_at(pygame.mouse.get_pos())
@@ -552,6 +590,27 @@ class GameManager:
     def _handle_mouse(self, event: pygame.event.Event) -> None:
         """Pass mouse events to the component manager or components directly."""
         self._prune_selection()
+
+        if event.type == pygame.MOUSEMOTION:
+            self._sync_file_menu_hover_with_mouse(event.pos)
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.LEFT_CLICK:
+            if self._file_button_rect.collidepoint(event.pos):
+                if self._file_menu_open:
+                    self._close_file_menu()
+                else:
+                    self._open_file_menu()
+                return
+            if self._file_menu_open:
+                if self._file_menu_rect.collidepoint(event.pos):
+                    index = self._file_menu_index_at(event.pos)
+                    if index is not None:
+                        self._file_menu_hover_index = index
+                        self._activate_file_menu_selection()
+                    return
+                self._close_file_menu()
+                return
+
         if event.type == pygame.MOUSEMOTION:
             self._update_port_hover(event.pos)
 
@@ -561,13 +620,6 @@ class GameManager:
 
         if self._marquee_start is not None:
             self._handle_marquee_event(event)
-            return
-
-        # Popup body intercepts before wires so a port under the menu can't start a wire.
-        if (event.type == pygame.MOUSEBUTTONDOWN
-                and self.bank.menu_button.is_open
-                and self.bank.menu_button.popup_rect.collidepoint(event.pos)):
-            self.bank.handle_event(event, self.components)
             return
 
         # Wires get the event before bank/components: a click that lands on a
@@ -691,6 +743,8 @@ class GameManager:
 
     def _handle_group_drag_event(self, event):
         """Update or complete a multi-component drag gesture."""
+        if self._group_drag_anchor is None:
+            return
         if event.type == pygame.MOUSEMOTION:
             dx = event.pos[0] - self._group_drag_anchor[0]
             dy = event.pos[1] - self._group_drag_anchor[1]
@@ -752,7 +806,7 @@ class GameManager:
             self._cancel_marquee()
 
     def _build_hotkey_bar_text_surfaces(self):
-        """Render and cache per-hint text surfaces for the top bar."""
+        """Render and cache per-hint text surfaces for the bottom bar."""
         hotkey_hints = (
             "CTRL+Z UNDO",
             "CTRL+Y REDO",
@@ -769,10 +823,10 @@ class GameManager:
         ]
 
     def _draw_hotkey_bar(self):
-        """Draw an old-school top status strip listing keyboard shortcuts."""
+        """Draw an old-school bottom status strip listing keyboard shortcuts."""
         bar_rect = pygame.Rect(
             0,
-            0,
+            ScreenSettings.HEIGHT - ShortcutBarSettings.HEIGHT,
             ScreenSettings.WIDTH,
             ShortcutBarSettings.HEIGHT,
         )
@@ -780,8 +834,8 @@ class GameManager:
         pygame.draw.line(
             self.screen,
             ShortcutBarSettings.BORDER_COLOR,
-            (0, bar_rect.bottom - 1),
-            (ScreenSettings.WIDTH, bar_rect.bottom - 1),
+            (0, bar_rect.top),
+            (ScreenSettings.WIDTH, bar_rect.top),
             1,
         )
         hint_surfs = self._hotkey_hint_surfs
@@ -799,6 +853,163 @@ class GameManager:
             text_rect.centery = bar_rect.centery
             self.screen.blit(surf, text_rect)
             x += surf.get_width() + gap
+
+    def _build_file_menu_item_surfaces(self):
+        """Render and cache FILE menu item labels once at startup."""
+        font = Fonts.text_box
+        if font is None:
+            raise RuntimeError("Fonts.init() must run before FILE menu text render")
+        return [
+            font.render(
+                label,
+                True,
+                MenuButtonSettings.ITEM_ENABLED_COLOR
+                if self._menu_actions.get(item_id) is not None
+                else MenuButtonSettings.ITEM_DISABLED_COLOR,
+            )
+            for item_id, label in MenuButtonSettings.ITEMS
+        ]
+
+    def _rebuild_file_menu_geometry(self):
+        """Build FILE button and popup item rects anchored to the top bar."""
+        self._file_button_rect = pygame.Rect(
+            0,
+            0,
+            self._file_label_surf.get_width() + TopMenuBarSettings.PADDING_X * 2,
+            TopMenuBarSettings.HEIGHT,
+        )
+        self._file_menu_rect = pygame.Rect(
+            self._file_button_rect.left,
+            TopMenuBarSettings.HEIGHT,
+            MenuButtonSettings.POPUP_WIDTH,
+            MenuButtonSettings.POPUP_HEIGHT,
+        )
+        self._file_menu_item_rects = [
+            pygame.Rect(
+                self._file_menu_rect.left,
+                self._file_menu_rect.top + index * MenuButtonSettings.ITEM_HEIGHT,
+                self._file_menu_rect.width,
+                MenuButtonSettings.ITEM_HEIGHT,
+            )
+            for index in range(len(MenuButtonSettings.ITEMS))
+        ]
+
+    def _open_file_menu(self):
+        """Open FILE menu and seed selection to the first enabled item."""
+        self._file_menu_open = True
+        self._file_menu_hover_index = self._first_enabled_file_menu_index()
+
+    def _close_file_menu(self):
+        """Close FILE menu and return keyboard focus to the workspace."""
+        self._file_menu_open = False
+
+    @staticmethod
+    def _file_menu_index_at_pos(item_rects, pos):
+        """Return the popup-item index containing pos, else None."""
+        for index, rect in enumerate(item_rects):
+            if rect.collidepoint(pos):
+                return index
+        return None
+
+    def _file_menu_index_at(self, pos):
+        """Return the popup-item index at pos for the active FILE menu."""
+        return self._file_menu_index_at_pos(self._file_menu_item_rects, pos)
+
+    def _first_enabled_file_menu_index(self):
+        """Return index of first menu item that has an action wired."""
+        for index, (item_id, _label) in enumerate(MenuButtonSettings.ITEMS):
+            if self._menu_actions.get(item_id) is not None:
+                return index
+        return 0
+
+    def _move_file_menu_selection(self, step):
+        """Move FILE menu selection by step over enabled items only."""
+        enabled_indices = [
+            index
+            for index, (item_id, _label) in enumerate(MenuButtonSettings.ITEMS)
+            if self._menu_actions.get(item_id) is not None
+        ]
+        if not enabled_indices:
+            return
+        if self._file_menu_hover_index not in enabled_indices:
+            self._file_menu_hover_index = enabled_indices[0]
+            return
+        current = enabled_indices.index(self._file_menu_hover_index)
+        self._file_menu_hover_index = enabled_indices[(current + step) % len(enabled_indices)]
+
+    def _activate_file_menu_selection(self):
+        """Run the currently highlighted FILE menu action and close menu."""
+        if not MenuButtonSettings.ITEMS:
+            self._close_file_menu()
+            return
+        item_id, _label = MenuButtonSettings.ITEMS[self._file_menu_hover_index]
+        action = self._menu_actions.get(item_id)
+        if action is None:
+            return
+        self._close_file_menu()
+        action()
+
+    def _sync_file_menu_hover_with_mouse(self, mouse_pos):
+        """Mirror mouse hover into keyboard selection state while menu is open."""
+        if not self._file_menu_open:
+            return
+        index = self._file_menu_index_at(mouse_pos)
+        if index is None:
+            return
+        self._file_menu_hover_index = index
+
+    def _draw_top_menu_bar(self):
+        """Draw top FILE menu bar with highlighted FILE affordance."""
+        bar_rect = pygame.Rect(0, 0, ScreenSettings.WIDTH, TopMenuBarSettings.HEIGHT)
+        pygame.draw.rect(self.screen, TopMenuBarSettings.BG_COLOR, bar_rect)
+        pygame.draw.line(
+            self.screen,
+            TopMenuBarSettings.BORDER_COLOR,
+            (0, bar_rect.bottom - 1),
+            (ScreenSettings.WIDTH, bar_rect.bottom - 1),
+            1,
+        )
+
+        file_bg = TopMenuBarSettings.BG_COLOR
+        mouse_over_file = self._file_button_rect.collidepoint(pygame.mouse.get_pos())
+        if self._file_menu_open or mouse_over_file:
+            file_bg = TopMenuBarSettings.FILE_HIGHLIGHT_BG
+        pygame.draw.rect(self.screen, file_bg, self._file_button_rect)
+        label_rect = self._file_label_surf.get_rect(center=self._file_button_rect.center)
+        self.screen.blit(self._file_label_surf, label_rect)
+
+        # Underline only the leading F to mimic a classic mnemonic affordance.
+        text_font = Fonts.text_box
+        if text_font is None:
+            return
+        f_width = text_font.size("F")[0]
+        underline_y = label_rect.bottom - 1
+        underline_x0 = label_rect.x
+        pygame.draw.line(
+            self.screen,
+            TopMenuBarSettings.TEXT_COLOR,
+            (underline_x0, underline_y),
+            (underline_x0 + f_width, underline_y),
+            1,
+        )
+
+        if self._file_menu_open:
+            self._draw_file_menu_popup()
+
+    def _draw_file_menu_popup(self):
+        """Draw FILE dropdown menu and shared hover/selection highlight."""
+        pygame.draw.rect(self.screen, MenuButtonSettings.POPUP_BODY_COLOR, self._file_menu_rect)
+        pygame.draw.rect(
+            self.screen,
+            MenuButtonSettings.POPUP_BORDER_COLOR,
+            self._file_menu_rect,
+            MenuButtonSettings.POPUP_BORDER_THICKNESS,
+        )
+        for index, (rect, surf) in enumerate(zip(self._file_menu_item_rects, self._file_menu_item_surfs)):
+            if index == self._file_menu_hover_index:
+                pygame.draw.rect(self.screen, COLOR_MENU_HIGHLIGHT, rect)
+            label_y = rect.y + (rect.height - surf.get_height()) // 2
+            self.screen.blit(surf, (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y))
 
     # -------------------------
     # PER-FRAME UPDATE / RENDER
@@ -859,7 +1070,7 @@ class GameManager:
             return
         bar = pygame.Rect(
             0,
-            ShortcutBarSettings.HEIGHT,
+            TopMenuBarSettings.HEIGHT,
             ScreenSettings.WIDTH,
             ErrorBannerSettings.HEIGHT,
         )
@@ -880,8 +1091,9 @@ class GameManager:
         self.screen.fill(ScreenSettings.BG_COLOR)
         self._draw_grid()
         self._draw()
-        self._draw_hotkey_bar()
+        self._draw_top_menu_bar()
         self.crt.draw()
+        self._draw_hotkey_bar()
         # Error banner draws after the CRT overlay so it's always legible.
         self._draw_error_banner()
 

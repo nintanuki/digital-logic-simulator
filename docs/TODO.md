@@ -39,7 +39,7 @@ Fix things a student would notice in five seconds. Add the safety net.
   the app alive on unhandled exceptions.
 - [X] **Esc should not quit silently.** Layered behavior, in priority
   order:
-- [ ] **Fix MENU button vs TEXT template visual confusion.** Both are
+- [x] **Fix MENU button vs TEXT template visual confusion.** Both are
   small dark squares with a four-letter white label, so it's not obvious
   which is a control and which is a draggable component. Give MENU a
   distinct treatment � different color, a `=` / `?` icon, or a

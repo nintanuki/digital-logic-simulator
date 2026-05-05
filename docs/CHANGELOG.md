@@ -58,6 +58,150 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 12:20 UTC — Refactor UI layout to retro TUI bars and top FILE menu
+
+**File:** settings.py
+**Date and Time:** 2026-05-05 12:20 UTC
+**Lines (at time of edit):** 4-9, 61-75, 80-100 (modified)
+**Before:**
+    class UISettings:
+        BANK_HEIGHT = 100
+        BANK_COLOR = (30, 30, 30)
+        BANK_RECT = pygame.Rect(0, ScreenSettings.HEIGHT - BANK_HEIGHT, ScreenSettings.WIDTH, BANK_HEIGHT)
+
+    class ShortcutBarSettings:
+        HEIGHT = 28
+        BG_COLOR = ColorSettings.WORD_COLORS["BLACK"]
+        TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+**After:**
+    COLOR_BAR_BG = (0, 0, 0)
+    COLOR_BAR_TEXT = (255, 255, 255)
+    COLOR_TOOLBOX_BG = (45, 45, 48)
+    TOOLBOX_BG_COLOR = COLOR_TOOLBOX_BG
+    COLOR_MENU_HIGHLIGHT = (173, 42, 42)
+
+    class UISettings:
+        BANK_BOTTOM_GAP = 8
+        BANK_COLOR = TOOLBOX_BG_COLOR
+        BANK_RECT = pygame.Rect(... ScreenSettings.HEIGHT - HOTKEY_BAR_HEIGHT - BANK_BOTTOM_GAP - BANK_HEIGHT ...)
+
+    class TopMenuBarSettings:
+        FILE_LABEL = "FILE"
+        FILE_HIGHLIGHT_BG = COLOR_MENU_HIGHLIGHT
+**Why:** Added explicit TUI color constants, introduced a top menu-bar config,
+and moved the toolbox up so it is visually separated from the new bottom
+hotkey bar while using a distinct toolbox background color.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-05 12:20 UTC
+**Lines (at time of edit):** 61-287 (modified)
+**Before:**
+    from settings import (..., MenuButtonSettings, ...)
+
+    class MenuButton:
+        ...
+
+    class ComponentBank:
+        def __init__(self, text_boxes, menu_actions):
+            self.menu_button = MenuButton(...)
+        def _build_templates(self):
+            x = self.menu_button.rect.right + UISettings.BANK_TEMPLATE_GAP
+        def draw(self, surface):
+            self.menu_button.draw(surface)
+        def handle_event(...):
+            [button toggle + popup dispatch + template spawn]
+**After:**
+    from settings import (... no MenuButtonSettings ...)
+
+    class ComponentBank:
+        def __init__(self, text_boxes):
+            self._templates_and_spawners = self._build_templates()
+        def _build_templates(self):
+            x = self.rect.x + UISettings.BANK_PADDING_X
+        def draw(self, surface):
+            [bank background + template draw only]
+        def handle_event(...):
+            [template spawn only]
+**Why:** Removed the old toolbox MENU button and popup interaction path so
+the toolbox is now dedicated to component templates only; FILE menu control
+was moved to the top menu bar.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 12:20 UTC
+**Lines (at time of edit):** 50-103, 503-626, 810-1031 (modified)
+**Before:**
+    self.bank = ComponentBank(self.text_boxes, menu_actions={...})
+    if self.bank.menu_button.is_open: self.bank.menu_button.toggle()
+    if self.bank.menu_button.popup_rect.collidepoint(event.pos): ...
+    _draw_hotkey_bar() drew at y=0 (top strip)
+**After:**
+    self._menu_actions = {...}
+    self.bank = ComponentBank(self.text_boxes)
+    self._file_menu_open / _file_menu_hover_index state added
+    _draw_top_menu_bar() + _draw_file_menu_popup() added
+    FILE menu keyboard focus: UP/DOWN, ENTER, ESC while open
+    F key opens/closes FILE menu
+    _draw_hotkey_bar() now draws at bottom (y = HEIGHT - bar height)
+**Why:** Implemented the top FILE bar and dropdown behavior, moved hotkey
+hints to a full-width bottom bar, captured keyboard focus for open menu,
+and unified mouse-hover and keyboard-selection to drive the same highlight
+state.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-05 — Pass 2: Fix MENU button vs TEXT template visual confusion
+
+**File:** settings.py
+**Date and Time:** 2026-05-05 00:00 CDT
+**Lines (at time of edit):** 275-295 (MenuButtonSettings body)
+**Before:**
+    BODY_COLOR = (60, 60, 60)
+    BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    BORDER_THICKNESS = 1
+    LABEL = "MENU"
+    LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+**After:**
+    BODY_COLOR = (30, 45, 70)          # dark navy
+    BORDER_COLOR = (90, 140, 210)      # blue accent
+    BORDER_THICKNESS = 2
+    LABEL = "MENU"
+    LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    ICON_LINE_WIDTH = 22
+    ICON_LINE_HEIGHT = 3
+    ICON_LINE_GAP = 4
+    ICON_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    ICON_Y_OFFSET = 12
+    LABEL_Y_OFFSET = 47
+**Why:** MENU and TEXT were both small dark squares with a 4-letter white
+label, making it unclear which was a control and which was a draggable
+component. A dark-navy body + blue border visually separates MENU from the
+near-black component templates; the three hamburger bars are a universally
+recognized "open menu" affordance so the button reads as a control surface
+at a glance.
+**Editor:** Claude Sonnet 4.6 (GitHub Copilot)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-05 00:00 CDT
+**Lines (at time of edit):** 175-202 (MenuButton.draw)
+**Before:**
+    pygame.draw.rect(surface, MenuButtonSettings.BODY_COLOR, self.rect)
+    pygame.draw.rect(surface, MenuButtonSettings.BORDER_COLOR, self.rect,
+                     MenuButtonSettings.BORDER_THICKNESS)
+    label_rect = self._label_surf.get_rect(center=self.rect.center)
+    surface.blit(self._label_surf, label_rect)
+**After:**
+    [body + border unchanged except new color values from settings]
+    # Three hamburger bars in upper portion of button
+    for bar_index in range(3):
+        pygame.draw.rect(surface, ICON_COLOR, Rect(icon_x, icon_y + bar_index * bar_step,
+                         ICON_LINE_WIDTH, ICON_LINE_HEIGHT))
+    label_rect = self._label_surf.get_rect(centerx=..., centery=rect.top + LABEL_Y_OFFSET)
+    surface.blit(self._label_surf, label_rect)
+**Why:** Renders the hamburger icon above the MENU label so the button's
+purpose is legible before the student reads the text.
+**Editor:** Claude Sonnet 4.6 (GitHub Copilot)
+
 ## 2026-05-05 — Pass 2: Per-frame try/except seatbelt
 
 **File:** settings.py

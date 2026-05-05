@@ -1,5 +1,13 @@
 import pygame
 
+# UI Color Configuration
+COLOR_BAR_BG = (0, 0, 0)
+COLOR_BAR_TEXT = (255, 255, 255)
+COLOR_TOOLBOX_BG = (45, 45, 48)
+TOOLBOX_BG_COLOR = COLOR_TOOLBOX_BG
+COLOR_MENU_HIGHLIGHT = (173, 42, 42)
+HOTKEY_BAR_HEIGHT = 28
+
 class ColorSettings:
     WORD_COLORS = {
         "BLACK": (0, 0, 0),
@@ -51,11 +59,17 @@ class FontSettings:
     TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
 
 class UISettings:
+    BANK_BOTTOM_GAP = 8
     BANK_HEIGHT = 100
-    BANK_COLOR = (30, 30, 30)  # Darker than the background
+    BANK_COLOR = TOOLBOX_BG_COLOR
     BANK_LINE_COLOR = (100, 100, 100)
-    # The area at the bottom of the screen
-    BANK_RECT = pygame.Rect(0, ScreenSettings.HEIGHT - BANK_HEIGHT, ScreenSettings.WIDTH, BANK_HEIGHT)
+    # Toolbox sits above the bottom hotkey bar with a small visual gap.
+    BANK_RECT = pygame.Rect(
+        0,
+        ScreenSettings.HEIGHT - HOTKEY_BAR_HEIGHT - BANK_BOTTOM_GAP - BANK_HEIGHT,
+        ScreenSettings.WIDTH,
+        BANK_HEIGHT,
+    )
     # Horizontal padding for the first toolbox template and the gap between
     # adjacent templates. Pulled out of ComponentBank so the layout has no
     # magic numbers.
@@ -64,14 +78,26 @@ class UISettings:
 
 
 class ShortcutBarSettings:
-    """Visual constants for the top-of-screen hotkey hint strip."""
+    """Visual constants for the bottom-of-screen hotkey hint strip."""
 
-    HEIGHT = 28
-    BG_COLOR = ColorSettings.WORD_COLORS["BLACK"]
-    TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    HEIGHT = HOTKEY_BAR_HEIGHT
+    BG_COLOR = COLOR_BAR_BG
+    TEXT_COLOR = COLOR_BAR_TEXT
     BORDER_COLOR = ColorSettings.WORD_COLORS["GRAY"]
     PADDING_X = 8
     ITEM_MIN_GAP = 12
+
+
+class TopMenuBarSettings:
+    """Visual constants for the top FILE menu bar."""
+
+    HEIGHT = HOTKEY_BAR_HEIGHT
+    BG_COLOR = COLOR_BAR_BG
+    TEXT_COLOR = COLOR_BAR_TEXT
+    BORDER_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+    PADDING_X = 10
+    FILE_LABEL = "FILE"
+    FILE_HIGHLIGHT_BG = COLOR_MENU_HIGHLIGHT
 
 
 class ErrorBannerSettings:
@@ -272,13 +298,26 @@ class MenuButtonSettings:
     strip.
     """
     SIZE = 60
-    # Slightly lighter than BANK_COLOR so the button reads as a raised
-    # control against the bank background instead of disappearing into it.
-    BODY_COLOR = (60, 60, 60)
-    BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
-    BORDER_THICKNESS = 1
+    # Dark navy distinguishes the MENU button from component templates, which
+    # all use near-black or medium-dark bodies. The blue border reinforces that
+    # this is a control surface, not a draggable element.
+    BODY_COLOR = (30, 45, 70)
+    BORDER_COLOR = (90, 140, 210)
+    BORDER_THICKNESS = 2
     LABEL = "MENU"
     LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    # Hamburger icon drawn above the MENU label. Three horizontal bars are a
+    # universally recognised "menu" affordance so the button reads as a
+    # control at a glance even before the student reads the label text.
+    ICON_LINE_WIDTH = 22
+    ICON_LINE_HEIGHT = 3
+    ICON_LINE_GAP = 4
+    ICON_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    # Y of the first icon bar relative to the button's top edge.
+    ICON_Y_OFFSET = 12
+    # Y center of the MENU label relative to the button's top edge.
+    # Sits in the lower portion so icon and label share the 60px height cleanly.
+    LABEL_Y_OFFSET = 47
     # Items shown in the popup, top-to-bottom.
     #
     # IMPORTANT: behavior dispatch must use stable IDs, not labels. Labels

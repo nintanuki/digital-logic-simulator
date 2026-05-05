@@ -6,7 +6,6 @@ from fonts import Fonts
 from settings import (
     ComponentSettings,
     InputSettings,
-    MenuButtonSettings,
     ScreenSettings,
     TextTemplateSettings,
     UISettings,
@@ -59,147 +58,6 @@ class TextTemplate:
         surface.blit(self._label_surf, label_rect)
 
 
-class MenuButton:
-    """Bottom-left bank button + the popup it toggles above the bank.
-
-    Lives at the far-left of the toolbox bank as a Windows-style "Start"
-    button. Clicking the button toggles `is_open`; while open, the popup
-    rect is drawn directly above the button with the file-ops items listed
-    inside. Each item owns a vertical band (its hit-rect) inside the popup;
-    the bank routes a popup-body click to `item_label_at` to look up which
-    item was clicked and dispatches via the `menu_actions` it was given.
-    Items render in `ITEM_ENABLED_COLOR` when an action is wired up for
-    them and in `ITEM_DISABLED_COLOR` otherwise, so the live affordances
-    are visually distinct from the placeholders without any per-frame
-    state. Click-outside and Esc already dismiss the popup elsewhere — see
-    `ComponentBank.handle_event` and `GameManager._handle_keydown`.
-    `ports = ()` mirrors `TextTemplate` so GameManager's port-hover walker
-    can iterate this object the same way it iterates Component templates
-    without a special case (if it's ever asked to).
-    """
-
-    def __init__(self, x, y, enabled_item_ids):
-        """Lay out the button + popup rects, item hit-rects, and label surfaces.
-
-        Args:
-            x (int): Top-left x in screen coordinates.
-            y (int): Top-left y in screen coordinates.
-            enabled_item_ids (set[str]): Stable item IDs that have a
-                backing action and should render as live (white)
-                affordances. Labels are presentation-only.
-        """
-        size = MenuButtonSettings.SIZE
-        self.rect = pygame.Rect(x, y, size, size)
-        # Empty tuple (not list) so accidental .append() in any walker would
-        # fail loud rather than silently grow this button's "ports".
-        self.ports = ()
-        # Anchored to BANK_RECT.top so popup floor aligns with bank top regardless of button inset.
-        self.popup_rect = pygame.Rect(
-            x,
-            UISettings.BANK_RECT.top - MenuButtonSettings.POPUP_GAP - MenuButtonSettings.POPUP_HEIGHT,
-            MenuButtonSettings.POPUP_WIDTH,
-            MenuButtonSettings.POPUP_HEIGHT,
-        )
-        self.is_open = False
-        # The label never changes, so render it once and blit per frame.
-        self._label_surf = Fonts.text_box.render(
-            MenuButtonSettings.LABEL,
-            True,
-            MenuButtonSettings.LABEL_COLOR,
-        )
-        self._item_ids = [item_id for item_id, _label in MenuButtonSettings.ITEMS]
-        self._item_labels = [label for _item_id, label in MenuButtonSettings.ITEMS]
-        # Built once at construction; geometry is fixed.
-        self._item_rects = [
-            pygame.Rect(
-                self.popup_rect.left,
-                self.popup_rect.top + index * MenuButtonSettings.ITEM_HEIGHT,
-                MenuButtonSettings.POPUP_WIDTH,
-                MenuButtonSettings.ITEM_HEIGHT,
-            )
-            for index in range(len(MenuButtonSettings.ITEMS))
-        ]
-        self._item_label_surfs = [
-            Fonts.text_box.render(
-                label,
-                True,
-                MenuButtonSettings.ITEM_ENABLED_COLOR
-                if item_id in enabled_item_ids
-                else MenuButtonSettings.ITEM_DISABLED_COLOR,
-            )
-            for item_id, label in MenuButtonSettings.ITEMS
-        ]
-
-    def toggle(self):
-        """Flip the popup open/closed.
-
-        Exposed as a method (not a direct attribute write) so future
-        side-effects on open/close — focus stealing, item state refresh —
-        have a single place to land.
-        """
-        self.is_open = not self.is_open
-
-    def item_id_at(self, pos):
-        """Return the stable item ID whose hit-rect contains `pos`, else None.
-
-        Used by `ComponentBank.handle_event` to look up which popup item a
-        click landed on without leaking the rect-array layout to the bank.
-        Caller is expected to gate this on `is_open` and on the popup body
-        rect already containing `pos` — items only exist while the popup
-        is visible.
-
-        Args:
-            pos (tuple[int, int]): Cursor position in screen space.
-
-        Returns:
-            str | None: The matching ID from `MenuButtonSettings.ITEMS`,
-                or None if no item's band contains the position.
-        """
-        for rect, item_id in zip(self._item_rects, self._item_ids):
-            if rect.collidepoint(pos):
-                return item_id
-        return None
-
-    def draw(self, surface):
-        """Render the button and, if open, the popup with its item labels.
-
-        Item labels are blit after the popup body+border so they layer on
-        top of the fill but stay inside the border. Each label is rendered
-        in either ITEM_ENABLED_COLOR or ITEM_DISABLED_COLOR at construction
-        time, so this loop is purely positional.
-
-        Args:
-            surface (pygame.Surface): The surface to draw onto.
-        """
-        pygame.draw.rect(surface, MenuButtonSettings.BODY_COLOR, self.rect)
-        pygame.draw.rect(
-            surface,
-            MenuButtonSettings.BORDER_COLOR,
-            self.rect,
-            MenuButtonSettings.BORDER_THICKNESS,
-        )
-        label_rect = self._label_surf.get_rect(center=self.rect.center)
-        surface.blit(self._label_surf, label_rect)
-        if self.is_open:
-            pygame.draw.rect(
-                surface,
-                MenuButtonSettings.POPUP_BODY_COLOR,
-                self.popup_rect,
-            )
-            pygame.draw.rect(
-                surface,
-                MenuButtonSettings.POPUP_BORDER_COLOR,
-                self.popup_rect,
-                MenuButtonSettings.POPUP_BORDER_THICKNESS,
-            )
-            for rect, surf in zip(self._item_rects, self._item_label_surfs):
-                label_y = rect.y + (rect.height - surf.get_height()) // 2
-                surface.blit(
-                    surf,
-                    (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y),
-                )
-
-
 class ComponentBank:
     """The toolbox at the bottom of the screen — templates students drag onto the workspace.
 
@@ -214,7 +72,7 @@ class ComponentBank:
     # Order is the left-to-right order shown in the toolbox.
     TEMPLATE_CLASSES = (Switch, Component, LED)
 
-    def __init__(self, text_boxes, menu_actions):
+    def __init__(self, text_boxes):
         """Build the bank rect and the row of templates with their spawners.
 
         Args:
@@ -222,21 +80,9 @@ class ComponentBank:
                 boxes. Captured by the TEXT template's spawn closure so a
                 click on that template can drop a focused TextBox without
                 routing back through GameManager.
-            menu_actions (dict[str, Callable[[], None]]): Map from stable
-                popup item ID (matching an entry in
-                `MenuButtonSettings.ITEM_IDS`) to the zero-arg callback that
-                runs when that item is clicked. Labels are presentation-only
-                and may change without affecting behavior.
         """
         self.rect = UISettings.BANK_RECT
         self._text_boxes = text_boxes
-        self._menu_actions = menu_actions
-        # Built before templates so the row lays out flush to the button's right edge.
-        self.menu_button = MenuButton(
-            UISettings.BANK_PADDING_X,
-            self.rect.y + (self.rect.height - MenuButtonSettings.SIZE) // 2,
-            set(menu_actions),
-        )
         self._templates_and_spawners = self._build_templates()
 
     @property
@@ -264,7 +110,7 @@ class ComponentBank:
         Returns:
             list[tuple]: (template_drawable, spawn_fn) pairs in display order.
         """
-        x = self.menu_button.rect.right + UISettings.BANK_TEMPLATE_GAP
+        x = self.rect.x + UISettings.BANK_PADDING_X
         entries = []
         for cls in self.TEMPLATE_CLASSES:
             tpl = cls(x, 0)
@@ -351,7 +197,7 @@ class ComponentBank:
             color (tuple[int, int, int]): RGB body color.
             definition (dict): Serialized sub-circuit definition.
         """
-        x = self.menu_button.rect.right + UISettings.BANK_TEMPLATE_GAP
+        x = self.rect.x + UISettings.BANK_PADDING_X
         if self._templates_and_spawners:
             last_tpl, _last_spawn = self._templates_and_spawners[-1]
             x = last_tpl.rect.right + UISettings.BANK_TEMPLATE_GAP
@@ -412,7 +258,6 @@ class ComponentBank:
             (ScreenSettings.WIDTH, self.rect.y),
             2,
         )
-        self.menu_button.draw(surface)
         for tpl, _spawn in self._templates_and_spawners:
             tpl.draw(surface)
 
@@ -433,19 +278,6 @@ class ComponentBank:
         """
         if event.type != pygame.MOUSEBUTTONDOWN or event.button != InputSettings.LEFT_CLICK:
             return False
-        if self.menu_button.rect.collidepoint(event.pos):
-            self.menu_button.toggle()
-            return True
-        # Popup body click: dispatch action if enabled, dismiss on miss.
-        if self.menu_button.is_open:
-            if self.menu_button.popup_rect.collidepoint(event.pos):
-                item_id = self.menu_button.item_id_at(event.pos)
-                action = self._menu_actions.get(item_id) if item_id else None
-                if action is not None:
-                    self.menu_button.toggle()
-                    action()
-                return True
-            self.menu_button.toggle()
         for tpl, spawn_fn in self._templates_and_spawners:
             if tpl.rect.collidepoint(event.pos):
                 spawn_fn(event.pos, components_list)
