@@ -2,18 +2,19 @@ from __future__ import annotations
 
 import pygame
 import sys
+import traceback as _traceback
 from copy import deepcopy
 
-from elements import Component, LED, SavedComponent, Switch
+from core.elements import Component, LED, SavedComponent, Switch
 from fonts import Fonts
-from save_component_dialog import SaveComponentDialog
+from ui.save_component_dialog import SaveComponentDialog
 from settings import *
-from signals import SignalManager
-from text_boxes import TextBoxManager
-from ui import ComponentBank
-from crt import CRT
-from wires import WireManager
-from commands import (
+from core.signals import SignalManager
+from ui.text_boxes import TextBoxManager
+from ui.bank import ComponentBank
+from ui.crt import CRT
+from core.wires import WireManager
+from core.commands import (
     History,
     PlaceComponent, DeleteComponent,
     PlaceWire, DeleteWire,
@@ -25,9 +26,6 @@ class GameManager:
     def __init__(self):
         # -------- Pygame core --------
         pygame.init()
-        # Load every shared Font once, before any object that calls .render().
-        # ComponentBank instantiates a template Component below, so this must
-        # come before the bank is built.
         Fonts.init()
 
         # -------- Display --------
@@ -36,39 +34,12 @@ class GameManager:
         self.clock = pygame.time.Clock()
         self.crt = CRT(self.screen)
 
-        # -------- Subsystems --------
-
-        # -------- Managers --------
-
-        # -------- Sprite groups --------
-        # Text boxes are pure annotations — no signal, no ports. Built
-        # before the bank so the TEXT template can capture this manager
-        # in its spawn closure. Spawnable from the bank's TEXT template
-        # and from the T keyboard shortcut at the cursor position.
         self.text_boxes = TextBoxManager()
-        # Active modal dialog, or None when no dialog is open. Currently
-        # only set by `save_as_component` (the SAVE AS COMPONENT popup
-        # action); future dialogs (e.g. confirm-quit in Pass 2, project
-        # main menu in Pass 3) will reuse this slot via the same
-        # "active UI layer claims its events first" pattern. Initialized
-        # before `bank` because `save_as_component` is bound into the
-        # bank's menu_actions and would dereference `self.dialog` if a
-        # click-through somehow fired before the next event loop tick.
+        # Active modal dialog, or None. Must be initialized before bank (menu_actions refs self.dialog).
         self.dialog = None
-        # Saved component records produced by the SAVE AS COMPONENT
-        # dialog. Pass 1 step 1 stub: each entry is a dict snapshotting
-        # the user's dialog inputs. Pass 1 steps 2 (toolbox template)
-        # and 3 (spawn-as-working-component) will replace this list
-        # with the live (template_drawable, spawn_fn) pairs the bank
-        # consumes. In-session only by design — disk persistence is
-        # Pass 3.
+        # In-session only; disk persistence is Pass 3.
         self.saved_components = []
-        # Menu actions: QUIT (close_game) and SAVE AS COMPONENT
-        # (open the rough Pass-1 dialog) are the two enabled items.
-        # The other three (NEW PROJECT, LOAD PROJECT, SAVE PROJECT)
-        # ship disabled until disk persistence lands in Pass 3. The
-        # dict's keys mirror MenuButtonSettings.ITEM_LABELS exactly so
-        # MenuButton can pre-render each label in the right color.
+        # Keys mirror MenuButtonSettings.ITEM_LABELS; only wired items render enabled.
         self.bank = ComponentBank(
             self.text_boxes,
             menu_actions={
@@ -76,7 +47,7 @@ class GameManager:
                 "QUIT": self.close_game,
             },
         )
-        self.components = [] # Start with an empty workspace. Components will be added by the user.
+        self.components = []
         self.wires = WireManager()
         self.signals = SignalManager()
         self.selected_components = []
@@ -89,10 +60,7 @@ class GameManager:
 
         # -------- Undo / redo --------
         self.history = History()
-        # Wire up mutation callbacks so every reversible action is recorded.
-        # Lambdas stay here (not in the subsystems) so the command objects
-        # can hold references to self.components / self.wires / self.text_boxes
-        # without coupling those modules to commands.py.
+        # Lambdas kept here so command objects reference self.* without coupling subsystems to commands.py.
         self.wires.on_commit = (
             lambda wire, displaced: self.history.push(PlaceWire(self.wires, wire, displaced))
         )
@@ -107,12 +75,17 @@ class GameManager:
         )
         # Pre-render static hotkey hint text once; blit each frame.
         self._hotkey_hint_surfs = self._build_hotkey_bar_text_surfaces()
+        # Recoverable-error state. Set to (exc_type_name, message, timestamp_ms)
+        # by the per-frame try/except in run(); cleared automatically after
+        # ErrorBannerSettings.DISPLAY_MS so it only flashes briefly.
+        self._error_info = None
 
     # -------------------------
     # BOOT / LIFECYCLE
     # -------------------------
 
     def close_game(self):
+        """Quit pygame and exit the process."""
         pygame.quit()
         sys.exit()
 
@@ -312,28 +285,18 @@ class GameManager:
     # -------------------------
 
     def _process_events(self) -> None:
+        """Pump the event queue and route each event to the right handler."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.close_game()
                 continue
 
-            # While a modal dialog is open it owns every event — the
-            # workspace beneath is paused. Sits ahead of text_boxes so
-            # a click that happens to land on a text box under the
-            # dimmed backdrop edits the dialog, not the box. The dialog
-            # itself routes Save / Cancel / Esc back through callbacks
-            # that null out `self.dialog`, so the next event loop tick
-            # falls through here normally.
+            # Modal dialog owns all events while open.
             if self.dialog is not None:
                 self.dialog.handle_event(event)
                 continue
 
-            # Text boxes get every event first: keystrokes while a box is
-            # focused belong to the box (so typing 'n' types 'n' instead of
-            # spawning a NAND), and clicks on a text box should edit it
-            # rather than starting a wire on a port that happens to sit
-            # underneath. The manager only consumes events it actually
-            # uses, so empty-space clicks fall through to wires/components.
+            # Text boxes claim keystrokes and clicks before wires/components.
             if self.text_boxes.handle_event(event):
                 continue
 
@@ -346,10 +309,6 @@ class GameManager:
     def _handle_keydown(self, event: pygame.event.Event) -> None:
         """Route a single keyboard press."""
         self._prune_selection()
-        # Undo / redo - checked before any other key so Ctrl+Z/Y are never
-        # intercepted by a focused text box (the manager consumes keydowns
-        # while a box is focused, so these lines are only reached when no
-        # box is active).
         mods = pygame.key.get_mods()
         if event.key == pygame.K_z and (mods & pygame.KMOD_CTRL):
             if mods & pygame.KMOD_SHIFT:
@@ -369,49 +328,29 @@ class GameManager:
         if event.key == pygame.K_F11:
             pygame.display.toggle_fullscreen()
         if event.key == pygame.K_ESCAPE:
-            # Esc dismisses the bottom-left popup if it's open before it
-            # ever counts as a quit. Mirrors the text-box manager pattern
-            # (Esc unfocuses an active editor) so Esc never leaks through
-            # an open UI layer to kill the game. Future popups / dialogs
-            # should add their dismiss check here, in priority order.
+            # Esc dismisses open UI layers before quitting.
             if self.bank.menu_button.is_open:
                 self.bank.menu_button.toggle()
                 return
             self.close_game()
-        # T spawns an annotation text box at the current cursor position
-        # and immediately focuses it so the user can start typing. Only
-        # reachable when no text box is already focused (the manager
-        # consumes KEYDOWNs in that case so the 't' types instead).
         if event.key == pygame.K_t:
             self.text_boxes.spawn_at(pygame.mouse.get_pos())
 
     def _handle_mouse(self, event: pygame.event.Event) -> None:
         """Pass mouse events to the component manager or components directly."""
         self._prune_selection()
-        # Hover updates ride along with motion events. Done here (not inside
-        # Component) because every port in the world — workspace and toolbox
-        # template alike — needs to reflect the same cursor, and only
-        # GameManager owns both collections.
         if event.type == pygame.MOUSEMOTION:
             self._update_port_hover(event.pos)
 
-        if self._is_group_dragging():
+        if self._group_drag_anchor is not None:
             self._handle_group_drag_event(event)
             return
 
-        if self._is_marquee_selecting():
+        if self._marquee_start is not None:
             self._handle_marquee_event(event)
             return
 
-        # When the bottom-left popup menu is open, any mouse-button press
-        # that lands on the popup body belongs to the popup — intercept it
-        # before wires/components can react so a port that happens to sit
-        # under the popup can't start a wire. Mirrors the text-box manager
-        # pattern in `_process_events` (an active UI layer claims its
-        # clicks before anything else). The bank's own handler owns the
-        # left-click semantics (item dispatch lands here next); the
-        # unconditional `return` also swallows right-clicks on the popup
-        # body so the menu reads as opaque to the cursor while open.
+        # Popup body intercepts before wires so a port under the menu can't start a wire.
         if (event.type == pygame.MOUSEBUTTONDOWN
                 and self.bank.menu_button.is_open
                 and self.bank.menu_button.popup_rect.collidepoint(event.pos)):
@@ -423,9 +362,6 @@ class GameManager:
         if self.wires.handle_event(event, self.components):
             return
 
-        # Try the bank first since it has priority for clicks in its area. If it returns True,
-        # it handled the event and we can skip the rest.
-        # Returns True if a new game was spawned
         before = len(self.components)
         if self.bank.handle_event(event, self.components):
             if len(self.components) > before:
@@ -534,9 +470,6 @@ class GameManager:
         self._group_drag_moved = False
         self._click_candidate_component = click_candidate
 
-    def _is_group_dragging(self):
-        return self._group_drag_anchor is not None
-
     def _cancel_group_drag(self):
         self._group_drag_anchor = None
         self._group_drag_start_positions = {}
@@ -545,8 +478,6 @@ class GameManager:
 
     def _handle_group_drag_event(self, event):
         """Update or complete a multi-component drag gesture."""
-        if self._group_drag_anchor is None:
-            return
         if event.type == pygame.MOUSEMOTION:
             dx = event.pos[0] - self._group_drag_anchor[0]
             dy = event.pos[1] - self._group_drag_anchor[1]
@@ -570,9 +501,6 @@ class GameManager:
         """Start drawing a marquee selection rectangle."""
         self._marquee_start = mouse_pos
         self._marquee_end = mouse_pos
-
-    def _is_marquee_selecting(self):
-        return self._marquee_start is not None
 
     def _cancel_marquee(self):
         self._marquee_start = None
@@ -647,9 +575,7 @@ class GameManager:
         if not hint_surfs:
             return
 
-        # Distribute hint groups with true "space-evenly" spacing:
-        # identical gap before the first item, between every item, and
-        # after the last item.
+        # Space-evenly: equal gap before, between, and after each hint.
         total_width = sum(surf.get_width() for surf in hint_surfs)
         gap_count = len(hint_surfs) + 1
         gap = max(0.0, (ScreenSettings.WIDTH - total_width) / gap_count)
@@ -665,43 +591,20 @@ class GameManager:
     # PER-FRAME UPDATE / RENDER
     # -------------------------
 
-    def _update_world(self):
-        """Advance per-frame simulation state.
-
-        Wires hold the canonical list of connections. SignalManager reads
-        port states, computes new outputs, applies them, and propagates
-        through wires — see signals.py for the two-phase contract.
-        """
-        self.signals.update(self.components, self.wires.wires)
-
     def _draw(self):
+        """Draw all workspace layers in back-to-front order."""
         for comp in self.components:
             comp.draw(self.screen)
-        # Wires sit above the components but below the toolbox bank, so a
-        # wire routed through the toolbox area is hidden by the dark bank
-        # rectangle drawn next.
         self.wires.draw(self.screen)
-        # Annotation text boxes draw on top of components and wires so
-        # labels stay legible even if a wire happens to pass underneath.
-        # Still below the bank — text boxes are clamped out of the bank
-        # area anyway, but drawing under it costs nothing and keeps the
-        # toolbox visually authoritative.
         self.text_boxes.draw(self.screen)
         self._draw_selection_marquee()
-        # Draw the bank above text boxes and components so the toolbox
-        # always reads as the topmost workspace surface.
         self.bank.draw(self.screen)
-        # Modal dialog draws above everything else (including the bank
-        # and its popup) so its dimmed backdrop covers the workspace
-        # uniformly. The CRT overlay still draws on top of this in
-        # _render_frame, which keeps the retro aesthetic consistent
-        # with the rest of the screen.
         if self.dialog is not None:
             self.dialog.draw(self.screen)
 
     def _draw_selection_marquee(self):
         """Draw the active marquee rectangle while drag-selecting."""
-        if not self._is_marquee_selecting():
+        if self._marquee_start is None:
             return
         rect = self._current_marquee_rect()
         if rect.width == 0 or rect.height == 0:
@@ -717,31 +620,89 @@ class GameManager:
         )
 
     def _draw_grid(self):
-        grid_color = (ColorSettings.WORD_COLORS["WHITE"]) # Subtle light blue
+        """Draw the background grid lines."""
+        grid_color = ColorSettings.WORD_COLORS["WHITE"]
         grid_size = ScreenSettings.GRID_SIZE
-
-        # Draw Vertical Lines
         for x in range(0, ScreenSettings.WIDTH, grid_size):
             pygame.draw.line(self.screen, grid_color, (x, 0), (x, ScreenSettings.HEIGHT), 1)
-
-        # Draw Horizontal Lines
         for y in range(0, ScreenSettings.HEIGHT, grid_size):
             pygame.draw.line(self.screen, grid_color, (0, y), (ScreenSettings.WIDTH, y), 1)
 
+    def _draw_error_banner(self):
+        """Draw a red error banner below the shortcut bar when an error occurred.
+
+        Reads self._error_info (set by the run() try/except) and renders a
+        dark-red strip showing the exception type and message. Clears
+        self._error_info automatically once ErrorBannerSettings.DISPLAY_MS
+        has elapsed, so the banner flashes briefly then disappears without
+        any extra bookkeeping in the caller.
+        """
+        if self._error_info is None:
+            return
+        exc_type, message, timestamp = self._error_info
+        elapsed = pygame.time.get_ticks() - timestamp
+        if elapsed > ErrorBannerSettings.DISPLAY_MS:
+            self._error_info = None
+            return
+        bar = pygame.Rect(
+            0,
+            ShortcutBarSettings.HEIGHT,
+            ScreenSettings.WIDTH,
+            ErrorBannerSettings.HEIGHT,
+        )
+        pygame.draw.rect(self.screen, ErrorBannerSettings.BG_COLOR, bar)
+        label = f"ERROR \u2014 {exc_type}: {message}"
+        font = Fonts.text_box
+        if font is None:
+            return
+        surf = font.render(label, True, ErrorBannerSettings.TEXT_COLOR)
+        self.screen.blit(
+            surf,
+            (bar.x + ErrorBannerSettings.PADDING_X,
+             bar.y + (bar.height - surf.get_height()) // 2),
+        )
+
     def _render_frame(self):
+        """Clear the screen and draw all layers for this frame."""
         self.screen.fill(ScreenSettings.BG_COLOR)
         self._draw_grid()
         self._draw()
         self._draw_hotkey_bar()
         self.crt.draw()
+        # Error banner draws after the CRT overlay so it's always legible.
+        self._draw_error_banner()
 
     def run(self):
+        """Run the main event loop, keeping the app alive on recoverable errors.
+
+        Wraps the per-frame update + render in a try/except so an unhandled
+        exception during simulation or rendering stores a brief error record
+        instead of crashing the process. The error banner (drawn by
+        _draw_error_banner via _render_frame) then flashes for a few seconds
+        before clearing, leaving the workspace in whatever state it was in.
+        """
         while True:
-            self._process_events()
-            self._update_world()
-            self._render_frame()
+            try:
+                self._process_events()
+                self.signals.update(self.components, self.wires.wires)
+                self._render_frame()
+            except Exception as exc:
+                _traceback.print_exc()
+                self._error_info = (
+                    type(exc).__name__,
+                    str(exc),
+                    pygame.time.get_ticks(),
+                )
+                # Best-effort minimal draw so the user sees a banner even if
+                # _render_frame itself threw (e.g. a bad draw call).
+                try:
+                    self.screen.fill(ScreenSettings.BG_COLOR)
+                    self._draw_error_banner()
+                except Exception:
+                    pass
             pygame.display.flip()
             self.clock.tick(ScreenSettings.FPS)
+
 
 # Main execution
 if __name__ == '__main__':

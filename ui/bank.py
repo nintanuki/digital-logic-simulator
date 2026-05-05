@@ -1,7 +1,7 @@
 import pygame
 from copy import deepcopy
 
-from elements import Component, LED, SavedComponent, Switch
+from core.elements import Component, LED, SavedComponent, Switch
 from fonts import Fonts
 from settings import (
     ComponentSettings,
@@ -94,22 +94,13 @@ class MenuButton:
         # Empty tuple (not list) so accidental .append() in any walker would
         # fail loud rather than silently grow this button's "ports".
         self.ports = ()
-        # Popup rect rests flush above the toolbox bank with a small gap.
-        # Anchoring to BANK_RECT.top (rather than the button's top) keeps
-        # the popup's bottom edge aligned with the top of the bank no
-        # matter how the button is vertically centered inside it —
-        # otherwise the popup spills down across the bank's top edge by
-        # whatever inset the button uses. Anchored to the button's left
-        # edge so the popup grows up-and-right, matching the Windows
-        # Start menu shape.
+        # Anchored to BANK_RECT.top so popup floor aligns with bank top regardless of button inset.
         self.popup_rect = pygame.Rect(
             x,
             UISettings.BANK_RECT.top - MenuButtonSettings.POPUP_GAP - MenuButtonSettings.POPUP_HEIGHT,
             MenuButtonSettings.POPUP_WIDTH,
             MenuButtonSettings.POPUP_HEIGHT,
         )
-        # Driven by toggle(); flipped from outside via ComponentBank's click
-        # routing. Defaults to False so the popup is hidden on startup.
         self.is_open = False
         # The label never changes, so render it once and blit per frame.
         self._label_surf = Fonts.text_box.render(
@@ -117,12 +108,7 @@ class MenuButton:
             True,
             MenuButtonSettings.LABEL_COLOR,
         )
-        # Per-item hit-rects, one ITEM_HEIGHT band per label starting at
-        # popup.top, full popup width. Built once at construction (the
-        # popup's geometry is fixed) so dispatch is a cheap rect walk and
-        # not a per-click recompute. Index parity with ITEM_LABELS / the
-        # rendered label surfaces is what lets `item_label_at` answer in
-        # one zip.
+        # Built once at construction; geometry is fixed.
         self._item_rects = [
             pygame.Rect(
                 self.popup_rect.left,
@@ -132,13 +118,6 @@ class MenuButton:
             )
             for index in range(len(MenuButtonSettings.ITEM_LABELS))
         ]
-        # Pre-render each popup item label in either the enabled or the
-        # disabled color depending on whether `enabled_labels` lists it.
-        # Labels never change after construction, so render once and blit
-        # per frame; if the enabled set ever grows mid-session (e.g. SAVE
-        # PROJECT becomes valid only after a project name exists) this
-        # would need a refresh hook, but today the set is fixed by the
-        # actions wired in main.py.
         self._item_label_surfs = [
             Fonts.text_box.render(
                 label,
@@ -212,13 +191,6 @@ class MenuButton:
                 self.popup_rect,
                 MenuButtonSettings.POPUP_BORDER_THICKNESS,
             )
-            # Items are blit after the popup body+border so they layer on
-            # top of the fill but stay inside the border. Each item is
-            # vertically centered inside its hit-rect band; the label is
-            # left-padded by ITEM_PADDING_X. Anchoring the y to the
-            # pre-built rect (rather than recomputing index*ITEM_HEIGHT)
-            # keeps the visual position and the hit position from drifting
-            # apart if the rect math ever changes.
             for rect, surf in zip(self._item_rects, self._item_label_surfs):
                 label_y = rect.y + (rect.height - surf.get_height()) // 2
                 surface.blit(
@@ -260,29 +232,14 @@ class ComponentBank:
                 lookup.
         """
         self.rect = UISettings.BANK_RECT
-        # Held so _make_textbox_spawner's closure can reach the manager
-        # without bank.handle_event needing a wider signature.
         self._text_boxes = text_boxes
-        # Held so handle_event's popup-dispatch path can call the right
-        # zero-arg callback by label. Stored separately from MenuButton
-        # because MenuButton is purely presentational — it owns colors and
-        # rects, not behavior.
         self._menu_actions = menu_actions
-        # Far-left MENU button. Built before _build_templates so the
-        # template row can lay itself out flush to the button's right edge
-        # (no overlap, no magic-number reservation). The set of enabled
-        # labels is what drives per-item color in the popup; passing it
-        # here (rather than letting MenuButton import the actions dict)
-        # keeps the button decoupled from the action callables.
+        # Built before templates so the row lays out flush to the button's right edge.
         self.menu_button = MenuButton(
             UISettings.BANK_PADDING_X,
             self.rect.y + (self.rect.height - MenuButtonSettings.SIZE) // 2,
             set(menu_actions),
         )
-        # List of (template_drawable, spawn_fn) tuples in display order. Each
-        # spawn_fn is a closure that knows how to clone its template onto
-        # the workspace at a click position; see _make_component_spawner
-        # and _make_textbox_spawner.
         self._templates_and_spawners = self._build_templates()
 
     @property
@@ -310,23 +267,13 @@ class ComponentBank:
         Returns:
             list[tuple]: (template_drawable, spawn_fn) pairs in display order.
         """
-        # Templates lay out to the right of the MENU button so the bank
-        # reads as: [MENU] [Switch] [NAND] [LED] [TEXT]. Using
-        # menu_button.rect.right as the anchor keeps the spacing
-        # self-consistent if MENU's size ever changes.
         x = self.menu_button.rect.right + UISettings.BANK_TEMPLATE_GAP
         entries = []
         for cls in self.TEMPLATE_CLASSES:
-            # Instantiate at a placeholder y, then vertically center based
-            # on the component's actual height (which the class decides).
             tpl = cls(x, 0)
             tpl.rect.y = self.rect.y + (self.rect.height - tpl.rect.height) // 2
             entries.append((tpl, self._make_component_spawner(tpl, cls)))
             x += tpl.rect.width + UISettings.BANK_TEMPLATE_GAP
-        # The TEXT template lives in the same row as the component templates
-        # so the bank stays one homogeneous list of (drawable, spawn_fn)
-        # pairs. It spawns through TextBoxManager rather than into the
-        # components list — see _make_textbox_spawner.
         text_tpl = TextTemplate(x, 0)
         text_tpl.rect.y = self.rect.y + (self.rect.height - text_tpl.rect.height) // 2
         entries.append((text_tpl, self._make_textbox_spawner()))
@@ -352,25 +299,13 @@ class ComponentBank:
                 function described above.
         """
         def spawn(event_pos, components_list):
-            # The new component is the same runtime class as the clicked
-            # template (so a click on the Switch template spawns a Switch,
-            # etc.). It's dropped into the workspace centered on the
-            # cursor with dragging already on, so the next MOUSEMOTION
-            # carries it where the user is going.
             new_comp = cls(
                 event_pos[0] - tpl.rect.width // 2,
                 event_pos[1] - tpl.rect.height // 2,
             )
             new_comp.dragging = True
-            # Match Component.handle_event's grip math so the spawned
-            # component tracks the cursor cleanly on the next MOUSEMOTION.
             new_comp.offset_x = new_comp.rect.x - event_pos[0]
             new_comp.offset_y = new_comp.rect.y - event_pos[1]
-            # The spawn drag was started by the bank, not by the
-            # component's own MOUSEBUTTONDOWN, so suppress the click
-            # hook on the upcoming release. Otherwise a Switch spawned
-            # via a stationary click would toggle on the way out of
-            # the bank.
             new_comp._moved_while_dragging = True
             components_list.append(new_comp)
         return spawn
@@ -391,9 +326,6 @@ class ComponentBank:
         """
         text_boxes = self._text_boxes
         def spawn(event_pos, components_list):
-            # components_list is part of the shared spawn protocol but a
-            # text box is an annotation, not a circuit element — drop it
-            # into the text-box manager and ignore the list.
             text_boxes.spawn_at(event_pos)
         return spawn
 
@@ -463,9 +395,6 @@ class ComponentBank:
         Raises:
             KeyError: If `cls` is not a known template class on this bank.
         """
-        # `type(tpl) is cls` (not isinstance) so a Switch template doesn't
-        # match a request for its Component base class — each template kind
-        # owns its exact spawner.
         for tpl, spawn_fn in self._templates_and_spawners:
             if type(tpl) is cls:
                 spawn_fn(event_pos, components_list)
@@ -486,8 +415,6 @@ class ComponentBank:
             (ScreenSettings.WIDTH, self.rect.y),
             2,
         )
-        # MENU draws before the templates so a future popup (drawn by the
-        # bank, anchored above this button) layers correctly on top.
         self.menu_button.draw(surface)
         for tpl, _spawn in self._templates_and_spawners:
             tpl.draw(surface)
@@ -509,36 +436,15 @@ class ComponentBank:
         """
         if event.type != pygame.MOUSEBUTTONDOWN or event.button != InputSettings.LEFT_CLICK:
             return False
-        # MENU is checked before templates so a click on the button always
-        # toggles the popup, never falls through to a template underneath
-        # (the layout puts MENU at x=BANK_PADDING_X so this is defensive
-        # rather than load-bearing today, but keeps the rule honest if
-        # spacing ever shrinks).
         if self.menu_button.rect.collidepoint(event.pos):
             self.menu_button.toggle()
             return True
-        # While the popup is open, route the click through the menu before
-        # the template loop. A click on the popup body is consumed so it
-        # can't fall through to templates / wires / components (main.py's
-        # early intercept also funnels the popup-body case here ahead of
-        # `wires.handle_event` — see the "Popup intercepts events before
-        # wires/components" bullet in TODO). When the click lands on an
-        # enabled item, the item's action runs and the popup closes; a
-        # click on a disabled item is consumed but does nothing (no
-        # action, popup stays open) so a misclick on a placeholder item
-        # doesn't lose the popup. A click that misses the popup body
-        # entirely dismisses the popup but does NOT consume — a stray
-        # miss still falls through to the template loop / wires / empty
-        # space so the user isn't punished with a second click. Mouse
-        # parallel of the Esc dismiss in `GameManager._handle_keydown`.
+        # Popup body click: dispatch action if enabled, dismiss on miss.
         if self.menu_button.is_open:
             if self.menu_button.popup_rect.collidepoint(event.pos):
                 label = self.menu_button.item_label_at(event.pos)
                 action = self._menu_actions.get(label) if label else None
                 if action is not None:
-                    # Close the popup before running the action so any
-                    # state the action mutates (e.g. close_game tears
-                    # pygame down) sees the popup as already dismissed.
                     self.menu_button.toggle()
                     action()
                 return True

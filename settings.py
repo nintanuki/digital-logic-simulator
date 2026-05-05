@@ -73,6 +73,24 @@ class ShortcutBarSettings:
     PADDING_X = 8
     ITEM_MIN_GAP = 12
 
+
+class ErrorBannerSettings:
+    """Visual constants for the recoverable-error overlay banner.
+
+    The banner appears just below the shortcut bar when the per-frame
+    try/except in GameManager.run() catches an unhandled exception. It
+    stays visible for DISPLAY_MS milliseconds then disappears, leaving
+    the app in whatever state it was in before the crash so the student
+    can keep working.
+    """
+
+    # How long the banner stays on screen before automatically clearing.
+    DISPLAY_MS = 5000
+    HEIGHT = 36
+    BG_COLOR = (160, 30, 30)   # dark red — clearly an error, not a normal UI bar
+    TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    PADDING_X = 16
+
 class AssetPaths:
     FONT = "assets/font/Pixeled.ttf"
     TV = "assets/graphics/tv.png"

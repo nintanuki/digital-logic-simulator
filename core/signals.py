@@ -1,4 +1,4 @@
-from elements import Port
+from .elements import Port
 
 
 class SignalManager:

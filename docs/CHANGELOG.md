@@ -4,6 +4,101 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## Format
+
+Each entry covers one logical change (which may touch multiple files). Use the
+template below, with one `**File:** ... **Why:** ...` block per file touched.
+
+    ## YYYY-MM-DD HH:MM TZ — short summary
+
+    **File:** path/to/file.py
+    **Date and Time:** YYYY-MM-DD HH:MM TZ
+    **Lines (at time of edit):** 38-52 (modified)
+    **Before:**
+        [old code]
+    **After:**
+        [new code]
+    **Why:** explanation
+    **Editor:** name of human or AI model
+
+### Date and time format
+
+Both the section header and the per-file `Date and Time:` field are
+**required** and must follow ISO 8601 calendar date plus a 24-hour clock
+and a timezone abbreviation: `YYYY-MM-DD HH:MM TZ`. Examples:
+
+    2026-05-02 16:18 PDT
+    2026-05-02 23:18 UTC
+
+The timezone is required so entries from collaborators in different
+zones sort and compare correctly. The per-file `Date and Time:` field is
+not redundant with the section header — a single logical change may span
+hours and touch several files in sequence, and the per-file timestamp
+pinpoints when each individual edit landed. Use a 24-hour clock (no AM/PM,
+no `@` separator, no slashes); it is unambiguous and sortable as plain text.
+
+## Conventions
+
+* Line numbers reflect the file as it existed at the moment of the edit. Edits
+  above shift line numbers below, so older entries will not match the current
+  file. Never go back and "fix" old line numbers.
+* Entries are append-only. Never delete history. If a later edit reverts an
+  earlier one, write a new entry that references the original.
+* For new files, write `(new file)` instead of a line range. The "Before"
+  block can be omitted or marked `(file did not exist)`.
+* For deletes, write `(deleted)` and put the removed code in "Before" with no
+  "After" block.
+* Keep "Before" / "After" blocks short. If a change is huge, summarize with a
+  diff-style excerpt of the most important lines plus a sentence describing the
+  rest, instead of pasting the entire file.
+* Older entries (pre-2026-05-02) predate the timezone-aware format and use
+  date-only headers. Do not retroactively edit them; the rule applies to all
+  new entries from 2026-05-02 onward.
+* **New entries go at the top** (below this section), newest-first.
+
+---
+
+## 2026-05-05 — Pass 2: Per-frame try/except seatbelt
+
+**File:** settings.py
+**Lines (at time of edit):** After ShortcutBarSettings class body (new class)
+**Before:**
+    [No ErrorBannerSettings; no recoverable-error visual constants.]
+**After:**
+    Added `ErrorBannerSettings` with DISPLAY_MS = 5000, HEIGHT = 36,
+    BG_COLOR (dark red), TEXT_COLOR (white), PADDING_X = 16.
+**Why:** Centralizes error-banner visual constants so _draw_error_banner
+has no magic numbers.
+**Editor:** Claude Sonnet 4.6 (GitHub Copilot)
+
+**File:** main.py
+**Lines (at time of edit):** imports (traceback), __init__ (_error_info field),
+_draw_error_banner (new method), _render_frame (docstring + banner call),
+run (try/except wrapper)
+**Before:**
+    import sys (no traceback import)
+    __init__: no _error_info field
+    _render_frame: fill / grid / draw / hotkey_bar / crt — no error banner
+    run(): bare while True: _process_events / _update_world / _render_frame /
+           flip / tick — any exception crashes the process
+**After:**
+    import traceback as _traceback added.
+    self._error_info = None in __init__ (stores (exc_type, message, timestamp)
+    or None).
+    _draw_error_banner(): reads _error_info, draws a dark-red strip below the
+    shortcut bar with "ERROR — <type>: <message>", auto-clears after
+    ErrorBannerSettings.DISPLAY_MS.
+    _render_frame(): calls _draw_error_banner() after crt.draw() so the
+    banner is always on top.
+    run(): wraps _process_events + _update_world + _render_frame in
+    try/except; on exception prints traceback to stderr, stores _error_info,
+    and runs a best-effort minimal draw (fill + _draw_error_banner) in case
+    _render_frame itself threw.
+**Why:** Crashes mid-class are the worst possible UX. This seatbelt keeps
+the app alive on unhandled exceptions and flashes a brief diagnostic banner
+so the student can keep working.
+**Editor:** Claude Sonnet 4.6 (GitHub Copilot)
+
 ## 2026-05-05 — Pass 2: Switch / LED visual redesign
 
 **File:** settings.py
@@ -1764,57 +1859,6 @@ loop so a click on MENU always toggles the popup, never falls through to
 a template (defensive — current layout already puts MENU at x=BANK_PADDING_X
 so there's no overlap, but spacing might shrink later).
 **Editor:** Claude (Opus 4.7, via Cowork)
-
-## Format
-
-Each entry covers one logical change (which may touch multiple files). Use the
-template below, with one `**File:** ... **Why:** ...` block per file touched.
-
-    ## YYYY-MM-DD HH:MM TZ — short summary
-
-    **File:** path/to/file.py
-    **Date and Time:** YYYY-MM-DD HH:MM TZ
-    **Lines (at time of edit):** 38-52 (modified)
-    **Before:**
-        [old code]
-    **After:**
-        [new code]
-    **Why:** explanation
-    **Editor:** name of human or AI model
-
-### Date and time format
-
-Both the section header and the per-file `Date and Time:` field are
-**required** and must follow ISO 8601 calendar date plus a 24-hour clock
-and a timezone abbreviation: `YYYY-MM-DD HH:MM TZ`. Examples:
-
-    2026-05-02 16:18 PDT
-    2026-05-02 23:18 UTC
-
-The timezone is required so entries from collaborators in different
-zones sort and compare correctly. The per-file `Date and Time:` field is
-not redundant with the section header — a single logical change may span
-hours and touch several files in sequence, and the per-file timestamp
-pinpoints when each individual edit landed. Use a 24-hour clock (no AM/PM,
-no `@` separator, no slashes); it is unambiguous and sortable as plain text.
-
-## Conventions
-
-* Line numbers reflect the file as it existed at the moment of the edit. Edits
-  above shift line numbers below, so older entries will not match the current
-  file. Never go back and "fix" old line numbers.
-* Entries are append-only. Never delete history. If a later edit reverts an
-  earlier one, write a new entry that references the original.
-* For new files, write `(new file)` instead of a line range. The "Before"
-  block can be omitted or marked `(file did not exist)`.
-* For deletes, write `(deleted)` and put the removed code in "Before" with no
-  "After" block.
-* Keep "Before" / "After" blocks short. If a change is huge, summarize with a
-  diff-style excerpt of the most important lines plus a sentence describing the
-  rest, instead of pasting the entire file.
-* Older entries (pre-2026-05-02) predate the timezone-aware format and use
-  date-only headers. Do not retroactively edit them; the rule applies to all
-  new entries from 2026-05-02 onward.
 
 ## 2026-05-01 — Rewrite README for a professional tone
 

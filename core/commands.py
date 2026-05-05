@@ -24,9 +24,9 @@ from collections import deque
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from elements import Component
-    from wires import Wire, WireManager
-    from text_boxes import TextBox, TextBoxManager
+    from .elements import Component
+    from .wires import Wire, WireManager
+    from ..ui.text_boxes import TextBox, TextBoxManager
 
 
 # Maximum number of steps remembered.  Older entries are silently discarded

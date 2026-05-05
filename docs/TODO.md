@@ -1,164 +1,44 @@
 # Roadmap
 
 Forward-looking task list for circuit-builder, organized into **Passes**.
-Each pass goes through the codebase and leaves it more usable than the
-last; nothing is "done" in one shot. Pass 1 builds a rough version of the
-core feature, Pass 2 polishes it, Pass 3 adds the next layer of
-functionality, Pass 4 polishes that, and so on. The project is "useful"
-after Pass 1, "presentable" after Pass 2, "shareable" after Pass 4, and
-"complete" only if and when you decide it should be â€” there is no
-deadline and no obligation to reach the end.
+Each pass leaves the codebase more usable than the last. The project is "useful"
+after Pass 1, "presentable" after Pass 2, "shareable" after Pass 4. No deadline.
 
-Standalone sections below the passes capture **Questions**, **Ideas**,
-**Issues / Bugs**, **Risks & Notes**, and **Polish & Tech Debt**.
+Before starting any item, read `docs/TESTING.md` and skim recent entries in
+`docs/CHANGELOG.md`. Full descriptions of completed work live in the changelog.
 
-Before starting any item, read `docs/TESTING.md` (refactoring rules +
-manual test checklist) and skim recent entries in `docs/CHANGELOG.md`.
-Completed work is no longer mirrored here â€” the changelog is the single
-source of truth for what has shipped.
+**Design principle:** fully usable with the mouse alone. Keyboard shortcuts exist
+alongside, never instead of, a clickable equivalent.
 
-**Design principle:** the program must be fully usable with the mouse
-alone. Keyboard shortcuts are for power users and exist alongside, never
-instead of, a clickable equivalent. Anything new that's only reachable by
-hotkey is incomplete.
-
-**The selling point:** the abstraction loop â€” build a circuit, save it
-as a named component, drop it into the next circuit as a black box, save
-that, build with it, and so on up the layers. Every pass is judged by
-whether it strengthens or distracts from that loop.
+**The selling point:** the abstraction loop — build a circuit, save it as a named
+component, drop it into the next circuit as a black box, save that, and repeat.
 
 ---
 
-## Pass 1 â€” Spine (the abstraction loop, rough)
+## Pass 1 — Spine (the abstraction loop, rough)
 
-Get the core teaching loop working end-to-end, as rough as it needs to
-be. By the end of this pass a student can build a NOT from a NAND, save
-it as a component, drag it into a new workspace, build an AND from two
-NANDs (or one NAND and one of their saved NOT components), save that,
-and keep climbing the abstraction ladder. **In-session only â€” closing
-the program loses everything.** That's a deliberate Pass-1 trade-off; disk
-persistence comes in Pass 3.
+Get the core teaching loop working end-to-end, rough as needed. By the end a
+student can build NOT, AND, OR, XOR, and SR latch from NANDs — each saved and
+reusable. **In-session only** — closing the program loses everything. Deliberate.
 
-- [x] **Save-as-Component dialog (rough).** Triggered from the
-  bottom-left popup menu (the SAVE AS COMPONENT item is already there,
-  disabled). The rough dialog only needs **two** things: a name field
-  and Save / Cancel buttons. Whatever switches and LEDs are in the
-  workspace at save time become the new component's INPUT and OUTPUT
-  ports; **port order is workspace top-to-bottom by Y position**
-  (matches the physical-circuit-board intuition â€” inputs run top-to-
-  bottom on the left, outputs the same on the right). No picker UI â€”
-  the original spec had pickers for which Switches/LEDs to include and
-  in what order, but the first draft surfaced the obvious problem:
-  in the common case (e.g. AND-from-NANDs with 2 INs + 1 OUT) the
-  student has nothing to pick. Pickers earn their keep only if the
-  student has unused IN/OUT components they don't want to expose, or
-  if they want a non-Y-sorted port order; both are rare enough to
-  defer to a future "advanced save" toggle (Pass 3+) instead of
-  taxing every save with picker friction. Skip color choice, skip
-  truth-table auto-detect, skip the "you discovered NAND!"
-  celebration â€” those are Pass 3.
-  *(Done 2026-05-03. Dialog v1 shipped with pickers; v2 ripped them
-  out the same day after testing showed the picker UI added friction
-  without value. Auto-inference moved to
-  `GameManager._finalize_save_as_component`. Payload still stashes on
-  `GameManager.saved_components` as a dict awaiting Pass 1 steps
-  2-3.)*
-- [x] **Saved component appears as a new template in the toolbox.** The
-  bank already supports `(template_drawable, spawn_fn)` pairs (see the
-  TEXT template), so a saved component is just a new pair appended to
-  the bank's template list. Body color = `MEDIUM_CARMINE` for now, label
-  = the saved name. **Land this together with any future change to the
-  save dialog or its callback** â€” keeping save and "you can see the
-  result" in the same cut means each landing is end-to-end testable.
-  The first split (step 1 alone, step 2 deferred) made "did save work?"
-  answerable only by reading code, which forced an in-flight redesign
-  of the dialog after step 1 shipped. Don't repeat that.
-  *(Done 2026-05-04. `GameManager._finalize_save_as_component` now
-  appends a template through `ComponentBank.add_saved_component_template`
-  at save time, so the result is immediately visible in the toolbox.
-  Spawn path now constructs `SavedComponent` instances, with the
-  sub-circuit runtime model completed in Pass 1 step 3.)*
-- [x] **Spawning a saved component creates a working component.** The
-  saved definition holds the embedded sub-circuit (components + wires +
-  the input/output port mappings). Spawning instantiates a fresh copy of
-  the sub-circuit hidden inside a single Component-shaped wrapper that
-  exposes only the chosen external ports. SignalManager already does
-  two-phase propagation, so the wrapped sub-circuit just runs as part of
-  the same per-frame pass â€” no new simulator work needed.
-  *(Done 2026-05-04. Save now snapshots `components + wires +`
-  input/output mappings into a serialized definition, and bank spawns
-  `SavedComponent` wrappers that run a hidden cloned sub-circuit each
-  frame. Wrapper INPUT ports drive the saved input switches; saved LED
-  states publish onto wrapper OUTPUT ports.)*
-- [x] **Dynamic component sizing.** Once Save-as-Component starts
-  producing components with more than the default 2 inputs / 1 output,
-  bodies need to grow tall enough to fit all ports without overlap.
-  Pick a per-port vertical pitch and recompute height from
-  `max(inputs, outputs) * pitch + padding`. Width can grow too if the
-  name is wide, but height is the urgent one for port spacing. **This
-  has to land in Pass 1, not later** â€” a 4-input adder with stacked
-  ports breaks the magic.
-  *(Done 2026-05-04. `SavedComponent` now computes wrapper size from
-  exposed port count and label width. Height uses a per-port pitch and
-  vertical padding (`ComponentSettings.SAVED_PORT_PITCH` and
-  `ComponentSettings.SAVED_PORT_VERTICAL_PADDING`) so ports stay
-  non-overlapping for >2 inputs/outputs.)*
-
-End of Pass 1: a student in one class period can build NOT, AND, OR,
-XOR, and an SR latch entirely from NANDs, with each one saved as a
-reusable component. They lose it all when they close the program. That's
-fine for now.
+- [x] **Save-as-Component dialog.**
+- [x] **Saved component appears as a new template in the toolbox.**
+- [x] **Spawning a saved component creates a working component.**
+- [x] **Dynamic component sizing.**
 
 ---
 
-## Pass 2 â€” Polish the spine
+## Pass 2 — Polish the spine
 
-Fix the things students would notice in five seconds and add the safety
-net that lets them experiment without fear of losing work.
+Fix things a student would notice in five seconds. Add the safety net.
 
-- [x] **Undo / redo.** Now that Pass 1 lets students invest real effort
-  into building components, an accidental delete is the most painful
-  possible bug. Cleanest model: every mutating action (place, delete,
-  wire, unwire, edit text, save-as-component) routes through a Command
-  object with `do()` and `undo()`. Manager pushes to a deque; Ctrl+Z
-  pops, Ctrl+Y replays. Mouse equivalent: undo/redo arrows on a future
-  toolbar, or the bottom-left menu â€” pick when the dispatch lands.
-    *(Done 2026-05-04. `commands.py` introduced with Action base and six
-    concrete commands: PlaceComponent, DeleteComponent, PlaceWire,
-    DeleteWire, PlaceTextBox, DeleteTextBox. History is a deque-backed
-    two-stack in `History`; capped at 100 steps. Ctrl+Z undoes,
-    Ctrl+Y / Ctrl+Shift+Z redoes. Mutation callbacks wired into
-    WireManager (on_commit / on_delete) and TextBoxManager (on_spawn /
-    on_delete); component placement tracked by comparing list length
-    before/after each bank spawn. Caveats: text content edits
-    (keystrokes) are NOT individually undoable â€” only box create/delete
-    are tracked. Save-as-component clears the history so stale object
-    references can never resurface. Mouse-equivalent undo/redo buttons
-    deferred to a future toolbar pass.)*
-- [x] **Switch / LED visual redesign.** Both are currently circles
-  with different fill colors, which reads as "the same component
-  in two states" and confuses students. Redesign:
-  - **Switch** as a physical toggle: rectangle with a sliding handle
-    that visibly moves left/right (or up/down) when toggled, plus an
-    ON/OFF label. Reads as "input you control."
-  - **LED** as a bulb: circle with a base/lead silhouette so it reads as
-    a bulb that's on or off. Maybe a halo/glow ring when HIGH.
-  *(Done 2026-05-05. Switch is now an 80Ã—44 rounded-rectangle body with a
-  sliding knob (gray=OFF, green=ON) and a "0"/"1" state label on the
-  empty side of the knob. SwitchSettings replaced SIZE with WIDTH/HEIGHT
-  and added KNOB_RADIUS, KNOB_MARGIN, BODY_CORNER, plus body/track/knob
-  color constants. Switch.draw() overridden to suppress the center name
-  label. LED is now a bulb silhouette: a 20px-radius globe in the upper
-  portion of the 60Ã—60 bounding rect, a small rounded-rectangle base
-  below it, and a warm-yellow glow ring around the globe when HIGH.
-  LedSettings replaced OFF/ON_COLOR with separate globe, base, and glow
-  color constants plus BULB_RADIUS, BULB_Y_OFFSET, BASE_*, GLOW_*
-  entries. LED.draw() overridden to suppress the center name label.)*
+- [x] **Undo / redo.** Ctrl+Z / Ctrl+Y. Six command types in `commands.py`.
+- [x] **Switch / LED visual redesign.** Switch = sliding toggle. LED = bulb silhouette.
 - [ ] **Fix MENU button vs TEXT template visual confusion.** Both are
   small dark squares with a four-letter white label, so it's not obvious
   which is a control and which is a draggable component. Give MENU a
-  distinct treatment â€” different color, a `â‰¡` / `â˜°` icon, or a
-  different shape â€” so it reads as a control surface, not an element.
+  distinct treatment — different color, a `=` / `?` icon, or a
+  different shape — so it reads as a control surface, not an element.
 - [ ] **Fix text inside components (alignment + size).** Text needs to be
   vertically and horizontally centered. The word "OUT" barely fits inside
   the OUT component, and the circle can barely fit three letters. Either
@@ -167,14 +47,7 @@ net that lets them experiment without fear of losing work.
 - [ ] **F11 needs a mouse path.** Fullscreen is keyboard-only today.
   Most likely answer: an entry on the bottom-left popup menu. (A future
   top hotkey-hint bar in Pass 6 will add a second mouse path.)
-- [x] **Random color for saved components.** Every saved component
-  spawned in MEDIUM_CARMINE (red), making all abstractions look
-  identical. Each save now picks at random from
-  `ColorSettings.SAVED_COMPONENT_COLORS` (8 curated muted colors) so
-  sibling abstractions are visually distinct at a glance. A future
-  "advanced save" dialog (Pass 3+) can offer a color picker so the
-  student can assign meaningful colors intentionally.
-  *(Done 2026-05-04.)*
+- [x] **Random color for saved components.** 8-color curated palette in `ColorSettings`.
 - [ ] **Esc should not quit silently.** Layered behavior, in priority
   order:
   1. If a popup / dialog is open, Esc dismisses it. *(MenuButton popup
@@ -187,34 +60,27 @@ net that lets them experiment without fear of losing work.
   trash icon that puts the cursor into "delete mode" until the next
   click. Combined with undo/redo above, this gives mouse-only students
   a complete safe-delete workflow. **Check classroom hardware before
-  building** â€” see Risks & Notes.
-- [ ] **Wrap the per-frame loop in a top-level try/except** that flashes
-  a banner and keeps the app alive. Crashes mid-class are the worst
-  possible UX, and Pass 2 is the right time to add the seatbelt.
+  building** — see Risks & Notes.
+- [x] **Wrap the per-frame loop in a try/except** that flashes a banner and keeps
+  the app alive on unhandled exceptions.
 - [ ] **Manual test the bottom-left popup menu.** Open the menu, click
   each item, confirm the popup closes and the action runs. Click outside
-  â€” popup closes, no spurious wire/component side effects. (Carried
+  — popup closes, no spurious wire/component side effects. (Carried
   over from Pass 1; testable end-to-end once SAVE AS COMPONENT is wired
   up and the other items get their backing actions in Pass 3.)
 
-End of Pass 2: looks decent, doesn't crash, doesn't quit on you, doesn't
-lose work to a stray click. The abstraction loop is now genuinely
-classroom-presentable, just only within a single session.
-
 ---
 
-## Pass 3 â€” Persistence
+## Pass 3 — Persistence
 
-Now disk save/load matters: students can keep their saved components
-across class periods, between days, and between machines. Also adds the
-project-level shell that wraps the workspace.
+Disk save/load so work survives across sessions and machines.
 
 - [ ] **Save / load a project (disk).** JSON file containing components
   (type, position, internal state e.g. Switch toggle), wires
   (source/target as `(component_id, port_name)` pairs), text boxes
   (position + text), and the embedded definitions of every saved
   sub-component. **Schema version field from day one** so future formats
-  can migrate cleanly. **Embed don't reference** â€” sub-circuit
+  can migrate cleanly. **Embed don't reference** — sub-circuit
   definitions live inside the project save, otherwise sharing a project
   breaks the moment the recipient is missing one of the saved
   components. **Apply `.upper()` once to every text-box string when
@@ -242,23 +108,20 @@ project-level shell that wraps the workspace.
   the known gates (NOT, AND, OR, NAND, NOR, XOR, XNOR). If a match, the
   dialog pre-fills the recognized name and pops a "You discovered
   <NAME>!" banner. Student can override; this is a hint, not a lock.
-  Cheap to compute â€” â‰¤4 inputs covers the entire list, and the check
+  Cheap to compute — =4 inputs covers the entire list, and the check
   runs once on save, not per frame.
 - [ ] **Color picker for saved components.** The save dialog grows a
-  color picker. Small palette swatch AND/OR an RGB / hex entry field â€”
+  color picker. Small palette swatch AND/OR an RGB / hex entry field —
   the hex/RGB option is a deliberate teaching moment so students see how
   digital colors are encoded. Color saves into the component definition,
   not the project.
-- [ ] **Rename the program.** "Circuit Builder" is a misnomer â€” there's
+- [ ] **Rename the program.** "Circuit Builder" is a misnomer — there's
   no analog circuitry. Pick a name (see Questions) and migrate before
   Pass 3 ships, so save files reference the new name from day one.
 
-End of Pass 3: a student's work survives across sessions and machines.
-Components they save can be shared as part of a project file.
-
 ---
 
-## Pass 4 â€” Polish persistence
+## Pass 4 — Polish persistence
 
 Make the persistence layer robust enough to share with other CS
 teachers, not just survive a single classroom.
@@ -267,7 +130,7 @@ teachers, not just survive a single classroom.
   function that loads the old format and produces the new one. Refuse to
   load a future-version file with a clear error rather than guessing.
 - [ ] **Error recovery for malformed save files.** A truncated or
-  hand-edited save shouldn't crash the program â€” it should fall back to
+  hand-edited save shouldn't crash the program — it should fall back to
   an empty workspace with a banner explaining what went wrong.
 - [ ] **Toolbox redesign for many components.** By Pass 4 the bank will
   overflow with saved components. Decide approach (see Questions:
@@ -286,7 +149,7 @@ teachers, not just survive a single classroom.
 
 ---
 
-## Pass 5 â€” Curriculum (rough)
+## Pass 5 — Curriculum (rough)
 
 The teach-with-it features. Built on top of Save-as-Component (truth-
 table verification reuses Pass 3's machinery) and Persistence (puzzles
@@ -301,38 +164,31 @@ ship as project files).
   components or fewer." "Make an SR latch hold state." Auto-graded by
   truth-table comparison. Optional leaderboard / star rating per puzzle.
 
-End of Pass 5: rough. The lessons exist; the discoverability/UX layer
-comes in Pass 6.
-
 ---
 
-## Pass 6 â€” Polish curriculum + add discoverability
+## Pass 6 — Polish curriculum + discoverability
 
 Make the program teach itself. Smooths the rough Pass-5 lessons and
 adds the surfaces that lower the floor for a cold-start student.
 
-- [ ] **Top hotkey-hint bar.** Old-school computer-program style: a
-  thin bar across the top of the screen showing
-  "F11 fullscreen | Esc back | ?: shortcuts | â€¦". Mouse-first reachable
-  summary so students don't need the docs to discover the keyboard
-  path.
+- [x] **Top hotkey-hint bar.** Always-on strip showing keyboard shortcuts.
 - [ ] **Keyboard shortcut overlay.** Press `?` to flash a translucent
-  cheat-sheet of every shortcut. Layers with the hint bar above â€” bar
+  cheat-sheet of every shortcut. Layers with the hint bar above — bar
   is always-on, overlay is on-demand and exhaustive.
 - [ ] **Easy mode.** Optional starter set: students begin with AND,
   OR, NOT, NAND already in the toolbox so they can build interesting
   circuits before they've finished the NAND-only progression. Off by
-  default â€” the universal-NAND moment is the main pedagogical point.
+  default — the universal-NAND moment is the main pedagogical point.
 - [ ] **Encyclopedia / dictionary.** Built-in glossary students can
   flip open: each gate, each common circuit (latch, flip-flop, adder,
   multiplexer) with a short definition and a worked example.
 
 ---
 
-## Pass 7+ â€” Treats
+## Pass 7+ — Treats
 
 Stretch goals. Take them in any order, or not at all. None of these
-strengthen the abstraction loop â€” they decorate it.
+strengthen the abstraction loop — they decorate it.
 
 - [ ] **Sound design.** Subtle click on placement, faint hum on HIGH
   signal, a small "snap" when a wire commits. CRT scanlines already
@@ -345,7 +201,7 @@ strengthen the abstraction loop â€” they decorate it.
   shareable file students can email or hand off. Pairs with the
   embed-don't-reference save-file decision in Pass 3.
 - [ ] **Wire bending / segments.** Already in Issues / Bugs as the
-  underlying complaint. Promote here as the proposed fix when ready â€”
+  underlying complaint. Promote here as the proposed fix when ready —
   click waypoints during the wire drag to add bend points; delete a
   waypoint by right-clicking it.
 - [ ] **Dynamic text-box width.** Right now `TextBoxSettings.WIDTH` is
@@ -365,7 +221,7 @@ call is made.
   and "CRT effect" become a single "Retro mode" master switch, or stay
   as two independent options? Decide before Pass 3's Options page.
 - [ ] **Toolbox-overflow approach.** Five candidates listed in Pass 4.
-  Pick one â€” or decide to layer two â€” once we have real data on how
+  Pick one — or decide to layer two — once we have real data on how
   many components a typical session produces. Don't pre-build all five.
 - [ ] **Lit wire color.** Currently green (matches `PORT_LIVE_COLOR`).
   Could go to amber, neon cyan, etc. Decide alongside Pass 4 once the
@@ -374,7 +230,7 @@ call is made.
   Candidates so far: "Digital Logic Simulator," "Logic Sandbox," "Logic
   Bench," "NAND Lab." Pick before Pass 3 so save files reference the
   new name from day one.
-- [ ] **Dynamic text-box width â€” wrap/width fixed point.** Width
+- [ ] **Dynamic text-box width — wrap/width fixed point.** Width
   depends on the wrap, the wrap depends on the width. Resolve by either
   picking the longest unbroken line as the width seed, or iterating to
   a fixed point. Pick before the Pass-7+ idea gets implemented.
@@ -383,21 +239,13 @@ call is made.
 
 ## Ideas
 
-Uncommitted designs that have a shape but no owner or pass yet. The
-roadmap above absorbed most of the prior Brainstorming entries; this
-section will fill back up as new ones come in.
-
-*(currently empty â€” promote ideas back here from the passes if their
-case for shipping weakens, or add new ones as they come up)*
+*(Promote ideas here if their case for shipping weakens, or add new ones.)*
 
 ---
 
 ## Issues / Bugs
 
-Bugs that affect behavior. Repro â†’ fix â†’ log in `docs/CHANGELOG.md` â†’
-re-run the manual checklist in `docs/TESTING.md`.
-
-- [ ] **Extra annoying step just to type the name of the component.** When choosing save component, the user has to move the mouse to the text box and click it to type the name. They should be able to type the name immediately on choosing save component.
+- [x] **User must click the name field to start typing** in the save dialog.
 - [ ] **Wires only go in a straight line, can't be bent or curved.** If
   a user wants to connect two components and there is another component
   between them, or they want to create a loop, the result is ugly
@@ -417,20 +265,18 @@ re-run the manual checklist in `docs/TESTING.md`.
 
 ## Risks & Notes
 
-Forward-looking concerns that aren't tasks but are worth re-reading at
-the start of each pass. Promote into the relevant pass when they become
-actionable.
+Re-read at the start of each pass.
 
 - [ ] **Classroom hardware = touchpads?** If the target machines are
   Chromebooks or laptops without a real two-button mouse, right-click
   delete is hard for kids and the program currently has no other path
   to delete a wire or text box. "Trash mode" is in Pass 2 because of
-  this â€” but verify the hardware reality before Pass 1 ships, because
+  this — but verify the hardware reality before Pass 1 ships, because
   it might bump trash mode earlier.
 - [ ] **Save-as-Component is the keystone risk.** Three things have to
   be true at once for Pass 1 to feel right: (1) the embedded sub-
   circuit definition has to round-trip cleanly through spawn, (2)
-  dynamic component sizing has to handle â‰¥3 inputs without overlap,
+  dynamic component sizing has to handle =3 inputs without overlap,
   (3) the saved component has to be visually distinguishable from a
   built-in NAND so students can tell their work apart. Plan time for
   all three, not just the dialog.
@@ -444,14 +290,10 @@ actionable.
   `Fonts` take a target pixel-height and pick the size that hits it.
   Worth doing as part of the Options page work.
 - [ ] **Architecture decision log (ADR).** A handful of meaningful
-  design pivots are buried in the changelog as `Why:` prose (Switch/
-  LED replacing port-toggle, two-step popup routing, Option 1 for the
-  bank generalization). Pass 3 will generate four or five more
-  (embed-don't-reference for saves, schema version + migration
-  approach, sub-component runtime model). Worth starting a
-  `docs/DECISIONS.md` ADR log when Pass 3 begins so those are
-  findable as one-paragraph entries instead of buried in changelog
-  diffs.
+  design pivots are buried in the changelog as `Why:` prose. Pass 3
+  will generate more. Worth starting a `docs/DECISIONS.md` ADR log
+  when Pass 3 begins so those are findable as one-paragraph entries
+  instead of buried in changelog diffs.
 - [ ] **Save file portability across class years.** A save file from
   this year has to load next year. Combined with the schema-version
   point above: every Pass that touches the save format MUST add a
@@ -461,30 +303,15 @@ actionable.
   payoff.** Don't let the truth-table auto-detect slip out of Pass 3.
   Without it, Save-as-Component is "save your work"; with it, it's
   "discover the building blocks of computation." Big difference.
-- [ ] **Save-as-Component port inference rule.** Decided 2026-05-03
-  during the dialog v2 simplification: at save time, every Switch in
-  the workspace becomes an INPUT port and every LED becomes an OUTPUT
-  port; ordering is **ascending Y** (top of the workspace = port 0).
-  Y was picked over component-creation-order because the visual
-  top-to-bottom column is what the student actually sees, and picking
-  the order based on something invisible (creation timestamp) would
-  break the spatial intuition. If two components share the same Y the
-  ordering is undefined for now â€” Pass 3 can stabilize on (Y, X) once
-  the rule has actually bitten anyone, since for a Pass 1 circuit
-  (NOT, AND, OR, XOR, SR latch) ties are vanishingly rare. The
-  "advanced save" path that would let students reorder or exclude is
-  parked under Pass 3+ and only earns its keep if classroom usage
-  shows the rule is wrong, not preemptively.
-- [ ] **Sub-step splits should stay end-to-end testable.** Pass 1
-  step 1 (dialog only) shipped without step 2 (toolbox template) and
-  produced an "is this even saving?" black box that the user could
-  only verify by reading code. The dialog itself then needed an
-  in-flight redesign because the picker UI couldn't be evaluated
-  without the rest of the loop. Lesson: when splitting a pass-level
-  bullet into multiple landings, each landing must produce a visible
-  user-facing change, even if it's stub-quality. Future splits should
-  pair "input form" and "output appears" in the same cut, not
-  separate ones.
+- [ ] **Save-as-Component port inference rule.** At save time, every
+  Switch in the workspace becomes an INPUT port and every LED becomes
+  an OUTPUT port; ordering is **ascending Y** (top of the workspace =
+  port 0). Y was picked over component-creation-order because the
+  visual top-to-bottom column is what the student actually sees.
+- [ ] **Sub-step splits should stay end-to-end testable.** When
+  splitting a pass-level bullet into multiple landings, each landing
+  must produce a visible user-facing change, even if stub-quality.
+  Don't split "input form" from "output appears" into separate cuts.
 
 ---
 
@@ -498,6 +325,6 @@ touched. Not bugs.
   are pure Python and trivial to cover. Three tests would catch the
   next signal refactor: NAND truth table, wire validation rejects
   same-direction / same-parent, and an SR latch built in code holds
-  state across two `SignalManager.update` calls. *(Optional â€” the
+  state across two `SignalManager.update` calls. *(Optional — the
   changelog discipline is doing most of the regression-prevention
   work that tests would. Add when/if you want belt-and-suspenders.)*

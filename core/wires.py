@@ -1,7 +1,7 @@
 import pygame
 from typing import Callable
 
-from elements import Port
+from .elements import Port
 from settings import InputSettings, WireSettings
 
 
