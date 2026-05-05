@@ -362,15 +362,6 @@ class GameManager:
                 self.bank.menu_button.toggle()
                 return
             self.close_game()
-        # N spawns a NAND through the bank's own spawn path so the hotkey
-        # and the toolbox click stay in lock-step (cursor-centered, drag
-        # primed, _moved_while_dragging set). Keeping the duplicate here
-        # would re-introduce drift the moment the bank's spawner changes.
-        if event.key == pygame.K_n:
-            before = len(self.components)
-            self.bank.spawn_component(Component, pygame.mouse.get_pos(), self.components)
-            if len(self.components) > before:
-                self.history.push(PlaceComponent(self.components, self.wires, self.components[-1]))
         # T spawns an annotation text box at the current cursor position
         # and immediately focuses it so the user can start typing. Only
         # reachable when no text box is already focused (the manager
@@ -457,7 +448,6 @@ class GameManager:
         hotkey_hints = (
             "CTRL+Z UNDO",
             "CTRL+Y REDO",
-            "N NAND",
             "T TEXT",
             "F11 FULLSCREEN",
             "ESC MENU/QUIT",
@@ -490,22 +480,16 @@ class GameManager:
         if not hint_surfs:
             return
 
-        # Spread hint groups across the width while preserving a minimum gap.
+        # Distribute hint groups with true "space-evenly" spacing:
+        # identical gap before the first item, between every item, and
+        # after the last item.
         total_width = sum(surf.get_width() for surf in hint_surfs)
-        gap_count = len(hint_surfs) - 1
-        available = ScreenSettings.WIDTH - 2 * ShortcutBarSettings.PADDING_X
-        if gap_count > 0:
-            gap = max(
-                ShortcutBarSettings.ITEM_MIN_GAP,
-                (available - total_width) // gap_count,
-            )
-        else:
-            gap = 0
-        content_width = total_width + gap * gap_count
-        x = max(ShortcutBarSettings.PADDING_X, (ScreenSettings.WIDTH - content_width) // 2)
+        gap_count = len(hint_surfs) + 1
+        gap = max(0.0, (ScreenSettings.WIDTH - total_width) / gap_count)
+        x = gap
         for surf in hint_surfs:
             text_rect = surf.get_rect()
-            text_rect.x = x
+            text_rect.x = round(x)
             text_rect.centery = bar_rect.centery
             self.screen.blit(surf, text_rect)
             x += surf.get_width() + gap

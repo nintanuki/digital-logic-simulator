@@ -198,6 +198,8 @@ class SaveComponentDialog:
         self._name_field = _NameField(
             self.rect.x + DS.PADDING, cursor_y, inner_width,
         )
+        # Make typing immediate when the dialog opens.
+        self._name_field.focus()
         # Buttons: Save right-edge primary, Cancel to its left.
         button_y = (self.rect.bottom
                     - DS.PADDING - DS.BUTTON_HEIGHT)

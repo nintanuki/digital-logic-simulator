@@ -15,8 +15,9 @@ class TextBox:
 
     Text boxes carry no signal and never appear on the toolbox bank — they
     exist purely so students can label parts of their circuit ("clock",
-    "carry-out", "this is the AND gate built from two NANDs"). Width is
-    fixed; height grows downward as the wrapped text needs more lines.
+    "carry-out", "this is the AND gate built from two NANDs"). New boxes
+    start narrow, expand width while typing, then wrap and grow downward
+    after reaching a configured max width.
 
     Focus, drag, and delete semantics mirror Component as closely as
     possible: left-click focuses + may begin a drag, right-click on the
@@ -45,11 +46,10 @@ class TextBox:
         # every time the user re-focuses, instead of mid-blink.
         self._focus_tick = 0
 
-        self.rect = pygame.Rect(x, y, TextBoxSettings.WIDTH,
+        self.rect = pygame.Rect(x, y, TextBoxSettings.MIN_WIDTH,
                                 TextBoxSettings.MIN_HEIGHT)
-        # Wrap once up front so the rect height matches the (empty) text.
-        self._lines = self._wrap_lines()
-        self._resize_to_lines()
+        self._lines = [""]
+        self._layout_to_text()
 
     # -------------------------
     # FOCUS / DRAG / EDIT API (called by TextBoxManager)
@@ -116,10 +116,9 @@ class TextBox:
             # Non-printable, non-edit key (arrows, F-keys, modifiers) —
             # ignore so the user doesn't see junk characters appear.
             return
-        # Re-wrap and resize on every meaningful edit so the box always
-        # snaps to fit its current contents.
-        self._lines = self._wrap_lines()
-        self._resize_to_lines()
+        # Re-layout on every meaningful edit so width grows first, then
+        # height once the max width cap is reached.
+        self._layout_to_text()
         # Re-clamp in case growing the box pushed it past the workspace
         # bottom (the toolbox edge).
         self._clamp_to_workspace()
@@ -217,7 +216,22 @@ class TextBox:
     # INTERNAL HELPERS
     # -------------------------
 
-    def _wrap_lines(self):
+    def _layout_to_text(self):
+        """Update wrapped lines and rect size from the current text."""
+        inner_width = self._target_inner_width()
+        self._lines = self._wrap_lines(inner_width)
+        self._resize_to_lines(inner_width)
+
+    def _target_inner_width(self):
+        """Choose current inner width between MIN_WIDTH and MAX_WIDTH."""
+        font = Fonts.text_box
+        min_inner = max(1, TextBoxSettings.MIN_WIDTH - 2 * TextBoxSettings.PADDING)
+        max_inner = max(min_inner, TextBoxSettings.MAX_WIDTH - 2 * TextBoxSettings.PADDING)
+        paragraphs = self.text.split("\n") if self.text else [""]
+        longest = max(font.size(line)[0] for line in paragraphs)
+        return max(min_inner, min(longest, max_inner))
+
+    def _wrap_lines(self, inner_width):
         """Word-wrap self.text to fit inside the inner width of the box.
 
         Honors explicit '\\n' line breaks first, then greedy-wraps each
@@ -227,7 +241,6 @@ class TextBox:
         Returns:
             list[str]: The lines the text should render as.
         """
-        inner_width = TextBoxSettings.WIDTH - 2 * TextBoxSettings.PADDING
         font = Fonts.text_box
         wrapped = []
         for paragraph in self.text.split("\n"):
@@ -281,12 +294,14 @@ class TextBox:
                 chunk = ch
         return chunk
 
-    def _resize_to_lines(self):
+    def _resize_to_lines(self, inner_width):
         """Resize self.rect.height to exactly fit self._lines.
 
-        Width never changes. Height is at least MIN_HEIGHT so an empty
-        box stays grabbable.
+        Width is driven by the current text and clamped to [MIN_WIDTH,
+        MAX_WIDTH]. Height is at least MIN_HEIGHT so an empty box stays
+        grabbable.
         """
+        self.rect.width = inner_width + 2 * TextBoxSettings.PADDING
         line_height = Fonts.text_box.get_linesize()
         needed = len(self._lines) * line_height + 2 * TextBoxSettings.PADDING
         self.rect.height = max(TextBoxSettings.MIN_HEIGHT, needed)
@@ -344,7 +359,7 @@ class TextBoxManager:
         Args:
             pos (tuple[int, int]): Cursor position in screen coordinates.
         """
-        x = pos[0] - TextBoxSettings.WIDTH // 2
+        x = pos[0] - TextBoxSettings.MIN_WIDTH // 2
         y = pos[1] - TextBoxSettings.MIN_HEIGHT // 2
         box = TextBox(x, y)
         # Spawning slightly outside the workspace (e.g. cursor near the

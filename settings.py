@@ -165,10 +165,10 @@ class TextBoxSettings:
     to annotate their circuits. They carry no signal and never appear on the
     toolbox bank — they're spawned via keyboard shortcut at the cursor.
     """
-    # Default body size for a freshly spawned text box. Width is fixed; the
-    # box grows downward as wrapped text needs more lines, never below
-    # MIN_HEIGHT so an empty box is still visibly grabbable.
-    WIDTH = 180
+    # New text boxes start narrow, grow wider as the user types, then wrap
+    # and grow downward once MAX_WIDTH is reached.
+    MIN_WIDTH = 44
+    MAX_WIDTH = 180
     MIN_HEIGHT = 32
     # Inner padding between the body edge and the rendered text, in pixels.
     PADDING = 6
@@ -182,7 +182,7 @@ class TextBoxSettings:
     BORDER_FOCUSED_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     PLACEHOLDER_COLOR = ColorSettings.WORD_COLORS["GRAY"]
-    PLACEHOLDER_TEXT = "Type here..."
+    PLACEHOLDER_TEXT = "..."
     # Font face is reused across the project; size is its own knob so labels
     # don't have to match component-label sizing.
     FONT = AssetPaths.FONT

@@ -445,7 +445,7 @@ class ComponentBank:
     def spawn_component(self, cls, event_pos, components_list):
         """Spawn an instance of `cls` through the bank's own spawn path.
 
-        Exposed so keyboard shortcuts (e.g. `main.py`'s K_n) share the
+        Exposed so keyboard shortcuts share the
         bank's cursor-centering and drag-priming logic instead of
         reimplementing it — keeps the click and hotkey entry points honest.
 
