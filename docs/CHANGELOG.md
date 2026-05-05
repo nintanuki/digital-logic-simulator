@@ -58,6 +58,25 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 19:00 UTC — Restructure docs/TODO.md: replace pass-based planning with practical feature categories
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-05 19:00 UTC
+**Lines (at time of edit):** 1-520 (complete restructure)
+**Before:** Pass-based organization (Pass 1, Pass 2, Pass 3, Pass 4, Pass 5, Pass 6, Pass 7+) with separate sections for Questions, Ideas, Issues/Bugs, Risks & Notes, Polish & Tech Debt.
+**After:** Reorganized into practical feature categories:
+  - Next Up (currently in progress)
+  - Core Features (Foundation completed, Persistence in progress/planned, Persistence Polish planned)
+  - Teaching Features (Tutorial System, Encyclopedia System, Puzzles & Challenges)
+  - UI/UX Improvements (Pass 2 Remaining, Pass 6+ Enhancements)
+  - Bugs / Issues (actual problems only)
+  - Architecture Notes (design decisions and concerns)
+  - Tech Debt / Polish (code quality items)
+  - Open Questions / Decisions (pending design calls)
+  - Ideas / Later (stretch goals)
+**Why:** Pass-based structure was creating clutter, duplication, and stale planning artifacts. New feature-based roadmap is easier to scan, update, and maintain. Clearly separated scaffold from full features (tutorial scaffold vs. tutorial content expansion; encyclopedia scaffold vs. encyclopedia content expansion). Fixed encoding artifacts (replacement characters). Clarified Esc/quit behavior as completed with precise layered implementation detail. Removed duplication where items appeared both as completed in passes and as open bugs. Consolidated architecture notes into dedicated section. Improved readability throughout.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
 ## 2026-05-05 18:25 UTC — Update TODO: add issue for oversized components in toolbox
 
 **File:** docs/TODO.md
