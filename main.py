@@ -86,12 +86,25 @@ class GameManager:
         if text_font is None:
             raise RuntimeError("Fonts.init() must run before UI text render")
         # Pre-render static hotkey hint text once; blit each frame.
+        self._hotkey_hints = (
+            ("CTRL+Z=UNDO", "undo"),
+            ("CTRL+Y=REDO", "redo"),
+            ("T=TEXT", "text"),
+            ("F11=FULLSCREEN", "fullscreen"),
+            ("ESC=QUIT", "quit"),
+        )
         self._hotkey_hint_surfs = self._build_hotkey_bar_text_surfaces()
+        self._hotkey_hint_rects = []
         self._file_menu_item_surfs = self._build_file_menu_item_surfaces()
         self._file_label_surf = text_font.render(
             TopMenuBarSettings.FILE_LABEL,
             True,
             TopMenuBarSettings.TEXT_COLOR,
+        )
+        self._file_label_surf_highlight = text_font.render(
+            TopMenuBarSettings.FILE_LABEL,
+            True,
+            COLOR_MENU_HIGHLIGHT_TEXT,
         )
         self._file_menu_open = False
         self._file_menu_hover_index = 0
@@ -591,6 +604,10 @@ class GameManager:
         """Pass mouse events to the component manager or components directly."""
         self._prune_selection()
 
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.LEFT_CLICK:
+            if self._handle_hotkey_hint_click(event.pos):
+                return
+
         if event.type == pygame.MOUSEMOTION:
             self._sync_file_menu_hover_with_mouse(event.pos)
 
@@ -807,20 +824,41 @@ class GameManager:
 
     def _build_hotkey_bar_text_surfaces(self):
         """Render and cache per-hint text surfaces for the bottom bar."""
-        hotkey_hints = (
-            "CTRL+Z UNDO",
-            "CTRL+Y REDO",
-            "T TEXT",
-            "F11 FULLSCREEN",
-            "ESC QUIT",
-        )
         font = Fonts.text_box
         if font is None:
             raise RuntimeError("Fonts.init() must run before hotkey bar text render")
         return [
             font.render(hint, True, ShortcutBarSettings.TEXT_COLOR)
-            for hint in hotkey_hints
+            for hint, _action_id in self._hotkey_hints
         ]
+
+    def _run_hotkey_hint_action(self, action_id):
+        """Execute a hotkey-bar action as if its keyboard shortcut was used."""
+        if action_id == "undo":
+            self.history.undo()
+            return
+        if action_id == "redo":
+            self.history.redo()
+            return
+        if action_id == "text":
+            self.text_boxes.spawn_at(pygame.mouse.get_pos())
+            return
+        if action_id == "fullscreen":
+            pygame.display.toggle_fullscreen()
+            return
+        if action_id == "quit":
+            if pygame.display.get_surface().get_flags() & pygame.FULLSCREEN:
+                pygame.display.toggle_fullscreen()
+                return
+            self._show_quit_confirm()
+
+    def _handle_hotkey_hint_click(self, pos):
+        """Run a hotkey action when its rendered hint text is clicked."""
+        for rect, (_label, action_id) in zip(self._hotkey_hint_rects, self._hotkey_hints):
+            if rect.collidepoint(pos):
+                self._run_hotkey_hint_action(action_id)
+                return True
+        return False
 
     def _draw_hotkey_bar(self):
         """Draw an old-school bottom status strip listing keyboard shortcuts."""
@@ -841,18 +879,18 @@ class GameManager:
         hint_surfs = self._hotkey_hint_surfs
         if not hint_surfs:
             return
+        self._hotkey_hint_rects = []
 
-        # Space-evenly: equal gap before, between, and after each hint.
-        total_width = sum(surf.get_width() for surf in hint_surfs)
-        gap_count = len(hint_surfs) + 1
-        gap = max(0.0, (ScreenSettings.WIDTH - total_width) / gap_count)
-        x = gap
+        # Left-aligned flow with fixed spacing between hint groups.
+        x = ShortcutBarSettings.LEFT_PADDING_X
+        item_gap = max(ShortcutBarSettings.PADDING_X, ShortcutBarSettings.ITEM_MIN_GAP)
         for surf in hint_surfs:
             text_rect = surf.get_rect()
             text_rect.x = round(x)
             text_rect.centery = bar_rect.centery
             self.screen.blit(surf, text_rect)
-            x += surf.get_width() + gap
+            self._hotkey_hint_rects.append(text_rect.copy())
+            x += surf.get_width() + item_gap
 
     def _build_file_menu_item_surfaces(self):
         """Render and cache FILE menu item labels once at startup."""
@@ -972,11 +1010,17 @@ class GameManager:
 
         file_bg = TopMenuBarSettings.BG_COLOR
         mouse_over_file = self._file_button_rect.collidepoint(pygame.mouse.get_pos())
-        if self._file_menu_open or mouse_over_file:
+        file_is_highlighted = self._file_menu_open or mouse_over_file
+        if file_is_highlighted:
             file_bg = TopMenuBarSettings.FILE_HIGHLIGHT_BG
         pygame.draw.rect(self.screen, file_bg, self._file_button_rect)
-        label_rect = self._file_label_surf.get_rect(center=self._file_button_rect.center)
-        self.screen.blit(self._file_label_surf, label_rect)
+        file_label_surf = (
+            self._file_label_surf_highlight
+            if file_is_highlighted
+            else self._file_label_surf
+        )
+        label_rect = file_label_surf.get_rect(center=self._file_button_rect.center)
+        self.screen.blit(file_label_surf, label_rect)
 
         # Underline only the leading F to mimic a classic mnemonic affordance.
         text_font = Fonts.text_box
@@ -988,9 +1032,14 @@ class GameManager:
             - TopMenuBarSettings.FILE_UNDERLINE_BOTTOM_INSET
         )
         underline_x0 = label_rect.x
+        underline_color = (
+            COLOR_MENU_HIGHLIGHT_TEXT
+            if file_is_highlighted
+            else TopMenuBarSettings.TEXT_COLOR
+        )
         pygame.draw.line(
             self.screen,
-            TopMenuBarSettings.TEXT_COLOR,
+            underline_color,
             (underline_x0, underline_y),
             (underline_x0 + f_width, underline_y),
             TopMenuBarSettings.FILE_UNDERLINE_THICKNESS,

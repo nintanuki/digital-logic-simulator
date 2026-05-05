@@ -58,6 +58,93 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 12:57 UTC — Decouple shortcut left inset from item spacing
+
+**File:** settings.py
+**Date and Time:** 2026-05-05 12:57 UTC
+**Lines (at time of edit):** 90 (modified)
+**Before:**
+    class ShortcutBarSettings:
+        PADDING_X = 8
+        ITEM_MIN_GAP = 12
+**After:**
+    class ShortcutBarSettings:
+        LEFT_PADDING_X = 8
+        PADDING_X = 8
+        ITEM_MIN_GAP = 12
+**Why:** Added a dedicated left inset constant so increasing `PADDING_X` no
+longer shifts the first hint group away from the left edge.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 12:57 UTC
+**Lines (at time of edit):** 885-892 (modified)
+**Before:**
+    x = ShortcutBarSettings.PADDING_X
+    ...
+    x += surf.get_width() + ShortcutBarSettings.ITEM_MIN_GAP
+**After:**
+    x = ShortcutBarSettings.LEFT_PADDING_X
+    item_gap = max(ShortcutBarSettings.PADDING_X, ShortcutBarSettings.ITEM_MIN_GAP)
+    ...
+    x += surf.get_width() + item_gap
+**Why:** `PADDING_X` now controls inter-item spacing only, while left anchoring
+is controlled independently by `LEFT_PADDING_X`.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-05 12:49 UTC — Left-align bottom hint groups with fixed spacing
+
+**File:** main.py
+**Date and Time:** 2026-05-05 12:49 UTC
+**Lines (at time of edit):** 871-881 (modified)
+**Before:**
+    # Space-evenly: equal gap before, between, and after each hint.
+    total_width = sum(surf.get_width() for surf in hint_surfs)
+    gap_count = len(hint_surfs) + 1
+    gap = max(0.0, (ScreenSettings.WIDTH - total_width) / gap_count)
+    x = gap
+    ...
+    x += surf.get_width() + gap
+**After:**
+    # Left-aligned flow with fixed spacing between hint groups.
+    x = ShortcutBarSettings.PADDING_X
+    ...
+    x += surf.get_width() + ShortcutBarSettings.ITEM_MIN_GAP
+**Why:** Anchors `CTRL+Z=UNDO` at the left side and keeps all hint groups
+left-aligned with consistent spacing between items instead of centered spread.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-05 12:47 UTC — Top FILE polish and clickable KEY=ACTION bottom hints
+
+**File:** settings.py
+**Date and Time:** 2026-05-05 12:47 UTC
+**Lines (at time of edit):** 11 (modified)
+**Before:**
+    TOP_MENU_BAR_HEIGHT = 32
+**After:**
+    TOP_MENU_BAR_HEIGHT = 34
+**Why:** Extended the top FILE bar down slightly so the mnemonic underline has
+more visual room and no longer feels cramped.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 12:47 UTC
+**Lines (at time of edit):** 89-108, 608-609, 820-865, 1012-1032 (modified)
+**Before:**
+    Bottom hints used labels like "T TEXT" and were display-only.
+    FILE label used only white text surface, which disappeared on white hover.
+**After:**
+    Added `self._hotkey_hints` with `KEY=ACTION` labels:
+    `CTRL+Z=UNDO`, `CTRL+Y=REDO`, `T=TEXT`, `F11=FULLSCREEN`, `ESC=QUIT`.
+    Added clickable hint handling (`_handle_hotkey_hint_click`) and action
+    dispatch (`_run_hotkey_hint_action`) so clicking a hint triggers the same
+    behavior as the corresponding keyboard shortcut.
+    Added highlighted FILE text surface (`self._file_label_surf_highlight`) and
+    dynamic FILE text/underline color so FILE remains readable when highlighted.
+**Why:** Makes the bottom hint bar interactive and updates label style to the
+requested `KEY=ACTION` format while fixing FILE visibility on white highlight.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-05 12:40 UTC — FILE underline/menu highlight polish and toolbox template editability
 
 **File:** settings.py
