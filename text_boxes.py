@@ -169,17 +169,18 @@ class TextBox:
             surface (pygame.Surface): The surface to draw onto.
         """
         font = Fonts.text_box
-        x = self.rect.x + TextBoxSettings.PADDING
         y = self.rect.y + TextBoxSettings.PADDING
         if not self.text and not self.focused:
             # Show placeholder only when both empty AND unfocused, so the
             # caret has a clean empty box to blink in once the user clicks.
             line_surf = font.render(TextBoxSettings.PLACEHOLDER_TEXT, True,
                                     TextBoxSettings.PLACEHOLDER_COLOR)
+            x = self._line_x(TextBoxSettings.PLACEHOLDER_TEXT)
             surface.blit(line_surf, (x, y))
             return
         for line in self._lines:
             line_surf = font.render(line, True, TextBoxSettings.TEXT_COLOR)
+            x = self._line_x(line)
             surface.blit(line_surf, (x, y))
             y += font.get_linesize()
 
@@ -192,7 +193,7 @@ class TextBox:
         font = Fonts.text_box
         last_line = self._lines[-1] if self._lines else ""
         text_width = font.size(last_line)[0]
-        x = self.rect.x + TextBoxSettings.PADDING + text_width
+        x = self._line_x(last_line) + text_width
         # Caret sits on the same row as the last line; total y offset is
         # padding plus all lines above the last.
         rows_above = max(len(self._lines) - 1, 0)
@@ -221,6 +222,14 @@ class TextBox:
         inner_width = self._target_inner_width()
         self._lines = self._wrap_lines(inner_width)
         self._resize_to_lines(inner_width)
+
+    def _line_x(self, line):
+        """Return the x-coordinate to horizontally center line in the box."""
+        text_width = Fonts.text_box.size(line)[0]
+        left = self.rect.x + TextBoxSettings.PADDING
+        right = self.rect.right - TextBoxSettings.PADDING
+        inner_center = (left + right) // 2
+        return inner_center - text_width // 2
 
     def _target_inner_width(self):
         """Choose current inner width between MIN_WIDTH and MAX_WIDTH."""
