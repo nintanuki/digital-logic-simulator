@@ -489,14 +489,12 @@ class SaveComponentDialog:
 
     def _draw_color_preview(self, surface):
         """Draw a live swatch of the currently selected RGB color."""
-        label_rect = self._preview_label_surf.get_rect()
-        label_rect.midbottom = (self._preview_rect.centerx, self._preview_rect.top - 4)
-        surface.blit(self._preview_label_surf, label_rect)
-
         color = self._current_color()
         fill_color = color if color is not None else DS.PREVIEW_BG
         pygame.draw.rect(surface, fill_color, self._preview_rect)
         pygame.draw.rect(surface, DS.PREVIEW_BORDER, self._preview_rect, 1)
+        label_rect = self._preview_label_surf.get_rect(center=self._preview_rect.center)
+        surface.blit(self._preview_label_surf, label_rect)
 
     def _draw_buttons(self, surface):
         """Render the Save and Cancel buttons in their current states.
