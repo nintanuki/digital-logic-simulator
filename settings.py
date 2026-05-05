@@ -146,27 +146,48 @@ class WireSettings:
 
 
 class SwitchSettings:
-    """Visual constants for the manual ON/OFF input source ('IN') component.
+    """Visual constants for the manual ON/OFF input toggle ('IN') component.
 
-    Switch is rendered as a circle that fills the bounding rect, color-coded
-    by toggle state. Border keeps it distinguishable against the background.
+    Switch is rendered as a horizontal sliding toggle: a rounded-rectangle
+    body with a knob that moves left (OFF / 0) or right (ON / 1). A state
+    label on the empty side of the knob shows the current value explicitly.
     """
-    SIZE = 60
-    OFF_COLOR = ColorSettings.WORD_COLORS["GRAY"]
-    ON_COLOR = ColorSettings.WORD_COLORS["GREEN"]
+    WIDTH = 80
+    HEIGHT = 44
+    KNOB_RADIUS = 16
+    KNOB_MARGIN = 6          # gap between knob center and body edge
+    BODY_CORNER = 10         # border_radius for the outer rounded rectangle
+    BODY_OFF_COLOR = (50, 50, 50)
+    BODY_ON_COLOR = (28, 65, 28)
+    TRACK_COLOR = (22, 22, 22)
+    TRACK_HEIGHT = 14
+    KNOB_OFF_COLOR = (140, 140, 140)
+    KNOB_ON_COLOR = (75, 185, 75)
     BORDER_COLOR = ColorSettings.WORD_COLORS["BLACK"]
     BORDER_THICKNESS = 2
+    LABEL_COLOR = (210, 210, 210)
 
 
 class LedSettings:
-    """Visual constants for the read-only output display ('OUT') component.
+    """Visual constants for the read-only output LED bulb ('OUT') component.
 
-    LED is rendered as a circle whose fill color follows the live state of
-    its single input port — bright when HIGH, dim when LOW.
+    LED is rendered as a light-bulb silhouette: a round globe with a small
+    rectangular base/lead below it. A wider glow ring appears around the
+    globe when the signal is HIGH.
     """
-    SIZE = 60
-    OFF_COLOR = ColorSettings.WORD_COLORS["GRAY"]
-    ON_COLOR = ColorSettings.WORD_COLORS["GREEN"]
+    SIZE = 60                  # bounding box stays square
+    BULB_RADIUS = 20
+    BULB_Y_OFFSET = 22         # bulb center = rect.y + BULB_Y_OFFSET
+    BASE_WIDTH = 18
+    BASE_HEIGHT = 10
+    BASE_Y_OFFSET = 46         # base rect.top = rect.y + BASE_Y_OFFSET
+    BASE_CORNER = 3
+    GLOW_EXTRA_RADIUS = 7      # glow circle radius = BULB_RADIUS + this
+    OFF_GLOBE_COLOR = (55, 55, 55)
+    ON_GLOBE_COLOR = (255, 220, 50)
+    OFF_BASE_COLOR = (40, 40, 40)
+    ON_BASE_COLOR = (175, 145, 25)
+    GLOW_COLOR = (255, 200, 30)
     BORDER_COLOR = ColorSettings.WORD_COLORS["BLACK"]
     BORDER_THICKNESS = 2
 

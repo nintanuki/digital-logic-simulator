@@ -135,13 +135,25 @@ net that lets them experiment without fear of losing work.
     are tracked. Save-as-component clears the history so stale object
     references can never resurface. Mouse-equivalent undo/redo buttons
     deferred to a future toolbar pass.)*
-  circles with different fill colors, which reads as "the same component
+- [x] **Switch / LED visual redesign.** Both are currently circles
+  with different fill colors, which reads as "the same component
   in two states" and confuses students. Redesign:
   - **Switch** as a physical toggle: rectangle with a sliding handle
     that visibly moves left/right (or up/down) when toggled, plus an
     ON/OFF label. Reads as "input you control."
   - **LED** as a bulb: circle with a base/lead silhouette so it reads as
     a bulb that's on or off. Maybe a halo/glow ring when HIGH.
+  *(Done 2026-05-05. Switch is now an 80×44 rounded-rectangle body with a
+  sliding knob (gray=OFF, green=ON) and a "0"/"1" state label on the
+  empty side of the knob. SwitchSettings replaced SIZE with WIDTH/HEIGHT
+  and added KNOB_RADIUS, KNOB_MARGIN, BODY_CORNER, plus body/track/knob
+  color constants. Switch.draw() overridden to suppress the center name
+  label. LED is now a bulb silhouette: a 20px-radius globe in the upper
+  portion of the 60×60 bounding rect, a small rounded-rectangle base
+  below it, and a warm-yellow glow ring around the globe when HIGH.
+  LedSettings replaced OFF/ON_COLOR with separate globe, base, and glow
+  color constants plus BULB_RADIUS, BULB_Y_OFFSET, BASE_*, GLOW_*
+  entries. LED.draw() overridden to suppress the center name label.)*
 - [ ] **Fix MENU button vs TEXT template visual confusion.** Both are
   small dark squares with a four-letter white label, so it's not obvious
   which is a control and which is a draggable component. Give MENU a

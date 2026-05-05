@@ -4,7 +4,79 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
-## 2026-05-04 02:10 UTC — Pass 2 safety + discoverability: undo/redo log + top hotkey strip
+## 2026-05-05 — Pass 2: Switch / LED visual redesign
+
+**File:** settings.py
+**Lines (at time of edit):** SwitchSettings + LedSettings class bodies
+**Before:**
+    class SwitchSettings:
+        SIZE = 60
+        OFF_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+        ON_COLOR  = ColorSettings.WORD_COLORS["GREEN"]
+        BORDER_COLOR = ...; BORDER_THICKNESS = 2
+
+    class LedSettings:
+        SIZE = 60
+        OFF_COLOR = ...; ON_COLOR = ...; BORDER_COLOR = ...; BORDER_THICKNESS = 2
+**After:**
+    class SwitchSettings:   # toggle sliding knob
+        WIDTH = 80; HEIGHT = 44; KNOB_RADIUS = 16; KNOB_MARGIN = 6
+        BODY_CORNER = 10
+        BODY_OFF_COLOR / BODY_ON_COLOR  (dark gray / dark green tint)
+        TRACK_COLOR; TRACK_HEIGHT = 14
+        KNOB_OFF_COLOR / KNOB_ON_COLOR  (gray / green)
+        BORDER_COLOR / BORDER_THICKNESS = 2
+        LABEL_COLOR = (210, 210, 210)
+
+    class LedSettings:      # bulb silhouette
+        SIZE = 60; BULB_RADIUS = 20; BULB_Y_OFFSET = 22
+        BASE_WIDTH = 18; BASE_HEIGHT = 10; BASE_Y_OFFSET = 46; BASE_CORNER = 3
+        GLOW_EXTRA_RADIUS = 7
+        OFF_GLOBE_COLOR / ON_GLOBE_COLOR (dark gray / warm yellow)
+        OFF_BASE_COLOR / ON_BASE_COLOR
+        GLOW_COLOR = (255, 200, 30)
+        BORDER_COLOR / BORDER_THICKNESS = 2
+**Why:** Both Switch and LED were circles that differed only by fill color,
+making them look like "the same component in two states." Giving Switch
+a distinct toggle affordance and LED a bulb silhouette makes their roles
+immediately legible.
+**Editor:** Claude Sonnet 4.6 (GitHub Copilot)
+
+**File:** elements.py
+**Lines (at time of edit):** Switch.__init__, Switch._on_click, Switch._draw_body,
+Switch.draw (new), LED.update_logic, LED._draw_body, LED.draw (new)
+**Before:**
+    class Switch(Component):
+        def __init__: size = SwitchSettings.SIZE; super().__init__(w=size, h=size)
+        def _draw_body: circle, color = ON_COLOR/OFF_COLOR
+
+    class LED(Component):
+        def _draw_body: circle, color = ON_COLOR/OFF_COLOR
+**After:**
+    class Switch(Component):
+        def __init__: super().__init__(w=SwitchSettings.WIDTH, h=SwitchSettings.HEIGHT)
+        def draw: ports + _draw_body + selection outline (no center name label)
+        def _draw_body:
+            - Rounded-rect background (BODY_ON/OFF_COLOR)
+            - Recessed horizontal track (TRACK_COLOR, TRACK_HEIGHT)
+            - Knob circle left (OFF) or right (ON); color KNOB_OFF/ON_COLOR
+            - "0" or "1" state label on the empty side of the knob (Fonts.port_label)
+
+    class LED(Component):
+        def draw: ports + _draw_body + selection outline (no center name label)
+        def _draw_body:
+            - Glow ring (GLOW_COLOR, radius = BULB_RADIUS + GLOW_EXTRA_RADIUS) when HIGH
+            - Globe circle (OFF/ON_GLOBE_COLOR, BULB_RADIUS) with border
+            - Base rect (OFF/ON_BASE_COLOR, BASE_WIDTH × BASE_HEIGHT) below globe
+**Why:** Implement the "Switch / LED visual redesign" Pass 2 bullet. Switch
+now has a sliding-knob affordance (80×44, knob travels left↔right) with a
+"0"/"1" label on the idle side. LED is a light-bulb silhouette: round globe
+(upper rect) + rectangular base (lower rect) + yellow glow ring when HIGH.
+Neither class renders the center name label anymore — the shapes speak for
+themselves. SwitchSettings.SIZE is gone; WIDTH and HEIGHT replace it.
+**Editor:** Claude Sonnet 4.6 (GitHub Copilot)
+
+
 
 **File:** commands.py
 **Date and Time:** 2026-05-04 02:10 UTC

@@ -309,11 +309,16 @@ class Switch(Component):
             x (int): Initial top-left x in screen coordinates.
             y (int): Initial top-left y in screen coordinates.
         """
-        size = SwitchSettings.SIZE
-        # Body label "IN" because, from a student's circuit-building point
-        # of view, this is an INPUT to the workspace. The class name
-        # "Switch" describes what it is; the body label describes its role.
-        super().__init__(x, y, width=size, height=size, name="IN")
+        # Body label "IN" is retained on the object so serialization and any
+        # future code that inspects the name still works, but Switch.draw()
+        # does not render it at the body center — the toggle shape itself
+        # communicates "input you control".
+        super().__init__(
+            x, y,
+            width=SwitchSettings.WIDTH,
+            height=SwitchSettings.HEIGHT,
+            name="IN",
+        )
         # Toggle state. Mirrored to the output port every frame by
         # update_logic so SignalManager can drive wires from it.
         self._state = False
@@ -341,23 +346,98 @@ class Switch(Component):
         """Flip the toggle state. Called when the user clicks without dragging."""
         self._state = not self._state
 
-    def _draw_body(self, surface):
-        """Render the switch as a colored circle reflecting toggle state.
+    def draw(self, surface):
+        """Render ports, toggle body, and selection outline — no name label.
+
+        The sliding-knob shape communicates the role clearly enough without
+        a redundant text label at the center.
 
         Args:
             surface (pygame.Surface): The surface to draw onto.
         """
-        body_color = SwitchSettings.ON_COLOR if self._state else SwitchSettings.OFF_COLOR
-        center = self.rect.center
-        radius = self.rect.width // 2
-        pygame.draw.circle(surface, body_color, center, radius)
-        pygame.draw.circle(
-            surface,
-            SwitchSettings.BORDER_COLOR,
-            center,
-            radius,
-            SwitchSettings.BORDER_THICKNESS,
+        for port in self.ports:
+            port.draw(surface)
+        self._draw_body(surface)
+        if self.selected:
+            highlight_rect = self.rect.inflate(8, 8)
+            pygame.draw.rect(
+                surface,
+                ComponentSettings.SELECTION_COLOR,
+                highlight_rect,
+                ComponentSettings.SELECTION_BORDER_THICKNESS,
+            )
+
+    def _draw_body(self, surface):
+        """Render the switch as a horizontal sliding toggle.
+
+        Background rounded rectangle + recessed track + sliding knob.
+        A state label ("1" or "0") is drawn on the empty side of the knob
+        so the current value is always explicit.
+
+        Args:
+            surface (pygame.Surface): The surface to draw onto.
+        """
+        r = self.rect
+        knob_r = SwitchSettings.KNOB_RADIUS
+        margin = SwitchSettings.KNOB_MARGIN
+
+        # Rounded-rectangle background
+        body_color = (
+            SwitchSettings.BODY_ON_COLOR if self._state
+            else SwitchSettings.BODY_OFF_COLOR
         )
+        pygame.draw.rect(
+            surface, body_color, r,
+            border_radius=SwitchSettings.BODY_CORNER,
+        )
+        pygame.draw.rect(
+            surface, SwitchSettings.BORDER_COLOR, r,
+            SwitchSettings.BORDER_THICKNESS,
+            border_radius=SwitchSettings.BODY_CORNER,
+        )
+
+        # Recessed track (horizontal groove)
+        th = SwitchSettings.TRACK_HEIGHT
+        track_rect = pygame.Rect(
+            r.x + margin + knob_r - 2,
+            r.centery - th // 2,
+            r.width - 2 * (margin + knob_r) + 4,
+            th,
+        )
+        pygame.draw.rect(
+            surface, SwitchSettings.TRACK_COLOR, track_rect,
+            border_radius=th // 2,
+        )
+
+        # Sliding knob
+        knob_cx = (
+            r.right - margin - knob_r if self._state
+            else r.x + margin + knob_r
+        )
+        knob_cy = r.centery
+        knob_color = (
+            SwitchSettings.KNOB_ON_COLOR if self._state
+            else SwitchSettings.KNOB_OFF_COLOR
+        )
+        pygame.draw.circle(surface, knob_color, (knob_cx, knob_cy), knob_r)
+        pygame.draw.circle(
+            surface, SwitchSettings.BORDER_COLOR, (knob_cx, knob_cy), knob_r, 1,
+        )
+
+        # State label on the empty side of the knob
+        if self._state:
+            # Knob is on the right; label goes in the center of the left half
+            label_text = "1"
+            label_cx = r.x + (knob_cx - knob_r - r.x) // 2
+        else:
+            # Knob is on the left; label goes in the center of the right half
+            label_text = "0"
+            label_cx = (knob_cx + knob_r + r.right) // 2
+        label_surf = Fonts.port_label.render(
+            label_text, True, SwitchSettings.LABEL_COLOR,
+        )
+        label_rect = label_surf.get_rect(center=(label_cx, knob_cy))
+        surface.blit(label_surf, label_rect)
 
 
 class LED(Component):
@@ -401,24 +481,78 @@ class LED(Component):
         """
         return
 
-    def _draw_body(self, surface):
-        """Render the LED as a colored circle reflecting INPUT live state.
+    def draw(self, surface):
+        """Render ports, bulb body, and selection outline — no name label.
+
+        The light-bulb silhouette communicates "output" clearly enough
+        without a text label overlapping the globe.
 
         Args:
             surface (pygame.Surface): The surface to draw onto.
         """
-        body_color = (
-            LedSettings.ON_COLOR if self.ports[0].live else LedSettings.OFF_COLOR
+        for port in self.ports:
+            port.draw(surface)
+        self._draw_body(surface)
+        if self.selected:
+            highlight_rect = self.rect.inflate(8, 8)
+            pygame.draw.rect(
+                surface,
+                ComponentSettings.SELECTION_COLOR,
+                highlight_rect,
+                ComponentSettings.SELECTION_BORDER_THICKNESS,
+            )
+
+    def _draw_body(self, surface):
+        """Render the LED as a light-bulb silhouette.
+
+        A round globe (circle) sits in the upper part of the bounding rect;
+        a small rectangular base/lead sits below it. When the input signal
+        is HIGH a wider glow ring is drawn behind the globe.
+
+        Args:
+            surface (pygame.Surface): The surface to draw onto.
+        """
+        r = self.rect
+        lit = self.ports[0].live
+
+        bulb_cx = r.centerx
+        bulb_cy = r.y + LedSettings.BULB_Y_OFFSET
+        bulb_radius = LedSettings.BULB_RADIUS
+
+        # Glow ring behind the globe when lit
+        if lit:
+            glow_r = bulb_radius + LedSettings.GLOW_EXTRA_RADIUS
+            pygame.draw.circle(
+                surface, LedSettings.GLOW_COLOR, (bulb_cx, bulb_cy), glow_r,
+            )
+
+        # Globe
+        globe_color = (
+            LedSettings.ON_GLOBE_COLOR if lit else LedSettings.OFF_GLOBE_COLOR
         )
-        center = self.rect.center
-        radius = self.rect.width // 2
-        pygame.draw.circle(surface, body_color, center, radius)
+        pygame.draw.circle(surface, globe_color, (bulb_cx, bulb_cy), bulb_radius)
         pygame.draw.circle(
-            surface,
-            LedSettings.BORDER_COLOR,
-            center,
-            radius,
-            LedSettings.BORDER_THICKNESS,
+            surface, LedSettings.BORDER_COLOR, (bulb_cx, bulb_cy),
+            bulb_radius, LedSettings.BORDER_THICKNESS,
+        )
+
+        # Base / lead below the globe
+        base_w = LedSettings.BASE_WIDTH
+        base_h = LedSettings.BASE_HEIGHT
+        base_rect = pygame.Rect(
+            bulb_cx - base_w // 2,
+            r.y + LedSettings.BASE_Y_OFFSET,
+            base_w,
+            base_h,
+        )
+        base_color = LedSettings.ON_BASE_COLOR if lit else LedSettings.OFF_BASE_COLOR
+        pygame.draw.rect(
+            surface, base_color, base_rect,
+            border_radius=LedSettings.BASE_CORNER,
+        )
+        pygame.draw.rect(
+            surface, LedSettings.BORDER_COLOR, base_rect, 1,
+            border_radius=LedSettings.BASE_CORNER,
         )
 
 
