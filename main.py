@@ -635,6 +635,12 @@ class GameManager:
     def _handle_mouse(self, event: pygame.event.Event) -> None:
         """Pass mouse events to the component manager or components directly."""
         self._prune_selection()
+        workspace_rect = pygame.Rect(
+            0,
+            TopMenuBarSettings.HEIGHT,
+            ScreenSettings.WIDTH,
+            UISettings.BANK_RECT.top - TopMenuBarSettings.HEIGHT,
+        )
 
         if event.type == pygame.MOUSEMOTION:
             self._sync_top_menu_hover_with_mouse(event.pos)
@@ -668,7 +674,7 @@ class GameManager:
 
         # Wires get the event before bank/components: a click that lands on a
         # port should start a wire, not drag the underlying component.
-        if self.wires.handle_event(event, self.components):
+        if self.wires.handle_event(event, self.components, workspace_rect):
             return
 
         before = len(self.components)

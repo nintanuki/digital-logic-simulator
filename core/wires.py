@@ -14,14 +14,26 @@ class Wire:
     WireManager normalizes orientation on commit.
     """
 
-    def __init__(self, source, target):
+    def __init__(self, source, target, points=None):
         """
         Args:
             source (Port): The OUTPUT port that drives this wire.
             target (Port): The INPUT port that receives this wire.
+            points (list[tuple[int, int]] | None): Optional intermediate
+                bend points in screen coordinates.
         """
         self.source = source
         self.target = target
+        self.points = list(points or [])
+
+    def _polyline_points(self):
+        """Return the full ordered point list for hit/draw operations.
+
+        Returns:
+            list[tuple[int, int]]: Source center, optional bend points,
+                then target center.
+        """
+        return [self.source.center, *self.points, self.target.center]
 
     def hit(self, pos):
         """Return True if pos is within HIT_THRESHOLD pixels of the segment.
@@ -35,24 +47,42 @@ class Wire:
         Returns:
             bool: True if the wire should be considered clicked.
         """
-        sx, sy = self.source.center
-        tx, ty = self.target.center
         px, py = pos
+        hit_threshold_sq = WireSettings.HIT_THRESHOLD ** 2
+        points = self._polyline_points()
+        for start, end in zip(points, points[1:]):
+            if self._distance_sq_to_segment((px, py), start, end) <= hit_threshold_sq:
+                return True
+        return False
+
+    @staticmethod
+    def _distance_sq_to_segment(pos, start, end):
+        """Return squared distance from pos to segment start-end.
+
+        Args:
+            pos (tuple[int, int]): Point being tested.
+            start (tuple[int, int]): Segment start.
+            end (tuple[int, int]): Segment end.
+
+        Returns:
+            float: Squared distance from pos to the closest point on segment.
+        """
+        px, py = pos
+        sx, sy = start
+        tx, ty = end
         dx, dy = tx - sx, ty - sy
         seg_len_sq = dx * dx + dy * dy
         if seg_len_sq == 0:
-            # Degenerate (zero-length) wire, e.g. both endpoints overlap.
             closest_x, closest_y = sx, sy
         else:
             t = ((px - sx) * dx + (py - sy) * dy) / seg_len_sq
             t = max(0.0, min(1.0, t))
             closest_x = sx + t * dx
             closest_y = sy + t * dy
-        dist_sq = (px - closest_x) ** 2 + (py - closest_y) ** 2
-        return dist_sq <= WireSettings.HIT_THRESHOLD ** 2
+        return (px - closest_x) ** 2 + (py - closest_y) ** 2
 
     def draw(self, surface):
-        """Render the wire as a straight line between its two endpoints.
+        """Render the wire as a polyline between its two endpoint ports.
 
         Wire color tracks the source port's live state so a HIGH signal
         reads continuously from the output port, through the wire, into
@@ -62,13 +92,9 @@ class Wire:
             surface (pygame.Surface): The surface to draw onto.
         """
         color = WireSettings.LIVE_COLOR if self.source.live else WireSettings.COLOR
-        pygame.draw.line(
-            surface,
-            color,
-            self.source.center,
-            self.target.center,
-            WireSettings.THICKNESS,
-        )
+        points = self._polyline_points()
+        if len(points) >= 2:
+            pygame.draw.lines(surface, color, False, points, WireSettings.THICKNESS)
 
 
 class WireManager:
@@ -86,6 +112,8 @@ class WireManager:
         # The OUTPUT/INPUT port the user grabbed when starting a wire, or
         # None when no drag is in flight. Used to draw the ghost line.
         self.pending_source = None
+        # Intermediate bend points for the sticky in-flight wire.
+        self.pending_points = []
         # Last-known cursor position so the ghost wire can extend to it
         # every frame even on frames without a fresh MOUSEMOTION.
         self.cursor_pos = (0, 0)
@@ -99,7 +127,7 @@ class WireManager:
     # EVENT HANDLING
     # -------------------------
 
-    def handle_event(self, event, components):
+    def handle_event(self, event, components, workspace_rect=None):
         """Try to consume a mouse event for wiring purposes.
 
         Args:
@@ -107,6 +135,9 @@ class WireManager:
             components (list[Component]): Workspace components whose ports
                 are valid wiring endpoints. Toolbox templates are excluded
                 deliberately — wiring from a template makes no sense.
+            workspace_rect (pygame.Rect | None): Optional workspace bounds.
+                During a sticky wire draw, a left-click in this rect adds a
+                bend point; left-clicks outside it cancel the in-flight wire.
 
         Returns:
             bool: True if the event was consumed and the caller should not
@@ -121,18 +152,44 @@ class WireManager:
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == InputSettings.LEFT_CLICK:
+                self.cursor_pos = event.pos
                 hit = self._port_at(event.pos, components)
+
+                if self.pending_source is None:
+                    if hit is not None:
+                        self.pending_source = hit
+                        self.pending_points = []
+                        return True
+                    return False
+
                 if hit is not None:
-                    self.pending_source = hit
-                    self.cursor_pos = event.pos
+                    if self._is_valid(self.pending_source, hit):
+                        new_wire, displaced = self._commit(
+                            self.pending_source,
+                            hit,
+                            self.pending_points,
+                        )
+                        if self.on_commit:
+                            self.on_commit(new_wire, displaced)
+                        self._cancel_pending_wire()
                     return True
+
+                if (workspace_rect is not None
+                        and workspace_rect.collidepoint(event.pos)
+                        and not self._component_at(event.pos, components)):
+                    if not self.pending_points or self.pending_points[-1] != event.pos:
+                        self.pending_points.append(event.pos)
+                    return True
+
+                self._cancel_pending_wire()
+                return True
             elif event.button == InputSettings.RIGHT_CLICK:
                 # Right-click during a drag cancels the in-flight wire,
                 # otherwise it tries to delete a committed wire under
                 # the cursor. Cancel takes precedence so a user mid-drag
                 # never accidentally deletes an unrelated wire.
                 if self.pending_source is not None:
-                    self.pending_source = None
+                    self._cancel_pending_wire()
                     return True
                 wire = self._wire_at(event.pos)
                 if wire is not None:
@@ -140,19 +197,6 @@ class WireManager:
                     if self.on_delete:
                         self.on_delete(wire)
                     return True
-
-        if event.type == pygame.MOUSEBUTTONUP:
-            if event.button == InputSettings.LEFT_CLICK and self.pending_source is not None:
-                target = self._port_at(event.pos, components)
-                if target is not None and self._is_valid(self.pending_source, target):
-                    new_wire, displaced = self._commit(self.pending_source, target)
-                    if self.on_commit:
-                        self.on_commit(new_wire, displaced)
-                # Whether or not the release landed on a valid port, the
-                # drag is over. Releasing on empty space silently cancels
-                # per the roadmap spec.
-                self.pending_source = None
-                return True
 
         return False
 
@@ -175,7 +219,7 @@ class WireManager:
         ]
         # Also cancel an in-flight wire whose source belonged to the component.
         if self.pending_source is not None and self.pending_source.parent is component:
-            self.pending_source = None
+            self._cancel_pending_wire()
 
     # -------------------------
     # RENDER
@@ -190,13 +234,19 @@ class WireManager:
         for wire in self.wires:
             wire.draw(surface)
         if self.pending_source is not None:
-            pygame.draw.line(
-                surface,
-                WireSettings.GHOST_COLOR,
+            preview_points = [
                 self.pending_source.center,
+                *self.pending_points,
                 self.cursor_pos,
-                WireSettings.THICKNESS,
-            )
+            ]
+            if len(preview_points) >= 2:
+                pygame.draw.lines(
+                    surface,
+                    WireSettings.GHOST_COLOR,
+                    False,
+                    preview_points,
+                    WireSettings.THICKNESS,
+                )
 
     # -------------------------
     # INTERNAL HELPERS
@@ -216,6 +266,22 @@ class WireManager:
             for port in comp.ports:
                 if port.rect.collidepoint(pos):
                     return port
+        return None
+
+    @staticmethod
+    def _component_at(pos, components):
+        """Return the top-most component containing pos, or None.
+
+        Args:
+            pos (tuple[int, int]): Cursor position in screen coordinates.
+            components (list[Component]): Workspace components to search.
+
+        Returns:
+            Component | None: Matching component body under the cursor.
+        """
+        for comp in reversed(components):
+            if comp.rect.collidepoint(pos):
+                return comp
         return None
 
     def _wire_at(self, pos):
@@ -252,7 +318,12 @@ class WireManager:
             return False
         return True
 
-    def _commit(self, a, b):
+    def _cancel_pending_wire(self):
+        """Reset sticky wire state for the current in-flight wire."""
+        self.pending_source = None
+        self.pending_points = []
+
+    def _commit(self, a, b, points=None):
         """Add a normalized Wire between a and b, replacing any prior input wire.
 
         Inputs may have at most one incoming connection, so any pre-existing
@@ -263,6 +334,8 @@ class WireManager:
         Args:
             a (Port): One endpoint of the new connection.
             b (Port): The other endpoint of the new connection.
+            points (list[tuple[int, int]] | None): Intermediate bend points
+                captured while routing a sticky wire.
 
         Returns:
             tuple[Wire, Wire | None]: The newly committed wire and the wire
@@ -272,6 +345,6 @@ class WireManager:
         target = b if a.direction == Port.OUTPUT else a
         displaced = next((w for w in self.wires if w.target is target), None)
         self.wires = [w for w in self.wires if w.target is not target]
-        new_wire = Wire(source, target)
+        new_wire = Wire(source, target, points=points)
         self.wires.append(new_wire)
         return new_wire, displaced

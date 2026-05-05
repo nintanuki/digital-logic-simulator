@@ -58,6 +58,79 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 16:11 UTC — Add sticky multi-segment wire routing
+
+**File:** core/wires.py
+**Date and Time:** 2026-05-05 16:11 UTC
+**Lines (at time of edit):** 17-97, 130-199, 228-247, 272-332 (modified)
+**Before:**
+    class Wire:
+        def __init__(self, source, target):
+            self.source = source
+            self.target = target
+
+        def hit(self, pos):
+            # point-to-single-segment distance source->target
+            ...
+
+        def draw(self, surface):
+            pygame.draw.line(surface, color, self.source.center, self.target.center, ...)
+
+    class WireManager:
+        def __init__(self):
+            self.pending_source = None
+
+        def handle_event(self, event, components):
+            # start on LEFT down, commit/cancel on LEFT up
+            ...
+**After:**
+    class Wire:
+        def __init__(self, source, target, points=None):
+            self.source = source
+            self.target = target
+            self.points = list(points or [])
+
+        def hit(self, pos):
+            # point-to-polyline distance across every segment
+            ...
+
+        def draw(self, surface):
+            pygame.draw.lines(surface, color, False, [source, *points, target], ...)
+
+    class WireManager:
+        def __init__(self):
+            self.pending_source = None
+            self.pending_points = []
+
+        def handle_event(self, event, components, workspace_rect=None):
+            # sticky mode: click port to start, click workspace to add bends,
+            # click valid port to commit, right-click/outside click to cancel
+            ...
+**Why:** Replaced hold-to-draw behavior with sticky routing so users can click
+to place bend segments in empty workspace and build flexible wire paths before
+committing to a target port.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 16:11 UTC
+**Lines (at time of edit):** 638-643, 677 (modified)
+**Before:**
+    if self.wires.handle_event(event, self.components):
+        return
+**After:**
+    workspace_rect = pygame.Rect(
+        0,
+        TopMenuBarSettings.HEIGHT,
+        ScreenSettings.WIDTH,
+        UISettings.BANK_RECT.top - TopMenuBarSettings.HEIGHT,
+    )
+    if self.wires.handle_event(event, self.components, workspace_rect):
+        return
+**Why:** Provides explicit workspace bounds to the wire manager so empty
+workspace clicks create routing segments while clicks outside the workspace
+cancel the in-flight sticky wire.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-05 12:01 UTC — Remove bottom hotkey bar and lower toolbox
 
 **File:** main.py
