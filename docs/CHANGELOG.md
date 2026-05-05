@@ -4,6 +4,50 @@ This file is an append-only record of every code change made to Circuit Builder
 by a human, AI assistant, or copilot tool. Read it before making changes so you
 know the current state of the codebase.
 
+## 2026-05-04 02:10 UTC — Pass 2 safety + discoverability: undo/redo log + top hotkey strip
+
+**File:** commands.py
+**Date and Time:** 2026-05-04 02:10 UTC
+**Lines (at time of edit):** 1-258 (new file)
+**Before:**
+    [No centralized command-history module; undo/redo behavior not
+    represented in changelog for users/reviewers.]
+**After:**
+    Added `History` (bounded two-stack undo/redo manager) and reversible
+    Action classes for component place/delete, wire place/delete, and text
+    box place/delete.
+**Why:** Implements Pass 2's safety net so users can recover from mistakes
+without rebuilding work from scratch.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-04 02:10 UTC
+**Lines (at time of edit):** 14-20 (imports), 84-103 (history wiring),
+334-349 (Ctrl+Z/Ctrl+Y/Ctrl+Shift+Z), 436-475 (hotkey strip helpers),
+522 (`_render_frame`)
+**Before:**
+    No in-app shortcut legend at the top of the screen; users had to infer
+    hotkeys from docs or source.
+**After:**
+    Added an old-school top shortcut strip (black bar, small white text)
+    rendered every frame with: UNDO/REDO, NAND spawn, TEXT spawn,
+    fullscreen, and Esc behavior.
+**Why:** Improves discoverability so users can see keyboard affordances in
+the running app instead of digging through code.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** settings.py
+**Date and Time:** 2026-05-04 02:10 UTC
+**Lines (at time of edit):** 65-75 (`ShortcutBarSettings`)
+**Before:**
+    [No dedicated constants for top hotkey strip styling/layout.]
+**After:**
+    Added `ShortcutBarSettings` (`HEIGHT`, `BG_COLOR`, `TEXT_COLOR`,
+    `BORDER_COLOR`, `PADDING_X`).
+**Why:** Keeps hotkey-strip styling centralized and avoids magic numbers in
+rendering code.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-04 01:08 UTC — Save clears workspace + reduce saved-wrapper flicker + VS Code pygame env fix
 
 **File:** main.py

@@ -62,6 +62,17 @@ class UISettings:
     BANK_PADDING_X = 20
     BANK_TEMPLATE_GAP = 20
 
+
+class ShortcutBarSettings:
+    """Visual constants for the top-of-screen hotkey hint strip."""
+
+    HEIGHT = 28
+    BG_COLOR = ColorSettings.WORD_COLORS["BLACK"]
+    TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    BORDER_COLOR = ColorSettings.WORD_COLORS["GRAY"]
+    PADDING_X = 8
+    ITEM_MIN_GAP = 12
+
 class AssetPaths:
     FONT = "assets/font/Pixeled.ttf"
     TV = "assets/graphics/tv.png"

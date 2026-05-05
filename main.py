@@ -99,6 +99,8 @@ class GameManager:
         self.text_boxes.on_delete = (
             lambda box, idx: self.history.push(DeleteTextBox(self.text_boxes, box, idx))
         )
+        # Pre-render static hotkey hint text once; blit each frame.
+        self._hotkey_hint_surfs = self._build_hotkey_bar_text_surfaces()
 
     # -------------------------
     # BOOT / LIFECYCLE
@@ -450,6 +452,64 @@ class GameManager:
             for port in tpl.ports:
                 port.hovered = port.rect.collidepoint(mouse_pos)
 
+    def _build_hotkey_bar_text_surfaces(self):
+        """Render and cache per-hint text surfaces for the top bar."""
+        hotkey_hints = (
+            "CTRL+Z UNDO",
+            "CTRL+Y REDO",
+            "N NAND",
+            "T TEXT",
+            "F11 FULLSCREEN",
+            "ESC MENU/QUIT",
+        )
+        font = Fonts.text_box
+        if font is None:
+            raise RuntimeError("Fonts.init() must run before hotkey bar text render")
+        return [
+            font.render(hint, True, ShortcutBarSettings.TEXT_COLOR)
+            for hint in hotkey_hints
+        ]
+
+    def _draw_hotkey_bar(self):
+        """Draw an old-school top status strip listing keyboard shortcuts."""
+        bar_rect = pygame.Rect(
+            0,
+            0,
+            ScreenSettings.WIDTH,
+            ShortcutBarSettings.HEIGHT,
+        )
+        pygame.draw.rect(self.screen, ShortcutBarSettings.BG_COLOR, bar_rect)
+        pygame.draw.line(
+            self.screen,
+            ShortcutBarSettings.BORDER_COLOR,
+            (0, bar_rect.bottom - 1),
+            (ScreenSettings.WIDTH, bar_rect.bottom - 1),
+            1,
+        )
+        hint_surfs = self._hotkey_hint_surfs
+        if not hint_surfs:
+            return
+
+        # Spread hint groups across the width while preserving a minimum gap.
+        total_width = sum(surf.get_width() for surf in hint_surfs)
+        gap_count = len(hint_surfs) - 1
+        available = ScreenSettings.WIDTH - 2 * ShortcutBarSettings.PADDING_X
+        if gap_count > 0:
+            gap = max(
+                ShortcutBarSettings.ITEM_MIN_GAP,
+                (available - total_width) // gap_count,
+            )
+        else:
+            gap = 0
+        content_width = total_width + gap * gap_count
+        x = max(ShortcutBarSettings.PADDING_X, (ScreenSettings.WIDTH - content_width) // 2)
+        for surf in hint_surfs:
+            text_rect = surf.get_rect()
+            text_rect.x = x
+            text_rect.centery = bar_rect.centery
+            self.screen.blit(surf, text_rect)
+            x += surf.get_width() + gap
+
     # -------------------------
     # PER-FRAME UPDATE / RENDER
     # -------------------------
@@ -503,6 +563,7 @@ class GameManager:
         self.screen.fill(ScreenSettings.BG_COLOR)
         self._draw_grid()
         self._draw()
+        self._draw_hotkey_bar()
         self.crt.draw()
 
     def run(self):
