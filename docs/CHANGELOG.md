@@ -58,6 +58,111 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 12:01 UTC — Remove bottom hotkey bar and lower toolbox
+
+**File:** main.py
+**Date and Time:** 2026-05-05 12:01 UTC
+**Lines (at time of edit):** 852-865, 1189-1196 (modified)
+**Before:**
+    def _draw_hotkey_bar(self):
+        ...
+    def _render_frame(self):
+        ...
+        self._draw_hotkey_bar()
+        self._draw_error_banner()
+**After:**
+    [Removed _draw_hotkey_bar]
+    def _render_frame(self):
+        ...
+        self.crt.draw()
+        self._draw_error_banner()
+**Why:** The bottom hint strip became obsolete after shortcut hints moved into
+the top menus, so the empty black bar was removed from rendering.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** settings.py
+**Date and Time:** 2026-05-05 12:01 UTC
+**Lines (at time of edit):** 10, 65-73, 83-92 (modified)
+**Before:**
+    HOTKEY_BAR_HEIGHT = 28
+    ...
+    BANK_RECT = pygame.Rect(
+        0,
+        ScreenSettings.HEIGHT - HOTKEY_BAR_HEIGHT - BANK_BOTTOM_GAP - BANK_HEIGHT,
+        ScreenSettings.WIDTH,
+        BANK_HEIGHT,
+    )
+    ...
+    class ShortcutBarSettings:
+        ...
+**After:**
+    [Removed HOTKEY_BAR_HEIGHT]
+    ...
+    BANK_RECT = pygame.Rect(
+        0,
+        ScreenSettings.HEIGHT - BANK_BOTTOM_GAP - BANK_HEIGHT,
+        ScreenSettings.WIDTH,
+        BANK_HEIGHT,
+    )
+    ...
+    [Removed ShortcutBarSettings]
+**Why:** Re-anchored the toolbox to the bottom edge and deleted unused shortcut
+bar constants/settings now that the bottom bar no longer exists.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-05 11:59 UTC — Move shortcut hints into top menus and underline EDIT/VIEW mnemonics
+
+**File:** settings.py
+**Date and Time:** 2026-05-05 11:59 UTC
+**Lines (at time of edit):** 110-111 (modified)
+**Before:**
+    FILE_UNDERLINE_THICKNESS = 2
+    FILE_UNDERLINE_BOTTOM_INSET = 6
+**After:**
+    FILE_UNDERLINE_THICKNESS = 2
+    FILE_UNDERLINE_BOTTOM_INSET = 6
+    SHORTCUT_TEXT_COLOR = (178, 178, 178)
+    SHORTCUT_HIGHLIGHT_TEXT_COLOR = (95, 95, 95)
+**Why:** Added centralized constants for lighter popup shortcut hint colors in
+normal and highlighted menu states.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 11:59 UTC
+**Lines (at time of edit):** 88-117, 640-644, 852-906, 1017-1128 (modified)
+**Before:**
+    self._hotkey_hints = (
+        ("CTRL+Z=UNDO", "undo"),
+        ("CTRL+Y=REDO", "redo"),
+        ("T=TEXT", "text"),
+        ("F11=FULLSCREEN", "fullscreen"),
+        ("ESC=QUIT", "quit"),
+    )
+    ...
+    if menu_id == "file":
+        # Underline only the leading F ...
+    ...
+    self.screen.blit(surf, (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y))
+**After:**
+    file_shortcuts = {"quit": "ESC"}
+    ...
+    "items": (("undo", "UNDO", "CTRL+Z"), ("redo", "REDO", "CTRL+Y"))
+    "items": (("toggle_fullscreen", "TOGGLE FULLSCREEN", "F11"),)
+    ...
+    # Underline each menu's mnemonic letter (first character).
+    label_text = self._top_menu_defs[menu_id]["label"]
+    ...
+    shortcut_rect.right = popup_right
+    shortcut_rect.centery = rect.centery
+
+    def _draw_hotkey_bar(self):
+        """Draw a bottom status strip without inline shortcut labels."""
+**Why:** Removed bottom shortcut hint text and click handling, then moved
+shortcut hints into the top context menu rows with right-aligned, lighter hint
+text (e.g. QUIT ... ESC). Also added mnemonic underlines for EDIT and VIEW to
+match FILE's keyboard-affordance style.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-05 13:09 UTC — Add EDIT and VIEW to top menu bar
 
 **File:** settings.py

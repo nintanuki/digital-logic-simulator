@@ -85,28 +85,24 @@ class GameManager:
         text_font = Fonts.text_box
         if text_font is None:
             raise RuntimeError("Fonts.init() must run before UI text render")
-        # Pre-render static hotkey hint text once; blit each frame.
-        self._hotkey_hints = (
-            ("CTRL+Z=UNDO", "undo"),
-            ("CTRL+Y=REDO", "redo"),
-            ("T=TEXT", "text"),
-            ("F11=FULLSCREEN", "fullscreen"),
-            ("ESC=QUIT", "quit"),
-        )
-        self._hotkey_hint_surfs = self._build_hotkey_bar_text_surfaces()
-        self._hotkey_hint_rects = []
+        file_shortcuts = {
+            "quit": "ESC",
+        }
         self._top_menu_order = ("file", "edit", "view")
         self._top_menu_defs = {
             "file": {
                 "label": TopMenuBarSettings.FILE_LABEL,
-                "items": MenuButtonSettings.ITEMS,
+                "items": tuple(
+                    (item_id, label, file_shortcuts.get(item_id, ""))
+                    for item_id, label in MenuButtonSettings.ITEMS
+                ),
                 "actions": self._menu_actions,
             },
             "edit": {
                 "label": TopMenuBarSettings.EDIT_LABEL,
                 "items": (
-                    ("undo", "UNDO"),
-                    ("redo", "REDO"),
+                    ("undo", "UNDO", "CTRL+Z"),
+                    ("redo", "REDO", "CTRL+Y"),
                 ),
                 "actions": {
                     "undo": self.history.undo,
@@ -116,7 +112,7 @@ class GameManager:
             "view": {
                 "label": TopMenuBarSettings.VIEW_LABEL,
                 "items": (
-                    ("toggle_fullscreen", "TOGGLE FULLSCREEN"),
+                    ("toggle_fullscreen", "TOGGLE FULLSCREEN", "F11"),
                 ),
                 "actions": {
                     "toggle_fullscreen": pygame.display.toggle_fullscreen,
@@ -640,10 +636,6 @@ class GameManager:
         """Pass mouse events to the component manager or components directly."""
         self._prune_selection()
 
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.LEFT_CLICK:
-            if self._handle_hotkey_hint_click(event.pos):
-                return
-
         if event.type == pygame.MOUSEMOTION:
             self._sync_top_menu_hover_with_mouse(event.pos)
 
@@ -857,78 +849,8 @@ class GameManager:
             self._set_selected_components(selected)
             self._cancel_marquee()
 
-    def _build_hotkey_bar_text_surfaces(self):
-        """Render and cache per-hint text surfaces for the bottom bar."""
-        font = Fonts.text_box
-        if font is None:
-            raise RuntimeError("Fonts.init() must run before hotkey bar text render")
-        return [
-            font.render(hint, True, ShortcutBarSettings.TEXT_COLOR)
-            for hint, _action_id in self._hotkey_hints
-        ]
-
-    def _run_hotkey_hint_action(self, action_id):
-        """Execute a hotkey-bar action as if its keyboard shortcut was used."""
-        if action_id == "undo":
-            self.history.undo()
-            return
-        if action_id == "redo":
-            self.history.redo()
-            return
-        if action_id == "text":
-            self.text_boxes.spawn_at(pygame.mouse.get_pos())
-            return
-        if action_id == "fullscreen":
-            pygame.display.toggle_fullscreen()
-            return
-        if action_id == "quit":
-            if pygame.display.get_surface().get_flags() & pygame.FULLSCREEN:
-                pygame.display.toggle_fullscreen()
-                return
-            self._show_quit_confirm()
-
-    def _handle_hotkey_hint_click(self, pos):
-        """Run a hotkey action when its rendered hint text is clicked."""
-        for rect, (_label, action_id) in zip(self._hotkey_hint_rects, self._hotkey_hints):
-            if rect.collidepoint(pos):
-                self._run_hotkey_hint_action(action_id)
-                return True
-        return False
-
-    def _draw_hotkey_bar(self):
-        """Draw an old-school bottom status strip listing keyboard shortcuts."""
-        bar_rect = pygame.Rect(
-            0,
-            ScreenSettings.HEIGHT - ShortcutBarSettings.HEIGHT,
-            ScreenSettings.WIDTH,
-            ShortcutBarSettings.HEIGHT,
-        )
-        pygame.draw.rect(self.screen, ShortcutBarSettings.BG_COLOR, bar_rect)
-        pygame.draw.line(
-            self.screen,
-            ShortcutBarSettings.BORDER_COLOR,
-            (0, bar_rect.top),
-            (ScreenSettings.WIDTH, bar_rect.top),
-            1,
-        )
-        hint_surfs = self._hotkey_hint_surfs
-        if not hint_surfs:
-            return
-        self._hotkey_hint_rects = []
-
-        # Left-aligned flow with fixed spacing between hint groups.
-        x = ShortcutBarSettings.LEFT_PADDING_X
-        item_gap = max(ShortcutBarSettings.PADDING_X, ShortcutBarSettings.ITEM_MIN_GAP)
-        for surf in hint_surfs:
-            text_rect = surf.get_rect()
-            text_rect.x = round(x)
-            text_rect.centery = bar_rect.centery
-            self.screen.blit(surf, text_rect)
-            self._hotkey_hint_rects.append(text_rect.copy())
-            x += surf.get_width() + item_gap
-
     def _build_top_menu_item_surfaces(self):
-        """Render and cache all top-menu item labels once at startup."""
+        """Render and cache per-item label/shortcut surfaces for top menus."""
         font = Fonts.text_box
         if font is None:
             raise RuntimeError("Fonts.init() must run before top menu text render")
@@ -936,14 +858,25 @@ class GameManager:
         for menu_id in self._top_menu_order:
             actions = self._top_menu_defs[menu_id]["actions"]
             menu_surfs[menu_id] = [
-                font.render(
-                    label,
-                    True,
-                    MenuButtonSettings.ITEM_ENABLED_COLOR
-                    if actions.get(item_id) is not None
-                    else MenuButtonSettings.ITEM_DISABLED_COLOR,
-                )
-                for item_id, label in self._top_menu_defs[menu_id]["items"]
+                {
+                    "label": font.render(
+                        label,
+                        True,
+                        MenuButtonSettings.ITEM_ENABLED_COLOR
+                        if actions.get(item_id) is not None
+                        else MenuButtonSettings.ITEM_DISABLED_COLOR,
+                    ),
+                    "shortcut": (
+                        font.render(
+                            shortcut,
+                            True,
+                            TopMenuBarSettings.SHORTCUT_TEXT_COLOR,
+                        )
+                        if shortcut
+                        else None
+                    ),
+                }
+                for item_id, label, shortcut in self._top_menu_defs[menu_id]["items"]
             ]
         return menu_surfs
 
@@ -1018,7 +951,7 @@ class GameManager:
         """Return index of first menu item with a wired action."""
         menu_items = self._top_menu_defs[menu_id]["items"]
         menu_actions = self._top_menu_defs[menu_id]["actions"]
-        for index, (item_id, _label) in enumerate(menu_items):
+        for index, (item_id, _label, _shortcut) in enumerate(menu_items):
             if menu_actions.get(item_id) is not None:
                 return index
         return 0
@@ -1031,7 +964,7 @@ class GameManager:
         menu_actions = self._top_menu_defs[self._active_top_menu_id]["actions"]
         enabled_indices = [
             index
-            for index, (item_id, _label) in enumerate(menu_items)
+            for index, (item_id, _label, _shortcut) in enumerate(menu_items)
             if menu_actions.get(item_id) is not None
         ]
         if not enabled_indices:
@@ -1050,7 +983,7 @@ class GameManager:
         if not menu_items:
             self._close_top_menu()
             return
-        item_id, _label = menu_items[self._top_menu_hover_index]
+        item_id, _label, _shortcut = menu_items[self._top_menu_hover_index]
         action = self._top_menu_defs[self._active_top_menu_id]["actions"].get(item_id)
         if action is None:
             return
@@ -1102,9 +1035,10 @@ class GameManager:
             label_rect = label_surf.get_rect(center=rect.center)
             self.screen.blit(label_surf, label_rect)
 
-            if menu_id == "file":
-                # Underline only the leading F to mimic a classic mnemonic affordance.
-                f_width = text_font.size("F")[0]
+            # Underline each menu's mnemonic letter (first character).
+            label_text = self._top_menu_defs[menu_id]["label"]
+            if label_text:
+                mnemonic_width = text_font.size(label_text[0])[0]
                 underline_y = (
                     rect.bottom - TopMenuBarSettings.FILE_UNDERLINE_BOTTOM_INSET
                 )
@@ -1118,7 +1052,7 @@ class GameManager:
                     self.screen,
                     underline_color,
                     (underline_x0, underline_y),
-                    (underline_x0 + f_width, underline_y),
+                    (underline_x0 + mnemonic_width, underline_y),
                     TopMenuBarSettings.FILE_UNDERLINE_THICKNESS,
                 )
 
@@ -1142,19 +1076,40 @@ class GameManager:
             return
         menu_items = self._top_menu_defs[self._active_top_menu_id]["items"]
         item_surfs = self._top_menu_item_surfs[self._active_top_menu_id]
-        for index, (rect, surf) in enumerate(zip(self._top_menu_item_rects[self._active_top_menu_id], item_surfs)):
+        popup_right = popup_rect.right - MenuButtonSettings.ITEM_PADDING_X
+        for index, (rect, surf_set) in enumerate(zip(self._top_menu_item_rects[self._active_top_menu_id], item_surfs)):
+            label_surf = surf_set["label"]
+            shortcut_surf = surf_set["shortcut"]
             if index == self._top_menu_hover_index:
                 pygame.draw.rect(self.screen, COLOR_MENU_HIGHLIGHT, rect)
-                _item_id, label = menu_items[index]
+                _item_id, label, shortcut = menu_items[index]
                 selected_surf = text_font.render(label, True, COLOR_MENU_HIGHLIGHT_TEXT)
                 label_y = rect.y + (rect.height - selected_surf.get_height()) // 2
                 self.screen.blit(
                     selected_surf,
                     (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y),
                 )
+                if shortcut:
+                    selected_shortcut_surf = text_font.render(
+                        shortcut,
+                        True,
+                        TopMenuBarSettings.SHORTCUT_HIGHLIGHT_TEXT_COLOR,
+                    )
+                    shortcut_rect = selected_shortcut_surf.get_rect()
+                    shortcut_rect.right = popup_right
+                    shortcut_rect.centery = rect.centery
+                    self.screen.blit(selected_shortcut_surf, shortcut_rect)
                 continue
-            label_y = rect.y + (rect.height - surf.get_height()) // 2
-            self.screen.blit(surf, (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y))
+            label_y = rect.y + (rect.height - label_surf.get_height()) // 2
+            self.screen.blit(
+                label_surf,
+                (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y),
+            )
+            if shortcut_surf is not None:
+                shortcut_rect = shortcut_surf.get_rect()
+                shortcut_rect.right = popup_right
+                shortcut_rect.centery = rect.centery
+                self.screen.blit(shortcut_surf, shortcut_rect)
 
     # -------------------------
     # PER-FRAME UPDATE / RENDER
@@ -1238,7 +1193,6 @@ class GameManager:
         self._draw()
         self._draw_top_menu_bar()
         self.crt.draw()
-        self._draw_hotkey_bar()
         # Error banner draws after the CRT overlay so it's always legible.
         self._draw_error_banner()
 

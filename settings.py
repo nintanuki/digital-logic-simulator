@@ -7,8 +7,7 @@ COLOR_TOOLBOX_BG = (45, 45, 48)
 TOOLBOX_BG_COLOR = COLOR_TOOLBOX_BG
 COLOR_MENU_HIGHLIGHT = (255, 255, 255)
 COLOR_MENU_HIGHLIGHT_TEXT = (0, 0, 0)
-HOTKEY_BAR_HEIGHT = 28
-TOP_MENU_BAR_HEIGHT = 34
+TOP_MENU_BAR_HEIGHT = 40
 
 class ColorSettings:
     WORD_COLORS = {
@@ -65,10 +64,10 @@ class UISettings:
     BANK_HEIGHT = 100
     BANK_COLOR = TOOLBOX_BG_COLOR
     BANK_LINE_COLOR = (100, 100, 100)
-    # Toolbox sits above the bottom hotkey bar with a small visual gap.
+    # Toolbox is anchored to the bottom edge of the screen.
     BANK_RECT = pygame.Rect(
         0,
-        ScreenSettings.HEIGHT - HOTKEY_BAR_HEIGHT - BANK_BOTTOM_GAP - BANK_HEIGHT,
+        ScreenSettings.HEIGHT - BANK_BOTTOM_GAP - BANK_HEIGHT,
         ScreenSettings.WIDTH,
         BANK_HEIGHT,
     )
@@ -78,18 +77,6 @@ class UISettings:
     BANK_PADDING_X = 20
     BANK_TEMPLATE_GAP = 20
     BANK_LED_SHIFT_X = 10
-
-
-class ShortcutBarSettings:
-    """Visual constants for the bottom-of-screen hotkey hint strip."""
-
-    HEIGHT = HOTKEY_BAR_HEIGHT
-    BG_COLOR = COLOR_BAR_BG
-    TEXT_COLOR = COLOR_BAR_TEXT
-    BORDER_COLOR = ColorSettings.WORD_COLORS["GRAY"]
-    LEFT_PADDING_X = 8
-    PADDING_X = 30
-    ITEM_MIN_GAP = 12
 
 
 class TopMenuBarSettings:
@@ -106,7 +93,9 @@ class TopMenuBarSettings:
     VIEW_LABEL = "VIEW"
     FILE_HIGHLIGHT_BG = COLOR_MENU_HIGHLIGHT
     FILE_UNDERLINE_THICKNESS = 2
-    FILE_UNDERLINE_BOTTOM_INSET = 2
+    FILE_UNDERLINE_BOTTOM_INSET = 6
+    SHORTCUT_TEXT_COLOR = (178, 178, 178)
+    SHORTCUT_HIGHLIGHT_TEXT_COLOR = (95, 95, 95)
 
 
 class ErrorBannerSettings:
