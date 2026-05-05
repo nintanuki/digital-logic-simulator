@@ -130,21 +130,88 @@ class _NameField:
         return (elapsed % DS.NAME_CARET_BLINK_MS) < half
 
 
+class _RgbField:
+    """Single-line numeric field for one RGB channel (0-255)."""
+
+    def __init__(self, x, y, initial_value):
+        self.rect = pygame.Rect(x, y, DS.RGB_FIELD_WIDTH, DS.RGB_FIELD_HEIGHT)
+        self.text = str(initial_value)
+        self.focused = False
+        self._focus_tick = 0
+
+    def hit(self, pos):
+        return self.rect.collidepoint(pos)
+
+    def focus(self):
+        self.focused = True
+        self._focus_tick = pygame.time.get_ticks()
+
+    def blur(self):
+        self.focused = False
+
+    def handle_key(self, event):
+        if event.key == pygame.K_BACKSPACE:
+            self.text = self.text[:-1]
+        elif event.unicode and event.unicode.isdigit():
+            if len(self.text) >= DS.RGB_MAX_LENGTH:
+                return
+            self.text += event.unicode
+        else:
+            return
+        self._focus_tick = pygame.time.get_ticks()
+
+    def parsed_value(self):
+        if not self.text:
+            return None
+        value = int(self.text)
+        if value < 0 or value > 255:
+            return None
+        return value
+
+    def draw(self, surface):
+        pygame.draw.rect(surface, DS.RGB_FIELD_BG, self.rect)
+        border = (DS.RGB_FIELD_BORDER_FOCUSED
+                  if self.focused else DS.RGB_FIELD_BORDER)
+        pygame.draw.rect(surface, border, self.rect, 1)
+        font = Fonts.text_box
+        text_x = self.rect.x + DS.RGB_FIELD_PADDING_X
+        text_y = self.rect.y + (self.rect.height - font.get_height()) // 2
+        if not self.text and not self.focused:
+            surf = font.render(DS.RGB_FIELD_PLACEHOLDER, True,
+                               DS.RGB_FIELD_PLACEHOLDER_COLOR)
+            surface.blit(surf, (text_x, text_y))
+        elif self.text:
+            surf = font.render(self.text, True, DS.RGB_FIELD_TEXT_COLOR)
+            surface.blit(surf, (text_x, text_y))
+        if self.focused and self._caret_visible():
+            text_w = font.size(self.text)[0]
+            caret_x = text_x + text_w
+            pygame.draw.rect(
+                surface,
+                DS.RGB_FIELD_TEXT_COLOR,
+                pygame.Rect(caret_x, text_y,
+                            DS.NAME_CARET_WIDTH, font.get_height()),
+            )
+
+    def _caret_visible(self):
+        elapsed = pygame.time.get_ticks() - self._focus_tick
+        half = DS.NAME_CARET_BLINK_MS // 2
+        return (elapsed % DS.NAME_CARET_BLINK_MS) < half
+
+
 class SaveComponentDialog:
     """Modal "Save as Component" dialog opened from the bottom-left popup.
 
-    Pass 1 step 1 (v2) — minimum-viable scope:
-      * single-line name field (uppercase, capped at NAME_MAX_LENGTH)
-      * Save / Cancel buttons; Save stays disabled until the name is
-        non-empty after stripping whitespace
+        Current scope:
+            * single-line name field (uppercase, capped at NAME_MAX_LENGTH)
+            * three numeric RGB fields (0-255) for wrapper color
+            * Save / Cancel buttons; Save stays disabled until name + RGB are valid
 
-    Whatever Switches and LEDs are in the workspace at save time
-    become the new component's INPUT and OUTPUT ports — the dialog
-    itself never asks the user to pick or order them. Auto-inference
-    happens in `GameManager._finalize_save_as_component` (which sees
-    the live workspace), not here, so the dialog stays decoupled from
-    component types. See TODO's "Save-as-Component port inference
-    rule" entry for the ordering logic.
+    Whatever Switches and LEDs are in the workspace at save time become
+    the new component's INPUT and OUTPUT ports. Auto-inference happens
+    in `GameManager._finalize_save_as_component` (which sees the live
+    workspace), not here, so the dialog stays decoupled from component
+    types.
 
     Modal: while the dialog is open it consumes every mouse and
     keyboard event so the workspace beneath it is paused. Esc
@@ -159,12 +226,13 @@ class SaveComponentDialog:
         """Lay out the dialog and its sub-widgets centered on the screen.
 
         Args:
-            on_save (Callable[[str], None]): Called with the trimmed
-                uppercase name when the user clicks the enabled Save
-                button. The dialog itself does not dismiss after Save —
-                the caller is expected to dispose of the dialog as part
-                of finalize so close-vs-stay-open stays the caller's
-                policy, not the dialog's.
+            on_save (Callable[[str, tuple[int, int, int]], None]):
+                Called with trimmed uppercase name and selected RGB color
+                when the user clicks the enabled Save button. The dialog
+                itself does not dismiss after Save — the caller is
+                expected to dispose of the dialog as part of finalize so
+                close-vs-stay-open stays the caller's policy, not the
+                dialog's.
             on_cancel (Callable[[], None]): Called with no args when the
                 user clicks Cancel or presses Esc.
         """
@@ -187,24 +255,56 @@ class SaveComponentDialog:
         )
         self._backdrop.fill(DS.BACKDROP_COLOR)
         self._backdrop.set_alpha(DS.BACKDROP_ALPHA)
-        # Lay out the (small) widget set top-to-bottom inside the
-        # dialog body. Title at top-left of the inner padding; name
-        # field below it; Save/Cancel anchored to the bottom-right so
-        # any earlier-section size tweak doesn't shove them off-rect.
+        # Two-panel layout: compact left for name/actions, right for RGB.
+        self._left_panel = pygame.Rect(
+            self.rect.x + DS.PADDING,
+            self.rect.y + DS.PADDING,
+            DS.LEFT_PANEL_WIDTH,
+            DS.HEIGHT - 2 * DS.PADDING,
+        )
+        right_x = self._left_panel.right + DS.PANEL_GAP
+        right_width = self.rect.right - DS.PADDING - right_x
+        self._right_panel = pygame.Rect(
+            right_x,
+            self.rect.y + DS.PADDING,
+            right_width,
+            DS.HEIGHT - 2 * DS.PADDING,
+        )
+
+        # Left panel widgets.
         cursor_y = self.rect.y + DS.PADDING
-        self._title_pos = (self.rect.x + DS.PADDING, cursor_y)
+        self._title_pos = (self._left_panel.x, cursor_y)
         cursor_y += self._title_surf.get_height() + DS.SECTION_GAP
-        inner_width = DS.WIDTH - 2 * DS.PADDING
+        inner_width = self._left_panel.width
         self._name_field = _NameField(
-            self.rect.x + DS.PADDING, cursor_y, inner_width,
+            self._left_panel.x, cursor_y, inner_width,
         )
         # Make typing immediate when the dialog opens.
         self._name_field.focus()
-        # Buttons: Save right-edge primary, Cancel to its left.
-        button_y = (self.rect.bottom
-                    - DS.PADDING - DS.BUTTON_HEIGHT)
+
+        # Right panel widgets.
+        self._rgb_title_surf = Fonts.text_box.render(
+            DS.RGB_TITLE, True, DS.RGB_LABEL_COLOR,
+        )
+        self._rgb_range_surf = Fonts.text_box.render(
+            DS.RGB_RANGE_LABEL, True, DS.RGB_SUBTEXT_COLOR,
+        )
+        self._rgb_label_surfs = [
+            Fonts.text_box.render(label, True, DS.RGB_LABEL_COLOR)
+            for label in ("R", "G", "B")
+        ]
+        rgb_start_y = self._right_panel.y + self._rgb_title_surf.get_height() + DS.SECTION_GAP
+        default_r, default_g, default_b = DS.DEFAULT_RGB
+        self._rgb_fields = [
+            _RgbField(self._right_panel.x + 18, rgb_start_y + 0 * (DS.RGB_FIELD_HEIGHT + DS.RGB_FIELD_GAP), default_r),
+            _RgbField(self._right_panel.x + 18, rgb_start_y + 1 * (DS.RGB_FIELD_HEIGHT + DS.RGB_FIELD_GAP), default_g),
+            _RgbField(self._right_panel.x + 18, rgb_start_y + 2 * (DS.RGB_FIELD_HEIGHT + DS.RGB_FIELD_GAP), default_b),
+        ]
+
+        # Buttons: Save right-edge of left panel, Cancel to its left.
+        button_y = self._left_panel.bottom - DS.BUTTON_HEIGHT
         self._save_rect = pygame.Rect(
-            self.rect.right - DS.PADDING - DS.BUTTON_WIDTH,
+            self._left_panel.right - DS.BUTTON_WIDTH,
             button_y,
             DS.BUTTON_WIDTH, DS.BUTTON_HEIGHT,
         )
@@ -233,15 +333,19 @@ class SaveComponentDialog:
     def _is_save_enabled(self):
         """Return True if the form is in a valid save state.
 
-        Save requires only that the name is non-empty after stripping
-        whitespace. Inputs/outputs are not the dialog's concern in v2 —
-        they're auto-inferred by the manager from the workspace at
-        save time.
+        Save requires a non-empty trimmed name and valid RGB values.
 
         Returns:
             bool: True if Save should be clickable this frame.
         """
-        return bool(self._name_field.text.strip())
+        return bool(self._name_field.text.strip()) and self._current_color() is not None
+
+    def _current_color(self):
+        """Return current RGB tuple if valid, otherwise None."""
+        parsed = [field.parsed_value() for field in self._rgb_fields]
+        if any(value is None for value in parsed):
+            return None
+        return tuple(parsed)
 
     # -------------------------
     # EVENT HANDLING
@@ -285,6 +389,11 @@ class SaveComponentDialog:
             return
         if self._name_field.focused:
             self._name_field.handle_key(event)
+            return
+        for field in self._rgb_fields:
+            if field.focused:
+                field.handle_key(event)
+                return
 
     def _handle_left_click(self, pos):
         """Route a left-click to the right widget inside the dialog body.
@@ -298,19 +407,32 @@ class SaveComponentDialog:
         """
         if self._save_rect.collidepoint(pos):
             if self._is_save_enabled():
-                self._on_save(self._name_field.text.strip())
+                self._on_save(self._name_field.text.strip(), self._current_color())
             return
         if self._cancel_rect.collidepoint(pos):
             self._on_cancel()
             return
         if self._name_field.hit(pos):
+            for field in self._rgb_fields:
+                field.blur()
             self._name_field.focus()
             return
+        for field in self._rgb_fields:
+            if field.hit(pos):
+                self._name_field.blur()
+                for other in self._rgb_fields:
+                    if other is field:
+                        other.focus()
+                    else:
+                        other.blur()
+                return
         # Click on dialog body but not on any widget: drop focus from
         # the name field so a stray click on padding can't leave the
         # caret blinking. Clicks fully outside the dialog body are
         # also handled by this path (modal — no fall-through).
         self._name_field.blur()
+        for field in self._rgb_fields:
+            field.blur()
 
     # -------------------------
     # RENDER
@@ -327,8 +449,22 @@ class SaveComponentDialog:
         pygame.draw.rect(surface, DS.BORDER_COLOR, self.rect,
                          DS.BORDER_THICKNESS)
         surface.blit(self._title_surf, self._title_pos)
+        self._draw_right_panel(surface)
         self._name_field.draw(surface)
         self._draw_buttons(surface)
+
+    def _draw_right_panel(self, surface):
+        """Render RGB labels and channel fields on the dialog's right side."""
+        surface.blit(self._rgb_title_surf, (self._right_panel.x, self._right_panel.y))
+        range_y = self._right_panel.y + self._rgb_title_surf.get_height() + 2
+        surface.blit(self._rgb_range_surf, (self._right_panel.x + 26, range_y))
+
+        for i, field in enumerate(self._rgb_fields):
+            label_surf = self._rgb_label_surfs[i]
+            label_x = self._right_panel.x
+            label_y = field.rect.y + (field.rect.height - label_surf.get_height()) // 2
+            surface.blit(label_surf, (label_x, label_y))
+            field.draw(surface)
 
     def _draw_buttons(self, surface):
         """Render the Save and Cancel buttons in their current states.

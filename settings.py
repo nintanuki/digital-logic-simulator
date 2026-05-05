@@ -287,14 +287,9 @@ class SaveComponentDialogSettings:
     """Visual + interaction constants for the SAVE AS COMPONENT dialog.
 
     A small modal panel that opens from the bottom-left popup's SAVE AS
-    COMPONENT item. Pass 1 step 1 (v2): the dialog asks for a name and
-    nothing else. Whatever Switches/LEDs are in the workspace at save
-    time become the new component's INPUT/OUTPUT ports — see TODO's
-    "Save-as-Component port inference rule" Risks & Notes entry for the
-    ordering rule (ascending Y). Color choice, truth-table auto-detect,
-    and the "you discovered NAND!" celebration are deferred to Pass 3.
-    The earlier picker-based v1 was scrapped after a first-light test
-    showed the picker UI added friction without value in the common case.
+    COMPONENT item. The left side captures the saved component name and
+    save/cancel actions; the right side captures explicit RGB values for
+    the wrapper body color.
 
     Modal: while the dialog is open it consumes every mouse + keyboard
     event so the workspace beneath is paused (mirrors how text-box
@@ -303,20 +298,18 @@ class SaveComponentDialogSettings:
     easy to lose accidentally, unlike the bottom-left popup where
     click-outside-cancels is fine because there's no in-flight work.
     """
-    # Centered on the screen. Width is sized to fit the title plus a
-    # comfortable name field; height fits title + name field + button
-    # row with PADDING around each. Smaller than v1 because the picker
-    # columns are gone — keeping the old 520x400 footprint would leave
-    # the dialog mostly empty space and read as overdesigned for the
-    # one input it actually wants.
-    WIDTH = 420
-    HEIGHT = 200
+    # Centered on the screen. Left panel stays compact for name/buttons;
+    # right panel hosts three stacked RGB fields.
+    WIDTH = 500
+    HEIGHT = 220
     BODY_COLOR = (40, 40, 40)
     BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     BORDER_THICKNESS = 2
     PADDING = 16
     # Vertical gap between the title and the name field.
     SECTION_GAP = 12
+    PANEL_GAP = 14
+    LEFT_PANEL_WIDTH = 250
 
     # Title
     TITLE = "SAVE AS COMPONENT"
@@ -336,6 +329,24 @@ class SaveComponentDialogSettings:
     NAME_MAX_LENGTH = 24
     NAME_CARET_BLINK_MS = 1000
     NAME_CARET_WIDTH = 2
+
+    # RGB fields (right panel)
+    RGB_TITLE = "RGB"
+    RGB_RANGE_LABEL = "RANGE 0-255"
+    RGB_LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    RGB_SUBTEXT_COLOR = (160, 160, 160)
+    RGB_FIELD_WIDTH = 78
+    RGB_FIELD_HEIGHT = 30
+    RGB_FIELD_GAP = 10
+    RGB_FIELD_BG = NAME_FIELD_BG
+    RGB_FIELD_BORDER = NAME_FIELD_BORDER
+    RGB_FIELD_BORDER_FOCUSED = NAME_FIELD_BORDER_FOCUSED
+    RGB_FIELD_TEXT_COLOR = NAME_FIELD_TEXT_COLOR
+    RGB_FIELD_PLACEHOLDER = "RGB"
+    RGB_FIELD_PLACEHOLDER_COLOR = NAME_FIELD_PLACEHOLDER_COLOR
+    RGB_FIELD_PADDING_X = 8
+    RGB_MAX_LENGTH = 3
+    DEFAULT_RGB = ColorSettings.WORD_COLORS["MEDIUM_CARMINE"]
 
     # Save / Cancel buttons
     BUTTON_WIDTH = 120

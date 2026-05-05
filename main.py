@@ -3,7 +3,6 @@ from __future__ import annotations
 import pygame
 import sys
 from copy import deepcopy
-import random
 
 from elements import Component, LED, SavedComponent, Switch
 from fonts import Fonts
@@ -137,7 +136,7 @@ class GameManager:
             on_cancel=self._dismiss_dialog,
         )
 
-    def _finalize_save_as_component(self, name):
+    def _finalize_save_as_component(self, name, color):
         """Auto-infer ports from the workspace, stash the record, dismiss.
 
         Per the "Save-as-Component port inference rule" in TODO Risks &
@@ -158,6 +157,8 @@ class GameManager:
         Args:
             name (str): Saved component's display name (uppercase,
                 already trimmed by the dialog).
+            color (tuple[int, int, int]): Saved wrapper body color from
+                the dialog's RGB fields.
         """
         # `sorted(...)` returns a fresh list; the workspace's own
         # `self.components` ordering is left alone so the user's
@@ -176,7 +177,7 @@ class GameManager:
         )
         record = {
             "name": name,
-            "color": random.choice(ColorSettings.SAVED_COMPONENT_COLORS),
+            "color": color,
             "inputs": input_switches,
             "outputs": output_leds,
             "definition": definition,
