@@ -1,24 +1,24 @@
 from __future__ import annotations
 
-import json
 import os
 import pygame
 import sys
 import traceback as _traceback
 from copy import deepcopy
+from typing import Tuple
 
 from core.elements import Component, LED, SavedComponent, Switch
-from fonts import Fonts
-from ui.project_dialogs import FileNotFoundWarningDialog, LoadProjectDialog, SaveProjectDialog
-from ui.save_component_dialog import SaveComponentDialog
-from ui.quit_confirm_dialog import QuitConfirmDialog
-from settings import *
-
-_PROJECTS_DIR = os.path.join(os.path.dirname(__file__), "projects")
+from core.project_manager import ProjectManager
 from core.signals import SignalManager
-from ui.text_boxes import TextBoxManager
+from fonts import Fonts
 from ui.bank import ComponentBank
 from ui.crt import CRT
+from ui.project_dialogs import FileNotFoundWarningDialog, LoadProjectDialog, SaveProjectDialog
+from ui.quit_confirm_dialog import QuitConfirmDialog
+from ui.save_as_component_handler import SaveAsComponentHandler
+from ui.save_component_dialog import SaveComponentDialog
+from ui.text_boxes import TextBoxManager
+from ui.top_menu_bar import TopMenuBar
 from core.wires import WireManager
 from core.commands import (
     History,
@@ -26,9 +26,19 @@ from core.commands import (
     PlaceWire, DeleteWire,
     PlaceTextBox, DeleteTextBox,
 )
+from settings import *
+
+_PROJECTS_DIR = os.path.join(os.path.dirname(__file__), "projects")
 
 
 class GameManager:
+    """Main game manager coordinating all gameplay systems.
+    
+    Manages the game loop, event handling, rendering, and high-level state.
+    Delegates menu, project, and component-specific logic to handler classes
+    to keep this class light and focused on orchestration.
+    """
+    
     def __init__(self):
         # -------- Pygame core --------
         pygame.init()
@@ -40,36 +50,32 @@ class GameManager:
         self.clock = pygame.time.Clock()
         self.crt = CRT(self.screen)
 
+        # -------- UI state --------
         self.text_boxes = TextBoxManager()
-        # Active modal dialog, or None.
         self.dialog = None
-        # In-session only; disk persistence is Pass 3.
-        self.saved_components = []
-        # Name of the currently loaded/saved project, or None for a fresh unsaved project.
-        self._current_project_name: str | None = None
-        self._menu_actions = {
-            "new_project": self._new_project,
-            "load_project": self._open_load_project_dialog,
-            "save_project": self._save_project,
-            "save_project_as": self._open_save_as_dialog,
-            "save_as_component": self.save_as_component,
-            "quit": self.close_game,
-        }
         self.bank = ComponentBank(self.text_boxes)
+        
+        # -------- Workspace state --------
         self.components = []
         self.wires = WireManager()
         self.signals = SignalManager()
+        self.saved_components = []
         self.selected_components = []
+        
+        # -------- Selection/drag state --------
         self._marquee_start = None
         self._marquee_end = None
         self._group_drag_anchor = None
         self._group_drag_start_positions = {}
         self._group_drag_moved = False
         self._click_candidate_component = None
-
+        
+        # -------- Handlers --------
+        self.project_manager = ProjectManager(_PROJECTS_DIR)
+        self._current_project_name: str | None = None
+        
         # -------- Undo / redo --------
         self.history = History()
-        # Lambdas kept here so command objects reference self.* without coupling subsystems to commands.py.
         self.wires.on_commit = (
             lambda wire, displaced: self.history.push(PlaceWire(self.wires, wire, displaced))
         )
@@ -82,21 +88,30 @@ class GameManager:
         self.text_boxes.on_delete = (
             lambda box, idx: self.history.push(DeleteTextBox(self.text_boxes, box, idx))
         )
-        text_font = Fonts.text_box
-        if text_font is None:
-            raise RuntimeError("Fonts.init() must run before UI text render")
-        file_shortcuts = {
-            "quit": "ESC",
-        }
-        self._top_menu_order = ("file", "edit", "view")
-        self._top_menu_defs = {
+        
+        # -------- Menu bar (must be after history) --------
+        self._setup_menu_bar()
+        
+        # Error banner display state
+        self._error_info = None
+    
+    def _setup_menu_bar(self):
+        """Initialize the top menu bar with FILE/EDIT/VIEW menus."""
+        menu_defs = {
             "file": {
                 "label": TopMenuBarSettings.FILE_LABEL,
                 "items": tuple(
-                    (item_id, label, file_shortcuts.get(item_id, ""))
+                    (item_id, label, "ESC" if item_id == "quit" else "")
                     for item_id, label in MenuButtonSettings.ITEMS
                 ),
-                "actions": self._menu_actions,
+                "actions": {
+                    "new_project": self._new_project,
+                    "load_project": self._open_load_project_dialog,
+                    "save_project": self._save_project,
+                    "save_project_as": self._open_save_as_dialog,
+                    "save_as_component": self.save_as_component,
+                    "quit": self.close_game,
+                },
             },
             "edit": {
                 "label": TopMenuBarSettings.EDIT_LABEL,
@@ -119,33 +134,7 @@ class GameManager:
                 },
             },
         }
-        self._top_menu_label_surfs = {
-            menu_id: text_font.render(
-                self._top_menu_defs[menu_id]["label"],
-                True,
-                TopMenuBarSettings.TEXT_COLOR,
-            )
-            for menu_id in self._top_menu_order
-        }
-        self._top_menu_label_surfs_highlight = {
-            menu_id: text_font.render(
-                self._top_menu_defs[menu_id]["label"],
-                True,
-                COLOR_MENU_HIGHLIGHT_TEXT,
-            )
-            for menu_id in self._top_menu_order
-        }
-        self._top_menu_item_surfs = self._build_top_menu_item_surfaces()
-        self._active_top_menu_id = None
-        self._top_menu_hover_index = 0
-        self._top_menu_button_rects = {}
-        self._top_menu_popup_rects = {}
-        self._top_menu_item_rects = {}
-        self._rebuild_top_menu_geometry()
-        # Recoverable-error state. Set to (exc_type_name, message, timestamp_ms)
-        # by the per-frame try/except in run(); cleared automatically after
-        # ErrorBannerSettings.DISPLAY_MS so it only flashes briefly.
-        self._error_info = None
+        self.top_menu_bar = TopMenuBar(self.screen, menu_defs)
 
     # -------------------------
     # BOOT / LIFECYCLE
@@ -160,58 +149,41 @@ class GameManager:
     # GAMEPLAY ACTIONS
     # -------------------------
 
-    def save_as_component(self):
+    def save_as_component(self) -> None:
         """Open the SAVE AS COMPONENT dialog.
-
-        Bound into the bottom-left popup's menu_actions for the SAVE AS
-        COMPONENT label. The dialog itself only collects the name; the
-        workspace snapshot (switches → INPUTs, LEDs → OUTPUTs, both
-        ordered by Y) happens here in `_finalize_save_as_component` at
-        Save time. Reading the workspace at finalize is safe because
-        the dialog is modal — events that could mutate `self.components`
-        are blocked while the dialog is open.
+        
+        Bound into the FILE menu. The dialog collects the component name and
+        color; workspace snapshot happens in _finalize_save_as_component at
+        Save time. Reading the workspace at finalize is safe because the
+        dialog is modal — events that could mutate components are blocked.
+        
+        Returns:
+            None
         """
         self.dialog = SaveComponentDialog(
             on_save=self._finalize_save_as_component,
             on_cancel=self._dismiss_dialog,
         )
 
-    def _finalize_save_as_component(self, name, color):
+    def _finalize_save_as_component(self, name: str, color: Tuple[int, int, int]) -> None:
         """Auto-infer ports from the workspace, stash the record, dismiss.
-
-        Per the "Save-as-Component port inference rule" in TODO Risks &
-        Notes: every Switch in the workspace becomes an INPUT port and
-        every LED becomes an OUTPUT port; ordering is ascending Y so
-        the top-of-screen IN is port 0, the next one down is port 1,
-        and so on. Y was picked over component-creation-order because
-        the visual top-to-bottom column is what the student actually
-        sees — picking the order from something invisible would break
-        the spatial intuition.
-
-        Pass 1 step 1 (v2) keeps this stub minimal: capture the
-        inferred record and dismiss. Pass 1 step 2 (toolbox template)
-        will consume `saved_components` to materialize each record as
-        a clickable bank template, and step 3 (spawn-as-working-
-        component) will turn that template into a usable sub-circuit.
-
+        
+        Per the "Save-as-Component port inference rule": every Switch in the
+        workspace becomes an INPUT port and every LED becomes an OUTPUT port;
+        ordering is ascending Y so the top-of-screen IN is port 0, the next one
+        down is port 1, and so on.
+        
         Args:
-            name (str): Saved component's display name (uppercase,
-                already trimmed by the dialog).
-            color (tuple[int, int, int]): Saved wrapper body color from
-                the dialog's RGB fields.
+            name: Saved component's display name (uppercase, already trimmed).
+            color: Saved wrapper body color (RGB tuple).
+        
+        Returns:
+            None
         """
-        # `sorted(...)` returns a fresh list; the workspace's own
-        # `self.components` ordering is left alone so the user's
-        # bottom-of-stack drag/draw priority isn't disturbed.
-        input_switches = sorted(
-            (c for c in self.components if isinstance(c, Switch)),
-            key=lambda s: s.rect.y,
-        )
-        output_leds = sorted(
-            (c for c in self.components if isinstance(c, LED)),
-            key=lambda l: l.rect.y,
-        )
-        definition = self._snapshot_workspace_definition(
+        input_switches, output_leds = SaveAsComponentHandler.infer_component_ports(self.components)
+        definition = SaveAsComponentHandler.snapshot_workspace_definition(
+            self.components,
+            self.wires.wires,
             input_switches,
             output_leds,
         )
@@ -231,12 +203,15 @@ class GameManager:
         self._clear_workspace()
         self._dismiss_dialog()
 
-    def _clear_workspace(self):
+    def _clear_workspace(self) -> None:
         """Reset the live workspace to an empty canvas.
 
         Clears placed components, committed/pending wires, and text-box
         annotations. Used after Save-as-Component so the student can start
         the next abstraction layer immediately.
+        
+        Returns:
+            None
         """
         self.components.clear()
         self.wires.wires.clear()
@@ -250,103 +225,28 @@ class GameManager:
         # it so undo can't resurrect objects from the previous workspace.
         self.history.clear()
 
-    def _snapshot_workspace_definition(self, input_switches, output_leds):
-        """Serialize the current workspace into a saved-component definition.
-
-        Args:
-            input_switches (list[Switch]): Switches selected as external inputs.
-            output_leds (list[LED]): LEDs selected as external outputs.
-
-        Returns:
-            dict: Serialized sub-circuit payload for SavedComponent runtime.
-        """
-        component_indices = {
-            comp: idx for idx, comp in enumerate(self.components)
-        }
-        component_defs = [
-            self._serialize_component(comp) for comp in self.components
-        ]
-        wire_defs = []
-        for wire in self.wires.wires:
-            source_parent = wire.source.parent
-            target_parent = wire.target.parent
-            if source_parent not in component_indices:
-                continue
-            if target_parent not in component_indices:
-                continue
-            wire_defs.append({
-                "source_component_index": component_indices[source_parent],
-                "source_port_index": source_parent.ports.index(wire.source),
-                "target_component_index": component_indices[target_parent],
-                "target_port_index": target_parent.ports.index(wire.target),
-            })
-        return {
-            "components": component_defs,
-            "wires": wire_defs,
-            "input_component_indices": [
-                component_indices[switch]
-                for switch in input_switches
-                if switch in component_indices
-            ],
-            "output_component_indices": [
-                component_indices[led]
-                for led in output_leds
-                if led in component_indices
-            ],
-        }
-
-    @staticmethod
-    def _serialize_component(comp):
-        """Serialize one workspace component into a definition record.
-
-        Args:
-            comp (Component): Component instance to serialize.
-
-        Returns:
-            dict: Serialized component payload.
-        """
-        if isinstance(comp, Switch):
-            return {
-                "type": "switch",
-                "x": comp.rect.x,
-                "y": comp.rect.y,
-                "state": comp._state,
-            }
-        if isinstance(comp, LED):
-            return {
-                "type": "led",
-                "x": comp.rect.x,
-                "y": comp.rect.y,
-            }
-        if isinstance(comp, SavedComponent):
-            return {
-                "type": "saved_component",
-                "x": comp.rect.x,
-                "y": comp.rect.y,
-                "name": comp.name,
-                "color": list(comp.color),
-                "definition": deepcopy(comp.definition),
-            }
-        return {
-            "type": "nand",
-            "x": comp.rect.x,
-            "y": comp.rect.y,
-        }
-
     # -------------------------
     # PROJECT SAVE / LOAD
     # -------------------------
 
-    def _save_project(self):
-        """Save directly if a project name is already set; otherwise open Save As."""
+    def _save_project(self) -> None:
+        """Save directly if a project name is already set; otherwise open Save As.
+        
+        Returns:
+            None
+        """
         if self._current_project_name is not None:
             self._finalize_save_project(self._current_project_name)
         else:
             self._open_save_as_dialog()
 
-    def _open_save_as_dialog(self):
-        """Open the SAVE AS dialog (list of existing projects + name input)."""
-        existing = self._list_project_names()
+    def _open_save_as_dialog(self) -> None:
+        """Open the SAVE AS dialog (list of existing projects + name input).
+        
+        Returns:
+            None
+        """
+        existing = self.project_manager.list_project_names()
         self.dialog = SaveProjectDialog(
             existing_names=existing,
             on_save=self._finalize_save_project,
@@ -354,85 +254,43 @@ class GameManager:
         )
 
     # Keep old name as alias so any future callers still work.
-    def _open_save_project_dialog(self):
+    def _open_save_project_dialog(self) -> None:
+        """Alias for _open_save_as_dialog for backward compatibility."""
         self._open_save_as_dialog()
 
-    def _finalize_save_project(self, name):
-        """Serialize the workspace to projects/<name>.json and remember the name."""
-        os.makedirs(_PROJECTS_DIR, exist_ok=True)
-        safe_name = "".join(
-            c if c.isalnum() or c in (" ", "-", "_") else "_" for c in name
-        ).strip()
-        payload = self._serialize_project(safe_name)
-        path = os.path.join(_PROJECTS_DIR, safe_name + ".json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
-        self._current_project_name = safe_name
+    def _finalize_save_project(self, name: str) -> None:
+        """Serialize the workspace to projects/<name>.json and remember the name.
+        
+        Args:
+            name: Project name to save as.
+        """
+        workspace_data = ProjectManager.serialize_workspace(
+            name,
+            self.components,
+            self.wires.wires,
+            self.text_boxes.text_boxes,
+            self.saved_components,
+        )
+        self._current_project_name = self.project_manager.save_project(name, workspace_data)
         self._dismiss_dialog()
 
-    def _serialize_project(self, name):
-        """Return a JSON-serializable dict for the entire current workspace."""
-        component_indices = {comp: idx for idx, comp in enumerate(self.components)}
-        component_defs = [self._serialize_component(comp) for comp in self.components]
-        wire_defs = []
-        for wire in self.wires.wires:
-            src = wire.source.parent
-            tgt = wire.target.parent
-            if src not in component_indices or tgt not in component_indices:
-                continue
-            wire_defs.append({
-                "source_component_index": component_indices[src],
-                "source_port_index": src.ports.index(wire.source),
-                "target_component_index": component_indices[tgt],
-                "target_port_index": tgt.ports.index(wire.target),
-            })
-        text_box_defs = [
-            {"x": tb.rect.x, "y": tb.rect.y, "text": tb.text}
-            for tb in self.text_boxes.text_boxes
-        ]
-        saved_component_defs = [
-            {
-                "name": rec["name"],
-                "color": list(rec["color"]),
-                "definition": deepcopy(rec["definition"]),
-            }
-            for rec in self.saved_components
-        ]
-        return {
-            "version": 1,
-            "name": name,
-            "components": component_defs,
-            "wires": wire_defs,
-            "text_boxes": text_box_defs,
-            "saved_components": saved_component_defs,
-        }
-
-    def _open_load_project_dialog(self):
+    def _open_load_project_dialog(self) -> None:
         """Open the LOAD PROJECT dialog listing all saved projects."""
-        names = self._list_project_names()
+        names = self.project_manager.list_project_names()
         self.dialog = LoadProjectDialog(
             project_names=names,
             on_load=self._finalize_load_project,
             on_cancel=self._dismiss_dialog,
         )
 
-    def _list_project_names(self):
-        """Return sorted list of project names available on disk."""
-        if not os.path.isdir(_PROJECTS_DIR):
-            return []
-        names = []
-        for filename in os.listdir(_PROJECTS_DIR):
-            if filename.lower().endswith(".json"):
-                names.append(os.path.splitext(filename)[0])
-        return sorted(names)
-
-    def _finalize_load_project(self, safe_name):
-        """Load a project from disk and replace the current workspace."""
-        path = os.path.join(_PROJECTS_DIR, safe_name + ".json")
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                payload = json.load(f)
-        except FileNotFoundError:
+    def _finalize_load_project(self, safe_name: str) -> None:
+        """Load a project from disk and replace the current workspace.
+        
+        Args:
+            safe_name: Sanitized project name to load.
+        """
+        payload = self.project_manager.load_project(safe_name)
+        if payload is None:
             self._dismiss_dialog()
             self.dialog = FileNotFoundWarningDialog(
                 on_dismiss=self._dismiss_dialog,
@@ -440,74 +298,16 @@ class GameManager:
             return
         self._dismiss_dialog()
         self._current_project_name = safe_name
-        self._load_project_payload(payload)
+        ProjectManager.deserialize_workspace(
+            payload,
+            self.components,
+            self.wires,
+            self.text_boxes,
+            self.bank,
+            self.saved_components,
+        )
 
-    def _load_project_payload(self, payload):
-        """Reconstruct the workspace from a serialized project dict."""
-        self._clear_workspace()
-
-        # Reset the saved-component library and bank templates so loading
-        # twice doesn't accumulate duplicate toolbox entries.
-        self.saved_components.clear()
-        self.bank._templates_and_spawners = self.bank._build_templates()
-
-        # Restore saved-component library first so spawned SavedComponents
-        # in the workspace exist in the bank toolbox.
-        for rec in payload.get("saved_components", []):
-            definition = rec["definition"]
-            color = tuple(rec["color"])
-            name = rec["name"]
-            self.saved_components.append({
-                "name": name,
-                "color": color,
-                "definition": definition,
-            })
-            self.bank.add_saved_component_template(name, color, deepcopy(definition))
-
-        # Restore components.
-        for comp_def in payload.get("components", []):
-            comp = self._deserialize_component(comp_def)
-            self.components.append(comp)
-
-        # Restore wires.
-        from core.wires import Wire
-        for wire_def in payload.get("wires", []):
-            src_comp = self.components[wire_def["source_component_index"]]
-            tgt_comp = self.components[wire_def["target_component_index"]]
-            src_port = src_comp.ports[wire_def["source_port_index"]]
-            tgt_port = tgt_comp.ports[wire_def["target_port_index"]]
-            self.wires.wires.append(Wire(src_port, tgt_port))
-
-        # Restore text boxes.
-        for tb_def in payload.get("text_boxes", []):
-            tb = self.text_boxes.spawn_at(
-                (tb_def["x"], tb_def["y"]), focus=False
-            )
-            if tb is not None:
-                tb.text = tb_def.get("text", "")
-                tb._layout_to_text()
-
-    @staticmethod
-    def _deserialize_component(comp_def):
-        """Build a workspace Component from a serialized record."""
-        comp_type = comp_def["type"]
-        if comp_type == "switch":
-            comp = Switch(comp_def["x"], comp_def["y"])
-            comp._state = comp_def.get("state", False)
-            return comp
-        if comp_type == "led":
-            return LED(comp_def["x"], comp_def["y"])
-        if comp_type == "saved_component":
-            return SavedComponent(
-                comp_def["x"],
-                comp_def["y"],
-                comp_def["name"],
-                tuple(comp_def["color"]),
-                comp_def["definition"],
-            )
-        return Component(comp_def["x"], comp_def["y"])
-
-    def _new_project(self):
+    def _new_project(self) -> None:
         """Clear the workspace to start a fresh project."""
         self._clear_workspace()
         # Also reset the in-session saved-components library and bank templates.
@@ -552,7 +352,7 @@ class GameManager:
                 continue
 
             # Top menu captures focus while open.
-            if self._active_top_menu_id is not None:
+            if self.top_menu_bar.is_menu_open():
                 if event.type == pygame.KEYDOWN:
                     self._handle_keydown(event)
                     continue
@@ -576,21 +376,27 @@ class GameManager:
                 self._handle_mouse(event)
 
     def _handle_keydown(self, event: pygame.event.Event) -> None:
-        """Route a single keyboard press."""
+        """Route a single keyboard press.
+        
+        Args:
+            event: Pygame keyboard event.
+        """
         self._prune_selection()
         mods = pygame.key.get_mods()
-        if self._active_top_menu_id is not None:
+        if self.top_menu_bar.is_menu_open():
             if event.key == pygame.K_DOWN:
-                self._move_top_menu_selection(1)
+                self.top_menu_bar.move_selection(1)
                 return
             if event.key == pygame.K_UP:
-                self._move_top_menu_selection(-1)
+                self.top_menu_bar.move_selection(-1)
                 return
             if event.key == pygame.K_RETURN:
-                self._activate_top_menu_selection()
+                action = self.top_menu_bar.activate_selection()
+                if action is not None:
+                    action()
                 return
             if event.key == pygame.K_ESCAPE:
-                self._close_top_menu()
+                self.top_menu_bar.close_menu()
                 return
 
         if event.key in (pygame.K_f, pygame.K_e, pygame.K_v) and not (mods & (pygame.KMOD_CTRL | pygame.KMOD_ALT)):
@@ -599,7 +405,7 @@ class GameManager:
                 pygame.K_e: "edit",
                 pygame.K_v: "view",
             }[event.key]
-            self._toggle_top_menu(menu_id)
+            self.top_menu_bar.toggle_menu(menu_id)
             return
 
         if event.key == pygame.K_z and (mods & pygame.KMOD_CTRL):
@@ -633,7 +439,11 @@ class GameManager:
             self.text_boxes.spawn_at(pygame.mouse.get_pos())
 
     def _handle_mouse(self, event: pygame.event.Event) -> None:
-        """Pass mouse events to the component manager or components directly."""
+        """Pass mouse events to the component manager or components directly.
+        
+        Args:
+            event: Pygame mouse event.
+        """
         self._prune_selection()
         workspace_rect = pygame.Rect(
             0,
@@ -643,22 +453,22 @@ class GameManager:
         )
 
         if event.type == pygame.MOUSEMOTION:
-            self._sync_top_menu_hover_with_mouse(event.pos)
+            self.top_menu_bar.sync_hover_with_mouse(event.pos)
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.LEFT_CLICK:
-            clicked_top_menu_id = self._top_menu_id_at(event.pos)
+            clicked_top_menu_id = self.top_menu_bar.menu_id_at_pos(event.pos)
             if clicked_top_menu_id is not None:
-                self._toggle_top_menu(clicked_top_menu_id)
+                self.top_menu_bar.toggle_menu(clicked_top_menu_id)
                 return
-            if self._active_top_menu_id is not None:
-                popup_rect = self._top_menu_popup_rects[self._active_top_menu_id]
-                if popup_rect.collidepoint(event.pos):
-                    index = self._top_menu_index_at(event.pos)
-                    if index is not None:
-                        self._top_menu_hover_index = index
-                        self._activate_top_menu_selection()
+            if self.top_menu_bar.is_menu_open():
+                index = self.top_menu_bar.menu_item_index_at_pos(event.pos)
+                if index is not None:
+                    self.top_menu_bar.move_selection(0)  # Align keyboard selection with mouse
+                    action = self.top_menu_bar.activate_selection()
+                    if action is not None:
+                        action()
                     return
-                self._close_top_menu()
+                self.top_menu_bar.close_menu()
                 return
 
         if event.type == pygame.MOUSEMOTION:
@@ -855,268 +665,6 @@ class GameManager:
             self._set_selected_components(selected)
             self._cancel_marquee()
 
-    def _build_top_menu_item_surfaces(self):
-        """Render and cache per-item label/shortcut surfaces for top menus."""
-        font = Fonts.text_box
-        if font is None:
-            raise RuntimeError("Fonts.init() must run before top menu text render")
-        menu_surfs = {}
-        for menu_id in self._top_menu_order:
-            actions = self._top_menu_defs[menu_id]["actions"]
-            menu_surfs[menu_id] = [
-                {
-                    "label": font.render(
-                        label,
-                        True,
-                        MenuButtonSettings.ITEM_ENABLED_COLOR
-                        if actions.get(item_id) is not None
-                        else MenuButtonSettings.ITEM_DISABLED_COLOR,
-                    ),
-                    "shortcut": (
-                        font.render(
-                            shortcut,
-                            True,
-                            TopMenuBarSettings.SHORTCUT_TEXT_COLOR,
-                        )
-                        if shortcut
-                        else None
-                    ),
-                }
-                for item_id, label, shortcut in self._top_menu_defs[menu_id]["items"]
-            ]
-        return menu_surfs
-
-    def _rebuild_top_menu_geometry(self):
-        """Build top-menu button and popup geometry for FILE/EDIT/VIEW."""
-        x = 0
-        for menu_id in self._top_menu_order:
-            label_surf = self._top_menu_label_surfs[menu_id]
-            button_rect = pygame.Rect(
-                x,
-                0,
-                label_surf.get_width() + TopMenuBarSettings.PADDING_X * 2,
-                TopMenuBarSettings.HEIGHT,
-            )
-            self._top_menu_button_rects[menu_id] = button_rect
-            items = self._top_menu_defs[menu_id]["items"]
-            popup_rect = pygame.Rect(
-                button_rect.left,
-                TopMenuBarSettings.HEIGHT,
-                MenuButtonSettings.POPUP_WIDTH,
-                len(items) * MenuButtonSettings.ITEM_HEIGHT,
-            )
-            self._top_menu_popup_rects[menu_id] = popup_rect
-            self._top_menu_item_rects[menu_id] = [
-                pygame.Rect(
-                    popup_rect.left,
-                    popup_rect.top + index * MenuButtonSettings.ITEM_HEIGHT,
-                    popup_rect.width,
-                    MenuButtonSettings.ITEM_HEIGHT,
-                )
-                for index in range(len(items))
-            ]
-            x = button_rect.right + TopMenuBarSettings.MENU_GAP_X
-
-    def _toggle_top_menu(self, menu_id):
-        """Toggle a top menu, switching menus when a different one is clicked."""
-        if self._active_top_menu_id == menu_id:
-            self._close_top_menu()
-            return
-        self._active_top_menu_id = menu_id
-        self._top_menu_hover_index = self._first_enabled_top_menu_index(menu_id)
-
-    def _close_top_menu(self):
-        """Close active top menu and return focus to workspace."""
-        self._active_top_menu_id = None
-
-    def _top_menu_id_at(self, pos):
-        """Return the top-menu id whose button contains pos, else None."""
-        for menu_id, rect in self._top_menu_button_rects.items():
-            if rect.collidepoint(pos):
-                return menu_id
-        return None
-
-    @staticmethod
-    def _top_menu_index_at_pos(item_rects, pos):
-        """Return the popup-item index containing pos, else None."""
-        for index, rect in enumerate(item_rects):
-            if rect.collidepoint(pos):
-                return index
-        return None
-
-    def _top_menu_index_at(self, pos):
-        """Return popup-item index at pos for the active top menu."""
-        if self._active_top_menu_id is None:
-            return None
-        return self._top_menu_index_at_pos(
-            self._top_menu_item_rects[self._active_top_menu_id],
-            pos,
-        )
-
-    def _first_enabled_top_menu_index(self, menu_id):
-        """Return index of first menu item with a wired action."""
-        menu_items = self._top_menu_defs[menu_id]["items"]
-        menu_actions = self._top_menu_defs[menu_id]["actions"]
-        for index, (item_id, _label, _shortcut) in enumerate(menu_items):
-            if menu_actions.get(item_id) is not None:
-                return index
-        return 0
-
-    def _move_top_menu_selection(self, step):
-        """Move active top-menu selection by step over enabled items only."""
-        if self._active_top_menu_id is None:
-            return
-        menu_items = self._top_menu_defs[self._active_top_menu_id]["items"]
-        menu_actions = self._top_menu_defs[self._active_top_menu_id]["actions"]
-        enabled_indices = [
-            index
-            for index, (item_id, _label, _shortcut) in enumerate(menu_items)
-            if menu_actions.get(item_id) is not None
-        ]
-        if not enabled_indices:
-            return
-        if self._top_menu_hover_index not in enabled_indices:
-            self._top_menu_hover_index = enabled_indices[0]
-            return
-        current = enabled_indices.index(self._top_menu_hover_index)
-        self._top_menu_hover_index = enabled_indices[(current + step) % len(enabled_indices)]
-
-    def _activate_top_menu_selection(self):
-        """Run the currently highlighted top-menu action and close menu."""
-        if self._active_top_menu_id is None:
-            return
-        menu_items = self._top_menu_defs[self._active_top_menu_id]["items"]
-        if not menu_items:
-            self._close_top_menu()
-            return
-        item_id, _label, _shortcut = menu_items[self._top_menu_hover_index]
-        action = self._top_menu_defs[self._active_top_menu_id]["actions"].get(item_id)
-        if action is None:
-            return
-        self._close_top_menu()
-        action()
-
-    def _sync_top_menu_hover_with_mouse(self, mouse_pos):
-        """Mirror mouse hover into keyboard selection state for active menu."""
-        if self._active_top_menu_id is None:
-            return
-        index = self._top_menu_index_at(mouse_pos)
-        if index is None:
-            return
-        self._top_menu_hover_index = index
-
-    def _draw_top_menu_bar(self):
-        """Draw top FILE/EDIT/VIEW menu bar with highlighted active affordance."""
-        bar_rect = pygame.Rect(0, 0, ScreenSettings.WIDTH, TopMenuBarSettings.HEIGHT)
-        pygame.draw.rect(self.screen, TopMenuBarSettings.BG_COLOR, bar_rect)
-        pygame.draw.line(
-            self.screen,
-            TopMenuBarSettings.BORDER_COLOR,
-            (0, bar_rect.bottom - 1),
-            (ScreenSettings.WIDTH, bar_rect.bottom - 1),
-            1,
-        )
-
-        text_font = Fonts.text_box
-        if text_font is None:
-            return
-        mouse_pos = pygame.mouse.get_pos()
-        for menu_id in self._top_menu_order:
-            rect = self._top_menu_button_rects[menu_id]
-            is_highlighted = (
-                self._active_top_menu_id == menu_id
-                or rect.collidepoint(mouse_pos)
-            )
-            button_bg = (
-                TopMenuBarSettings.FILE_HIGHLIGHT_BG
-                if is_highlighted
-                else TopMenuBarSettings.BG_COLOR
-            )
-            pygame.draw.rect(self.screen, button_bg, rect)
-            label_surf = (
-                self._top_menu_label_surfs_highlight[menu_id]
-                if is_highlighted
-                else self._top_menu_label_surfs[menu_id]
-            )
-            label_rect = label_surf.get_rect(center=rect.center)
-            self.screen.blit(label_surf, label_rect)
-
-            # Underline each menu's mnemonic letter (first character).
-            label_text = self._top_menu_defs[menu_id]["label"]
-            if label_text:
-                mnemonic_width = text_font.size(label_text[0])[0]
-                underline_y = (
-                    rect.bottom - TopMenuBarSettings.FILE_UNDERLINE_BOTTOM_INSET
-                )
-                underline_x0 = label_rect.x
-                underline_color = (
-                    COLOR_MENU_HIGHLIGHT_TEXT
-                    if is_highlighted
-                    else TopMenuBarSettings.TEXT_COLOR
-                )
-                pygame.draw.line(
-                    self.screen,
-                    underline_color,
-                    (underline_x0, underline_y),
-                    (underline_x0 + mnemonic_width, underline_y),
-                    TopMenuBarSettings.FILE_UNDERLINE_THICKNESS,
-                )
-
-        if self._active_top_menu_id is not None:
-            self._draw_top_menu_popup()
-
-    def _draw_top_menu_popup(self):
-        """Draw active top-menu dropdown and shared hover/selection highlight."""
-        if self._active_top_menu_id is None:
-            return
-        popup_rect = self._top_menu_popup_rects[self._active_top_menu_id]
-        pygame.draw.rect(self.screen, MenuButtonSettings.POPUP_BODY_COLOR, popup_rect)
-        pygame.draw.rect(
-            self.screen,
-            MenuButtonSettings.POPUP_BORDER_COLOR,
-            popup_rect,
-            MenuButtonSettings.POPUP_BORDER_THICKNESS,
-        )
-        text_font = Fonts.text_box
-        if text_font is None:
-            return
-        menu_items = self._top_menu_defs[self._active_top_menu_id]["items"]
-        item_surfs = self._top_menu_item_surfs[self._active_top_menu_id]
-        popup_right = popup_rect.right - MenuButtonSettings.ITEM_PADDING_X
-        for index, (rect, surf_set) in enumerate(zip(self._top_menu_item_rects[self._active_top_menu_id], item_surfs)):
-            label_surf = surf_set["label"]
-            shortcut_surf = surf_set["shortcut"]
-            if index == self._top_menu_hover_index:
-                pygame.draw.rect(self.screen, COLOR_MENU_HIGHLIGHT, rect)
-                _item_id, label, shortcut = menu_items[index]
-                selected_surf = text_font.render(label, True, COLOR_MENU_HIGHLIGHT_TEXT)
-                label_y = rect.y + (rect.height - selected_surf.get_height()) // 2
-                self.screen.blit(
-                    selected_surf,
-                    (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y),
-                )
-                if shortcut:
-                    selected_shortcut_surf = text_font.render(
-                        shortcut,
-                        True,
-                        TopMenuBarSettings.SHORTCUT_HIGHLIGHT_TEXT_COLOR,
-                    )
-                    shortcut_rect = selected_shortcut_surf.get_rect()
-                    shortcut_rect.right = popup_right
-                    shortcut_rect.centery = rect.centery
-                    self.screen.blit(selected_shortcut_surf, shortcut_rect)
-                continue
-            label_y = rect.y + (rect.height - label_surf.get_height()) // 2
-            self.screen.blit(
-                label_surf,
-                (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y),
-            )
-            if shortcut_surf is not None:
-                shortcut_rect = shortcut_surf.get_rect()
-                shortcut_rect.right = popup_right
-                shortcut_rect.centery = rect.centery
-                self.screen.blit(shortcut_surf, shortcut_rect)
-
     # -------------------------
     # PER-FRAME UPDATE / RENDER
     # -------------------------
@@ -1197,7 +745,7 @@ class GameManager:
         self.screen.fill(ScreenSettings.BG_COLOR)
         self._draw_grid()
         self._draw()
-        self._draw_top_menu_bar()
+        self.top_menu_bar.draw()
         self.crt.draw()
         # Error banner draws after the CRT overlay so it's always legible.
         self._draw_error_banner()

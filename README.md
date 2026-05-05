@@ -19,11 +19,13 @@ The point is abstraction: once a circuit works, students stop worrying about its
 
 ## Current Status
 
-Working prototype. Drag-and-drop, wiring, port logic, live signal propagation, the Switch / LED input-output components, and free-floating annotation text boxes are all in.
+Working prototype with Pass 1 and Pass 2 complete. The full abstraction loop is functional: build a circuit from NANDs, save it as a named component, drop it back into the toolbox, and build with it. Undo/redo, multi-segment wiring, visual polish (Switch redesign, LED redesign, random colors for saved components), and error recovery are all in place.
 
-**Next up: Pass 1 — Save as Component (in-session).** The selling point of this project is the abstraction loop — build a circuit from NANDs, save it as a named component, drop it into the next circuit as a black box, build with that, save *that*, and keep climbing the layers. Pass 1 gets the loop working end-to-end as a rough first version (everything lives in memory; closing the program loses the saved components). Disk save/load comes in Pass 3. See `docs/TODO.md` for the full pass-based roadmap.
+**Pass 2 Progress:** Most items done. Remaining items (F11 fullscreen mouse path, trash delete mode, comprehensive menu test) are low priority pending classroom validation.
 
-The roadmap is organized around iterative passes rather than milestones — the project goes through the codebase several times, each pass leaving it more usable than the last. There is no deadline; this is an enrichment project for a future classroom unit, not a product.
+**Next up: Pass 3 — Persistence.** Disk save/load so work survives across sessions. Also planned for Pass 3: project main menu on startup, options page, truth-table auto-detect, and color picker for components. See `docs/TODO.md` for the full pass-based roadmap.
+
+The roadmap is organized around iterative passes rather than milestones — the project cycles through the codebase, each pass leaving it more usable and polished than the last. There is no deadline; this is an enrichment project for a classroom unit, not a product.
 
 The program is designed to be fully usable with the mouse alone. Keyboard shortcuts exist as a convenience for power users but never replace a clickable equivalent.
 
@@ -49,7 +51,13 @@ The program is designed to be fully usable with the mouse alone. Keyboard shortc
 | Spawn a NAND at (50, 50) | `N` |
 | Spawn a text box at the cursor | `T` |
 | Toggle fullscreen | `F11` |
-| Quit | `Esc` (only when no text box is focused) |
+| Undo last action | `Ctrl+Z` |
+| Redo last action | `Ctrl+Y` |
+| Delete selected component(s) | `Delete` or `Backspace` |
+| Access FILE menu | `F` (mnemonic) |
+| Access EDIT menu | `E` (mnemonic) |
+| Access VIEW menu | `V` (mnemonic) |
+| Return to main menu / Quit in-game | `Esc` |
 
 ## Requirements
 
@@ -64,21 +72,32 @@ python main.py
 ## Project Layout
 
 ```
-circuit-builder/
-├── main.py          # GameManager: event loop, lifecycle, rendering
-├── elements.py      # Port, Component (default = NAND), Switch, LED
-├── wires.py         # Wire + WireManager (drag-to-connect, hit-test delete)
-├── signals.py       # SignalManager: per-frame two-phase signal propagation
-├── text_boxes.py    # TextBox + TextBoxManager (annotation labels)
-├── ui.py            # ComponentBank (the toolbox)
-├── fonts.py         # Fonts: shared Font instances cached at boot
-├── crt.py           # CRT scanline / flicker overlay
-├── settings.py      # All constants (colors, sizes, paths, input)
-├── assets/          # Fonts and graphics
-└── docs/
-    ├── TODO.md      # Roadmap (Now / Next / Later / Brainstorming / Far future)
-    ├── TESTING.md   # Manual test checklist + refactoring rules
-    └── CHANGELOG.md # Append-only history of changes
+digital-logic-simulator/
+├── main.py              # GameManager: event loop, lifecycle, rendering
+├── fonts.py             # Fonts: shared Font instances cached at boot
+├── settings.py          # All constants (colors, sizes, paths, input)
+├── core/                # Simulation and logic
+│   ├── elements.py      # Port, Component (default = NAND), Switch, LED, SavedComponent
+│   ├── wires.py         # Wire + WireManager (drag-to-connect, hit-test delete, multi-segment)
+│   ├── signals.py       # SignalManager: per-frame two-phase signal propagation
+│   └── commands.py      # History and undo/redo command system
+├── ui/                  # User interface
+│   ├── bank.py          # ComponentBank (the toolbox)
+│   ├── crt.py           # CRT scanline / flicker overlay
+│   ├── text_boxes.py    # TextBox + TextBoxManager (annotation labels)
+│   ├── project_dialogs.py   # Load/Save project dialogs
+│   ├── save_component_dialog.py  # Save as component dialog
+│   ├── quit_confirm_dialog.py    # Quit confirmation dialog
+│   └── __init__.py
+├── assets/              # Fonts and graphics
+│   ├── font/
+│   └── graphics/
+├── projects/            # Saved project files (created at runtime)
+├── docs/
+│   ├── TODO.md          # Roadmap (organized by pass)
+│   ├── TESTING.md       # Manual test checklist + refactoring rules
+│   └── CHANGELOG.md     # Append-only history of changes
+└── README.md            # This file
 ```
 
 ## Contributing

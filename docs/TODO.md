@@ -77,9 +77,37 @@ Disk save/load so work survives across sessions and machines.
   loading**, so an old save with lowercase characters comes back
   conformant to the uppercase rule.
 - [ ] **Project main menu (program startup).** Before the workspace
-  opens, show a menu screen with: **New Project**, **Load Project**,
-  **Options**, **Quit**. Replaces the current "drop straight into the
-  workspace" startup.
+  opens, show a menu screen with: **NEW PROJECT**, **LOAD PROJECT**,
+  **SETTINGS**, **ABOUT**, **QUIT**. App-level state machine to route
+  between main menu ↔ workspace. Decide whether to refactor menu logic
+  out of `main.py` into a separate handler class; keep the architecture
+  lean to avoid unnecessary indirection.
+  - [ ] **New Project flow:** Clear workspace and show tutorial prompt
+    (see below).
+  - [ ] **Load Project flow:** Open load dialog, switch to workspace.
+  - [ ] **In-game Quit behavior:** Pressing Esc or selecting Quit from
+    FILE menu returns to main menu (not to desktop). Only the main menu
+    QUIT button closes the app.
+  - [ ] **Settings / About stubs:** Placeholder menu items for future
+    passes (settings persistence in Pass 4, about screen design TBD).
+- [ ] **Tutorial prompt on new project.** When starting a new project
+  from the main menu, ask: "WOULD YOU LIKE TO START THE TUTORIAL?" If
+  yes, launch tutorial. If no, proceed to blank workspace. **This
+  prompt appears only on new-project-from-menu; it does not pop up
+  while in-game.**
+- [ ] **Tutorial system scaffold.** Extensible structure for interactive
+  tutorials. Start minimal: basic "welcome" screen + exit path. Design
+  so future passes can add tutorial steps easily (highlighting,
+  constraints, validation). Launchable from:
+  - Tutorial prompt when starting new project from main menu.
+  - **TUTORIAL** option in in-game FILE menu.
+  - Can exit anytime via ESC, returns to workspace.
+- [ ] **Encyclopedia system scaffold.** Extensible reference system for
+  gates, circuits, concepts. Start minimal: navigation between entries +
+  exit path. Design for future expansion with diagrams, worked examples.
+  Launchable from:
+  - **ENCYCLOPEDIA** option in in-game FILE menu.
+  - Can exit anytime via ESC, returns to workspace.
 - [ ] **Options page.** Reachable from the main menu and from the
   in-workspace popup menu.
   - **CRT effect on/off.**
@@ -250,6 +278,19 @@ call is made.
 - [ ] **Text inside components is not aligned or too large.** Now
   scheduled as a Pass 2 polish item; entry kept here for repro
   reference until it ships.
+- [ ] **"TOGGLE FULLSCREEN" text is hardcoded and overlaps the F11 hint.**
+  The VIEW menu shows "TOGGLE FULLSCREEN" which is too long and overlaps
+  the F11 keyboard shortcut hint. Should be shortened to just "FULLSCREEN"
+  and moved to `settings.py` as a constant per the architecture rules
+  (all display text in settings). Low priority; mostly cosmetic but a
+  good refactoring target for future cleanup.
+- [ ] **Components too big for the toolbox.** If a student builds a complex
+  saved component and saves it, the rendered preview in the toolbox may
+  exceed the toolbox dimensions. No clear solution yet: options include
+  scaling/shrinking the preview, clipping with a scrollbar, allowing
+  expansion outside the toolbox panel, or limiting component complexity.
+  Deferred pending classroom observation; may become critical depending
+  on typical usage patterns.
 
 ---
 

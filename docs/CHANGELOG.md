@@ -58,6 +58,267 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 18:25 UTC — Update TODO: add issue for oversized components in toolbox
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-05 18:25 UTC
+**Lines (at time of edit):** 279-291 (added)
+**Before:** Issues section ended with TOGGLE FULLSCREEN hardcoding issue.
+**After:** Added new issue about components too big for the toolbox:
+  - Describes symptom: rendered preview in toolbox may exceed toolbox dimensions
+  - Lists possible solutions: scaling, clipping with scrollbar, expansion outside panel, limiting complexity
+  - Marks as deferred pending classroom observation
+**Why:** Proactive issue tracking for anticipated edge case when students build complex saved components that won't fit in the toolbox preview area. Documented options for future resolution without committing to a specific approach yet. Depends on real-world classroom usage patterns to determine priority and best solution.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+## 2026-05-05 18:20 UTC — Fix: move menu bar setup after history initialization
+
+**File:** main.py
+**Date and Time:** 2026-05-05 18:20 UTC
+**Lines (at time of edit):** 73-96 (reordered)
+**Before:** GameManager.__init__() called _setup_menu_bar() on line 75 before self.history was initialized on line 78, causing AttributeError when menu bar tried to reference self.history.undo and self.history.redo in actions dict.
+**After:** Moved _setup_menu_bar() call to after history initialization (line 91). Menu bar setup now depends on history being available.
+**Why:** Initialization order dependency bug. The menu bar definition references self.history.undo and self.history.redo in the actions dict, so history must exist before _setup_menu_bar() is called. Added clarifying comment "# -------- Menu bar (must be after history) --------" to document the dependency for future maintainers.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+## 2026-05-05 18:15 UTC — Refactor main.py: extract menu, project, and component handlers to reduce bloat
+
+**File:** main.py
+**Date and Time:** 2026-05-05 18:15 UTC
+**Lines (at time of edit):** Multiple sections removed and refactored
+**Before:** GameManager contains 1,130+ lines with embedded menu rendering, project serialization, component saving, and event handling.
+**After:** GameManager delegates to specialized handlers; main.py now ~850 lines with cleaner separation of concerns.
+**Why:** Pass 3 architecture refactoring to reduce GameManager bloat per TESTING.md rule "GameManager must be light — offload responsibilities to other classes." Handlers now manage: menu rendering/interaction (TopMenuBar), project disk I/O (ProjectManager), component port inference and serialization (SaveAsComponentHandler). Event handling and drawing refactored to use handlers instead of inline GameManager code.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+**File:** ui/top_menu_bar.py
+**Date and Time:** 2026-05-05 18:00 UTC
+**Lines (at time of edit):** (new file)
+**Before:** (file did not exist)
+**After:** Complete TopMenuBar handler with:
+  - Menu state management (_active_top_menu_id, _top_menu_hover_index)
+  - Rendering: draw(), _draw_bar(), _draw_popup()
+  - Interaction: toggle_menu(), close_menu(), activate_selection()
+  - Hit testing: menu_id_at_pos(), menu_item_index_at_pos()
+  - Keyboard navigation: move_selection(), sync_hover_with_mouse()
+  - Full type hints and comprehensive docstrings
+**Why:** Extracted all menu logic from GameManager into dedicated handler. Encapsulates menu rendering, geometry calculations, event routing, and keyboard/mouse interaction. All constants and state kept private; public API provides only necessary operations (toggle, navigate, activate). Decouples menu from game state.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+**File:** core/project_manager.py
+**Date and Time:** 2026-05-05 18:05 UTC
+**Lines (at time of edit):** (new file)
+**Before:** (file did not exist)
+**After:** Complete ProjectManager handler with:
+  - Disk I/O: save_project(), load_project(), list_project_names()
+  - Serialization: serialize_workspace(), deserialize_workspace(), serialize_component(), deserialize_component()
+  - Full type hints and comprehensive docstrings for all methods
+**Why:** Extracted project serialization and disk I/O from GameManager. Centralizes all JSON-based persistence logic. Handles component type dispatch (Switch, LED, SavedComponent, NAND). Mutates live lists during deserialization (components, wires, text_boxes, bank) to reconstruct workspace state. Decouples GameManager from file system operations.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+**File:** ui/save_as_component_handler.py
+**Date and Time:** 2026-05-05 18:02 UTC
+**Lines (at time of edit):** (existing file, cleaned up)
+**Before:** Partial handler with basic port inference.
+**After:** Complete handler with:
+  - infer_component_ports(): Auto-detect input/output from workspace (Switches→INPUT, LEDs→OUTPUT, ordered by Y position)
+  - snapshot_workspace_definition(): Create component definition using ProjectManager.serialize_component()
+  - Full type hints and comprehensive docstrings
+**Why:** Finalized save-as-component workflow handler. Uses ProjectManager for component serialization to avoid duplication. Port inference follows "Save-as-Component port inference rule": every Switch is INPUT, every LED is OUTPUT, ordered top-to-bottom (Y position) for spatial correspondence with student's visual layout.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 18:10 UTC
+**Lines (at time of edit):** 439-514 (refactored _handle_mouse)
+**Before:** _handle_mouse() with inline menu click detection:
+  ```python
+  clicked_top_menu_id = self._top_menu_id_at(event.pos)
+  if clicked_top_menu_id is not None:
+      self._toggle_top_menu(clicked_top_menu_id)
+      return
+  if self._active_top_menu_id is not None:
+      popup_rect = self._top_menu_popup_rects[self._active_top_menu_id]
+      if popup_rect.collidepoint(event.pos):
+          index = self._top_menu_index_at(event.pos)
+          if index is not None:
+              self._top_menu_hover_index = index
+              self._activate_top_menu_selection()
+  ```
+**After:** _handle_mouse() delegates to top_menu_bar:
+  ```python
+  clicked_top_menu_id = self.top_menu_bar.menu_id_at_pos(event.pos)
+  if clicked_top_menu_id is not None:
+      self.top_menu_bar.toggle_menu(clicked_top_menu_id)
+      return
+  if self.top_menu_bar.is_menu_open():
+      index = self.top_menu_bar.menu_item_index_at_pos(event.pos)
+      if index is not None:
+          self.top_menu_bar.move_selection(0)
+          action = self.top_menu_bar.activate_selection()
+          if action is not None:
+              action()
+  ```
+**Why:** Refactored mouse event handling to use TopMenuBar API instead of accessing private menu state variables. Mouse motion syncing changed from self._sync_top_menu_hover_with_mouse(event.pos) to self.top_menu_bar.sync_hover_with_mouse(event.pos). All menu interaction now goes through public TopMenuBar methods.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 18:07 UTC
+**Lines (at time of edit):** 411-437 (refactored _handle_keydown)
+**Before:** _handle_keydown() with inline menu navigation:
+  ```python
+  if self._active_top_menu_id is not None:
+      if event.key == pygame.K_DOWN:
+          self._move_top_menu_selection(1)
+          return
+      if event.key == pygame.K_UP:
+          self._move_top_menu_selection(-1)
+          return
+      if event.key == pygame.K_RETURN:
+          self._activate_top_menu_selection()
+          return
+      if event.key == pygame.K_ESCAPE:
+          self._close_top_menu()
+          return
+  ```
+**After:** _handle_keydown() delegates to top_menu_bar:
+  ```python
+  if self.top_menu_bar.is_menu_open():
+      if event.key == pygame.K_DOWN:
+          self.top_menu_bar.move_selection(1)
+          return
+      if event.key == pygame.K_UP:
+          self.top_menu_bar.move_selection(-1)
+          return
+      if event.key == pygame.K_RETURN:
+          action = self.top_menu_bar.activate_selection()
+          if action is not None:
+              action()
+          return
+      if event.key == pygame.K_ESCAPE:
+          self.top_menu_bar.close_menu()
+          return
+  ```
+**Why:** Refactored keyboard event handling for menu navigation. Replaced _active_top_menu_id checks with top_menu_bar.is_menu_open(). Menu selection movement now via top_menu_bar.move_selection(). Menu item activation returns callable from activate_selection() for GameManager to invoke. Closes menu on Escape via top_menu_bar.close_menu().
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 18:12 UTC
+**Lines (at time of edit):** 1003-1010 (_render_frame)
+**Before:** `self._draw_top_menu_bar()`
+**After:** `self.top_menu_bar.draw()`
+**Why:** Rendering now delegates to TopMenuBar handler. Removed direct call to GameManager's menu drawing code.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 18:13 UTC
+**Lines (at time of edit):** 666-900 (deleted)
+**Before:** 235 lines of old menu methods:
+  - _build_top_menu_item_surfaces()
+  - _rebuild_top_menu_geometry()
+  - _toggle_top_menu()
+  - _close_top_menu()
+  - _top_menu_id_at()
+  - _top_menu_index_at_pos()
+  - _top_menu_index_at()
+  - _first_enabled_top_menu_index()
+  - _move_top_menu_selection()
+  - _activate_top_menu_selection()
+  - _sync_top_menu_hover_with_mouse()
+  - _draw_top_menu_bar()
+  - _draw_top_menu_popup()
+**After:** (deleted)
+**Why:** All menu functionality now in TopMenuBar handler. Removed inline implementations from GameManager to reduce bloat and improve maintainability. These methods are now TopMenuBar private/public methods.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 18:14 UTC
+**Lines (at time of edit):** ~60 (initialization section)
+**Before:** GameManager.__init__() initialized ~10 menu state variables:
+  - self._active_top_menu_id
+  - self._top_menu_hover_index
+  - self._top_menu_button_rects
+  - self._top_menu_popup_rects
+  - self._top_menu_item_rects
+  - self._top_menu_label_surfs
+  - self._top_menu_label_surfs_highlight
+  - self._top_menu_item_surfs
+  - self._top_menu_defs
+  - self._top_menu_order
+**After:** Removed all menu state from GameManager. Only keep:
+  - self.top_menu_bar = TopMenuBar(self.screen, menu_defs)
+  - Menu definitions moved to _setup_menu_bar() helper method
+**Why:** All menu state now owned by TopMenuBar handler. GameManager only instantiates and holds reference to handler. Definitions constructed in _setup_menu_bar() and passed to TopMenuBar constructor. Reduces GameManager's initialization complexity and state footprint.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+## 2026-05-05 17:30 UTC — Architecture pass: update docs for current state + new roadmap
+
+**File:** README.md
+**Date and Time:** 2026-05-05 17:30 UTC
+**Lines (at time of edit):** 28-48 (modified), 78-91 (modified), 110-128 (modified)
+**Before:**
+    ## Current Status
+    
+    Working prototype. Drag-and-drop, wiring, port logic, live signal propagation, the Switch / LED input-output components, and free-floating annotation text boxes are all in.
+    
+    **Next up: Pass 1 — Save as Component (in-session).** The selling point...
+    
+    (and Project Layout section was outdated with old structure)
+    
+**After:**
+    ## Current Status
+    
+    Working prototype with Pass 1 and Pass 2 complete. The full abstraction loop is functional: build a circuit from NANDs, save it as a named component, drop it back into the toolbox, and build with it. Undo/redo, multi-segment wiring, visual polish (Switch redesign, LED redesign, random colors for saved components), and error recovery are all in place.
+    
+    **Pass 2 Progress:** Most items done. Remaining items (F11 fullscreen mouse path, trash delete mode, comprehensive menu test) are low priority pending classroom validation.
+    
+    **Next up: Pass 3 — Persistence.** Disk save/load so work survives across sessions. Also planned for Pass 3: project main menu on startup, options page, truth-table auto-detect, and color picker for components...
+    
+    (and updated Project Layout with current structure, added keyboard shortcuts including Ctrl+Z/Y, Ctrl+Shift+Z, Delete, F/E/V mnemonics)
+    
+**Why:** README was significantly out of date after Pass 1 and Pass 2 completion. Updated to reflect current capabilities, completed features, and next priorities. Also documented current keyboard shortcuts and updated project structure to match actual codebase organization (core/ and ui/ subdirectories).
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-05 17:31 UTC
+**Lines (at time of edit):** 63-100 (modified), 278-285 (modified)
+**Before:**
+    ## Pass 3 — Persistence
+    
+    Disk save/load so work survives across sessions and machines.
+    
+    - [ ] **Save / load a project (disk).** ...
+    - [ ] **Project main menu (program startup).** Before the workspace
+      opens, show a menu screen with: **New Project**, **Load Project**,
+      **Options**, **Quit**. Replaces the current "drop straight into the
+      workspace" startup.
+    - [ ] **Options page.** Reachable from the main menu...
+    
+    (and missed Issues section at end)
+    
+**After:**
+    ## Pass 3 — Persistence
+    
+    Disk save/load so work survives across sessions and machines. Also: app-level state management, startup menu, and tutorial/encyclopedia scaffolding.
+    
+    - [ ] **Save / load a project (disk).** ...
+    - [ ] **Main menu on program startup.** Before dropping into the
+      workspace, show a menu screen with: **NEW PROJECT**, **LOAD PROJECT**,
+      **SETTINGS**, **ABOUT**, **QUIT**. App-level state machine to route
+      between main menu ↔ workspace...
+      - [ ] **New Project flow:** Clear workspace and show tutorial prompt (see below).
+      - [ ] **Load Project flow:** Open load dialog, switch to workspace.
+      - [ ] **In-game Quit behavior:** Pressing Esc or selecting Quit from FILE menu returns to main menu (not to desktop).
+      - [ ] **Settings / About stubs:** Placeholder menu items for future passes.
+    - [ ] **Tutorial prompt on new project.** When starting a new project from the main menu, ask tutorial prompt. **Only on new-project-from-menu; not in-game.**
+    - [ ] **Tutorial system scaffold.** Extensible structure for interactive tutorials. Launchable from prompt and from FILE menu TUTORIAL option.
+    - [ ] **Encyclopedia system scaffold.** Extensible reference system. Launchable from FILE menu ENCYCLOPEDIA option.
+    - [ ] **Options page.** Reachable from main menu and in-workspace popup...
+    
+    (and added new issue: TOGGLE FULLSCREEN text hardcoded + overlaps F11 hint, violates settings.py constant rule)
+    
+**Why:** Pass 3 planning pass to document new product requirements (main menu, tutorial/encyclopedia systems, in-game quit returning to menu). Clarified scope and behavior for startup flow, tutorial prompt flow, and menu architecture. Added specific note about TOGGLE FULLSCREEN text being hardcoded instead of in settings.py, which is an architecture rule violation and quick future cleanup target.
+**Editor:** GitHub Copilot (Claude Haiku 4.5)
+
 ## 2026-05-05 16:11 UTC — Add sticky multi-segment wire routing
 
 **File:** core/wires.py
