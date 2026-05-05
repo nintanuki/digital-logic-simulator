@@ -983,14 +983,17 @@ class GameManager:
         if text_font is None:
             return
         f_width = text_font.size("F")[0]
-        underline_y = label_rect.bottom - 1
+        underline_y = (
+            self._file_button_rect.bottom
+            - TopMenuBarSettings.FILE_UNDERLINE_BOTTOM_INSET
+        )
         underline_x0 = label_rect.x
         pygame.draw.line(
             self.screen,
             TopMenuBarSettings.TEXT_COLOR,
             (underline_x0, underline_y),
             (underline_x0 + f_width, underline_y),
-            1,
+            TopMenuBarSettings.FILE_UNDERLINE_THICKNESS,
         )
 
         if self._file_menu_open:
@@ -1005,9 +1008,20 @@ class GameManager:
             self._file_menu_rect,
             MenuButtonSettings.POPUP_BORDER_THICKNESS,
         )
+        text_font = Fonts.text_box
+        if text_font is None:
+            return
         for index, (rect, surf) in enumerate(zip(self._file_menu_item_rects, self._file_menu_item_surfs)):
             if index == self._file_menu_hover_index:
                 pygame.draw.rect(self.screen, COLOR_MENU_HIGHLIGHT, rect)
+                _item_id, label = MenuButtonSettings.ITEMS[index]
+                selected_surf = text_font.render(label, True, COLOR_MENU_HIGHLIGHT_TEXT)
+                label_y = rect.y + (rect.height - selected_surf.get_height()) // 2
+                self.screen.blit(
+                    selected_surf,
+                    (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y),
+                )
+                continue
             label_y = rect.y + (rect.height - surf.get_height()) // 2
             self.screen.blit(surf, (rect.left + MenuButtonSettings.ITEM_PADDING_X, label_y))
 

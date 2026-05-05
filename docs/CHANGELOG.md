@@ -58,6 +58,91 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 12:40 UTC — FILE underline/menu highlight polish and toolbox template editability
+
+**File:** settings.py
+**Date and Time:** 2026-05-05 12:40 UTC
+**Lines (at time of edit):** 8-10, 80, 104-105 (modified)
+**Before:**
+    COLOR_MENU_HIGHLIGHT = (255, 255, 255)
+    HOTKEY_BAR_HEIGHT = 28
+    TOP_MENU_BAR_HEIGHT = 32
+    ...
+    BANK_LED_SHIFT_X [not present]
+    ...
+    FILE_UNDERLINE_THICKNESS / FILE_UNDERLINE_BOTTOM_INSET [not present]
+**After:**
+    COLOR_MENU_HIGHLIGHT = (255, 255, 255)
+    COLOR_MENU_HIGHLIGHT_TEXT = (0, 0, 0)
+    ...
+    BANK_LED_SHIFT_X = 10
+    ...
+    FILE_UNDERLINE_THICKNESS = 2
+    FILE_UNDERLINE_BOTTOM_INSET = 2
+**Why:** Added explicit constants for selected-menu text color (black on white
+highlight), moved the initial LED toolbox template slightly right toward TEXT,
+and made FILE underline placement tunable/visible.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-05 12:40 UTC
+**Lines (at time of edit):** 84-92, 120-126, 262-355 (modified)
+**Before:**
+    ComponentBank supported template spawn only.
+    No toolbox-template drag state.
+    No template delete path.
+    No starter-template protection.
+**After:**
+    Added `_protected_template_ids` seeded from initial four templates.
+    Added middle-click drag support for toolbox templates (move inside bank).
+    Added right-click delete support for non-protected toolbox templates.
+    Kept left-click spawn behavior unchanged.
+    Applied LED initial x offset via `UISettings.BANK_LED_SHIFT_X`.
+**Why:** Allows users to move and delete editable toolbox templates while
+preventing deletion of the four starter templates (IN, NAND, OUT, TEXT).
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 12:40 UTC
+**Lines (at time of edit):** 982-997, 1005-1028 (modified)
+**Before:**
+    FILE underline used a single-pixel line based on label bottom.
+    Selected FILE menu row used red/white style and white text surfaces.
+**After:**
+    FILE underline now anchors to button bottom inset and uses configurable
+    thickness from settings for reliable visibility.
+    Selected FILE menu row now uses white highlight with black rendered text.
+**Why:** Restores visible FILE mnemonic underline and aligns selected-menu
+visual style to the requested white-highlight/black-text look.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-05 12:28 UTC — Adjust top bar height and remove toolbox-bottom gap
+
+**File:** settings.py
+**Date and Time:** 2026-05-05 12:28 UTC
+**Lines (at time of edit):** 10, 63, 95 (modified)
+**Before:**
+    HOTKEY_BAR_HEIGHT = 28
+
+    class UISettings:
+        BANK_BOTTOM_GAP = 8
+
+    class TopMenuBarSettings:
+        HEIGHT = HOTKEY_BAR_HEIGHT
+**After:**
+    HOTKEY_BAR_HEIGHT = 28
+    TOP_MENU_BAR_HEIGHT = 32
+
+    class UISettings:
+        BANK_BOTTOM_GAP = 0
+
+    class TopMenuBarSettings:
+        HEIGHT = TOP_MENU_BAR_HEIGHT
+**Why:** Increased the top menu bar height so the underlined "F" sits
+cleanly within the bar and removed the visual gap between the toolbox and
+the bottom hotkey bar for a flush stacked layout.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-05 12:20 UTC — Refactor UI layout to retro TUI bars and top FILE menu
 
 **File:** settings.py

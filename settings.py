@@ -5,8 +5,10 @@ COLOR_BAR_BG = (0, 0, 0)
 COLOR_BAR_TEXT = (255, 255, 255)
 COLOR_TOOLBOX_BG = (45, 45, 48)
 TOOLBOX_BG_COLOR = COLOR_TOOLBOX_BG
-COLOR_MENU_HIGHLIGHT = (173, 42, 42)
+COLOR_MENU_HIGHLIGHT = (255, 255, 255)
+COLOR_MENU_HIGHLIGHT_TEXT = (0, 0, 0)
 HOTKEY_BAR_HEIGHT = 28
+TOP_MENU_BAR_HEIGHT = 32
 
 class ColorSettings:
     WORD_COLORS = {
@@ -59,7 +61,7 @@ class FontSettings:
     TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
 
 class UISettings:
-    BANK_BOTTOM_GAP = 8
+    BANK_BOTTOM_GAP = 0
     BANK_HEIGHT = 100
     BANK_COLOR = TOOLBOX_BG_COLOR
     BANK_LINE_COLOR = (100, 100, 100)
@@ -75,6 +77,7 @@ class UISettings:
     # magic numbers.
     BANK_PADDING_X = 20
     BANK_TEMPLATE_GAP = 20
+    BANK_LED_SHIFT_X = 10
 
 
 class ShortcutBarSettings:
@@ -91,13 +94,15 @@ class ShortcutBarSettings:
 class TopMenuBarSettings:
     """Visual constants for the top FILE menu bar."""
 
-    HEIGHT = HOTKEY_BAR_HEIGHT
+    HEIGHT = TOP_MENU_BAR_HEIGHT
     BG_COLOR = COLOR_BAR_BG
     TEXT_COLOR = COLOR_BAR_TEXT
     BORDER_COLOR = ColorSettings.WORD_COLORS["GRAY"]
     PADDING_X = 10
     FILE_LABEL = "FILE"
     FILE_HIGHLIGHT_BG = COLOR_MENU_HIGHLIGHT
+    FILE_UNDERLINE_THICKNESS = 2
+    FILE_UNDERLINE_BOTTOM_INSET = 2
 
 
 class ErrorBannerSettings:

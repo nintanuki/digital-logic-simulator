@@ -84,6 +84,12 @@ class ComponentBank:
         self.rect = UISettings.BANK_RECT
         self._text_boxes = text_boxes
         self._templates_and_spawners = self._build_templates()
+        self._protected_template_ids = {
+            id(tpl) for tpl, _spawn in self._templates_and_spawners
+        }
+        self._drag_template = None
+        self._drag_template_mouse_anchor = (0, 0)
+        self._drag_template_rect_anchor = (0, 0)
 
     @property
     def templates(self):
@@ -114,6 +120,8 @@ class ComponentBank:
         entries = []
         for cls in self.TEMPLATE_CLASSES:
             tpl = cls(x, 0)
+            if cls is LED:
+                tpl.rect.x += UISettings.BANK_LED_SHIFT_X
             tpl.rect.y = self.rect.y + (self.rect.height - tpl.rect.height) // 2
             entries.append((tpl, self._make_component_spawner(tpl, cls)))
             x += tpl.rect.width + UISettings.BANK_TEMPLATE_GAP
@@ -261,6 +269,36 @@ class ComponentBank:
         for tpl, _spawn in self._templates_and_spawners:
             tpl.draw(surface)
 
+    def _template_at(self, pos):
+        """Return top-most bank template and spawn_fn under pos, else None."""
+        for tpl, spawn_fn in reversed(self._templates_and_spawners):
+            if tpl.rect.collidepoint(pos):
+                return tpl, spawn_fn
+        return None
+
+    def _begin_template_drag(self, tpl, mouse_pos):
+        """Start dragging a template inside the bank area."""
+        self._drag_template = tpl
+        self._drag_template_mouse_anchor = mouse_pos
+        self._drag_template_rect_anchor = (tpl.rect.x, tpl.rect.y)
+
+    def _update_template_drag(self, mouse_pos):
+        """Move active dragged template while clamping it to bank bounds."""
+        if self._drag_template is None:
+            return
+        dx = mouse_pos[0] - self._drag_template_mouse_anchor[0]
+        dy = mouse_pos[1] - self._drag_template_mouse_anchor[1]
+        template = self._drag_template
+        template.rect.x = self._drag_template_rect_anchor[0] + dx
+        template.rect.y = self._drag_template_rect_anchor[1] + dy
+        template.rect.x = max(self.rect.left, min(template.rect.x, self.rect.right - template.rect.width))
+        template.rect.y = max(self.rect.top, min(template.rect.y, self.rect.bottom - template.rect.height))
+
+    def _end_template_drag(self):
+        """Finish drag and keep template draw/hit order aligned to x position."""
+        self._drag_template = None
+        self._templates_and_spawners.sort(key=lambda entry: entry[0].rect.x)
+
     def handle_event(self, event, components_list):
         """Route a left-click on a template through to its spawn_fn.
 
@@ -276,10 +314,42 @@ class ComponentBank:
         Returns:
             bool: True if a template was clicked and the event was handled.
         """
-        if event.type != pygame.MOUSEBUTTONDOWN or event.button != InputSettings.LEFT_CLICK:
-            return False
-        for tpl, spawn_fn in self._templates_and_spawners:
-            if tpl.rect.collidepoint(event.pos):
-                spawn_fn(event.pos, components_list)
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.MIDDLE_CLICK:
+            hit = self._template_at(event.pos)
+            if hit is None:
+                return False
+            tpl, _spawn_fn = hit
+            self._begin_template_drag(tpl, event.pos)
+            return True
+
+        if event.type == pygame.MOUSEMOTION and self._drag_template is not None:
+            self._update_template_drag(event.pos)
+            return True
+
+        if event.type == pygame.MOUSEBUTTONUP and event.button == InputSettings.MIDDLE_CLICK:
+            if self._drag_template is None:
+                return False
+            self._end_template_drag()
+            return True
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.RIGHT_CLICK:
+            hit = self._template_at(event.pos)
+            if hit is None:
+                return False
+            tpl, _spawn_fn = hit
+            if id(tpl) in self._protected_template_ids:
                 return True
+            self._templates_and_spawners = [
+                entry for entry in self._templates_and_spawners
+                if entry[0] is not tpl
+            ]
+            return True
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.LEFT_CLICK:
+            hit = self._template_at(event.pos)
+            if hit is None:
+                return False
+            _tpl, spawn_fn = hit
+            spawn_fn(event.pos, components_list)
+            return True
         return False
