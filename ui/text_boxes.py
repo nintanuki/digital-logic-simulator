@@ -362,11 +362,18 @@ class TextBoxManager:
     # SPAWN / LIFECYCLE
     # -------------------------
 
-    def spawn_at(self, pos):
-        """Create a fresh text box centered on pos and focus it for editing.
+    def spawn_at(self, pos, focus=True):
+        """Create a fresh text box centered on pos and optionally focus it.
 
         Args:
             pos (tuple[int, int]): Cursor position in screen coordinates.
+            focus (bool): Whether to give the new box keyboard focus
+                immediately. Defaults to True. Pass False when restoring
+                from a saved project so the caret doesn't appear on the
+                first box loaded.
+
+        Returns:
+            TextBox: The newly created box.
         """
         x = pos[0] - TextBoxSettings.MIN_WIDTH // 2
         y = pos[1] - TextBoxSettings.MIN_HEIGHT // 2
@@ -375,9 +382,11 @@ class TextBoxManager:
         # toolbox) should still land cleanly inside it.
         box._clamp_to_workspace()
         self.text_boxes.append(box)
-        self._focus(box)
+        if focus:
+            self._focus(box)
         if self.on_spawn:
             self.on_spawn(box)
+        return box
 
     # -------------------------
     # EVENT HANDLING

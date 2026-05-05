@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import pygame
 import sys
 import traceback as _traceback
@@ -7,9 +9,12 @@ from copy import deepcopy
 
 from core.elements import Component, LED, SavedComponent, Switch
 from fonts import Fonts
+from ui.project_dialogs import LoadProjectDialog, SaveProjectDialog
 from ui.save_component_dialog import SaveComponentDialog
 from ui.quit_confirm_dialog import QuitConfirmDialog
 from settings import *
+
+_PROJECTS_DIR = os.path.join(os.path.dirname(__file__), "projects")
 from core.signals import SignalManager
 from ui.text_boxes import TextBoxManager
 from ui.bank import ComponentBank
@@ -44,6 +49,9 @@ class GameManager:
         self.bank = ComponentBank(
             self.text_boxes,
             menu_actions={
+                "NEW PROJECT": self._new_project,
+                "LOAD PROJECT": self._open_load_project_dialog,
+                "SAVE PROJECT": self._open_save_project_dialog,
                 "SAVE AS COMPONENT": self.save_as_component,
                 "QUIT": self.close_game,
             },
@@ -266,6 +274,165 @@ class GameManager:
             "x": comp.rect.x,
             "y": comp.rect.y,
         }
+
+    # -------------------------
+    # PROJECT SAVE / LOAD
+    # -------------------------
+
+    def _open_save_project_dialog(self):
+        """Open the SAVE PROJECT dialog to collect a name, then write to disk."""
+        existing = self._list_project_names()
+        self.dialog = SaveProjectDialog(
+            existing_names=existing,
+            on_save=self._finalize_save_project,
+            on_cancel=self._dismiss_dialog,
+        )
+
+    def _finalize_save_project(self, name):
+        """Serialize the workspace to projects/<name>.json."""
+        os.makedirs(_PROJECTS_DIR, exist_ok=True)
+        payload = self._serialize_project(name)
+        safe_name = "".join(
+            c if c.isalnum() or c in (" ", "-", "_") else "_" for c in name
+        ).strip()
+        path = os.path.join(_PROJECTS_DIR, safe_name + ".json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        self._dismiss_dialog()
+
+    def _serialize_project(self, name):
+        """Return a JSON-serializable dict for the entire current workspace."""
+        component_indices = {comp: idx for idx, comp in enumerate(self.components)}
+        component_defs = [self._serialize_component(comp) for comp in self.components]
+        wire_defs = []
+        for wire in self.wires.wires:
+            src = wire.source.parent
+            tgt = wire.target.parent
+            if src not in component_indices or tgt not in component_indices:
+                continue
+            wire_defs.append({
+                "source_component_index": component_indices[src],
+                "source_port_index": src.ports.index(wire.source),
+                "target_component_index": component_indices[tgt],
+                "target_port_index": tgt.ports.index(wire.target),
+            })
+        text_box_defs = [
+            {"x": tb.rect.x, "y": tb.rect.y, "text": tb.text}
+            for tb in self.text_boxes.text_boxes
+        ]
+        saved_component_defs = [
+            {
+                "name": rec["name"],
+                "color": list(rec["color"]),
+                "definition": deepcopy(rec["definition"]),
+            }
+            for rec in self.saved_components
+        ]
+        return {
+            "version": 1,
+            "name": name,
+            "components": component_defs,
+            "wires": wire_defs,
+            "text_boxes": text_box_defs,
+            "saved_components": saved_component_defs,
+        }
+
+    def _open_load_project_dialog(self):
+        """Open the LOAD PROJECT dialog listing all saved projects."""
+        names = self._list_project_names()
+        self.dialog = LoadProjectDialog(
+            project_names=names,
+            on_load=self._finalize_load_project,
+            on_cancel=self._dismiss_dialog,
+        )
+
+    def _list_project_names(self):
+        """Return sorted list of project names available on disk."""
+        if not os.path.isdir(_PROJECTS_DIR):
+            return []
+        names = []
+        for filename in os.listdir(_PROJECTS_DIR):
+            if filename.lower().endswith(".json"):
+                names.append(os.path.splitext(filename)[0])
+        return sorted(names)
+
+    def _finalize_load_project(self, safe_name):
+        """Load a project from disk and replace the current workspace."""
+        path = os.path.join(_PROJECTS_DIR, safe_name + ".json")
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        self._dismiss_dialog()
+        self._load_project_payload(payload)
+
+    def _load_project_payload(self, payload):
+        """Reconstruct the workspace from a serialized project dict."""
+        self._clear_workspace()
+
+        # Restore saved-component library first so spawned SavedComponents
+        # in the workspace exist in the bank toolbox.
+        for rec in payload.get("saved_components", []):
+            definition = rec["definition"]
+            color = tuple(rec["color"])
+            name = rec["name"]
+            self.saved_components.append({
+                "name": name,
+                "color": color,
+                "definition": definition,
+            })
+            self.bank.add_saved_component_template(name, color, deepcopy(definition))
+
+        # Restore components.
+        for comp_def in payload.get("components", []):
+            comp = self._deserialize_component(comp_def)
+            self.components.append(comp)
+
+        # Restore wires.
+        from core.wires import Wire
+        for wire_def in payload.get("wires", []):
+            src_comp = self.components[wire_def["source_component_index"]]
+            tgt_comp = self.components[wire_def["target_component_index"]]
+            src_port = src_comp.ports[wire_def["source_port_index"]]
+            tgt_port = tgt_comp.ports[wire_def["target_port_index"]]
+            self.wires.wires.append(Wire(src_port, tgt_port))
+
+        # Restore text boxes.
+        for tb_def in payload.get("text_boxes", []):
+            tb = self.text_boxes.spawn_at(
+                (tb_def["x"], tb_def["y"]), focus=False
+            )
+            if tb is not None:
+                tb.text = tb_def.get("text", "")
+
+    @staticmethod
+    def _deserialize_component(comp_def):
+        """Build a workspace Component from a serialized record."""
+        comp_type = comp_def["type"]
+        if comp_type == "switch":
+            comp = Switch(comp_def["x"], comp_def["y"])
+            comp._state = comp_def.get("state", False)
+            return comp
+        if comp_type == "led":
+            return LED(comp_def["x"], comp_def["y"])
+        if comp_type == "saved_component":
+            return SavedComponent(
+                comp_def["x"],
+                comp_def["y"],
+                comp_def["name"],
+                tuple(comp_def["color"]),
+                comp_def["definition"],
+            )
+        return Component(comp_def["x"], comp_def["y"])
+
+    def _new_project(self):
+        """Clear the workspace to start a fresh project."""
+        self._clear_workspace()
+        # Also reset the in-session saved-components library and bank templates.
+        self.saved_components.clear()
+        self.bank._templates_and_spawners = self.bank._build_templates()
+
+    # -------------------------
+    # DIALOG MANAGEMENT
+    # -------------------------
 
     def _dismiss_dialog(self):
         """Close whichever dialog is currently open.
