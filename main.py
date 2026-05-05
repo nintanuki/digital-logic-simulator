@@ -9,7 +9,7 @@ from copy import deepcopy
 
 from core.elements import Component, LED, SavedComponent, Switch
 from fonts import Fonts
-from ui.project_dialogs import LoadProjectDialog, SaveProjectDialog
+from ui.project_dialogs import FileNotFoundWarningDialog, LoadProjectDialog, SaveProjectDialog
 from ui.save_component_dialog import SaveComponentDialog
 from ui.quit_confirm_dialog import QuitConfirmDialog
 from settings import *
@@ -374,8 +374,15 @@ class GameManager:
     def _finalize_load_project(self, safe_name):
         """Load a project from disk and replace the current workspace."""
         path = os.path.join(_PROJECTS_DIR, safe_name + ".json")
-        with open(path, "r", encoding="utf-8") as f:
-            payload = json.load(f)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        except FileNotFoundError:
+            self._dismiss_dialog()
+            self.dialog = FileNotFoundWarningDialog(
+                on_dismiss=self._dismiss_dialog,
+            )
+            return
         self._dismiss_dialog()
         self._current_project_name = safe_name
         self._load_project_payload(payload)

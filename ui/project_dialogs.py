@@ -2,6 +2,7 @@ import pygame
 
 from fonts import Fonts
 from settings import (
+    FileNotFoundWarningDialogSettings as FW,
     InputSettings,
     LoadProjectDialogSettings as LD,
     SaveProjectDialogSettings as SD,
@@ -539,3 +540,82 @@ class LoadProjectDialog:
                      LD.BUTTON_BG_CANCEL, LD.BUTTON_TEXT_COLOR_ENABLED,
                      LD.BUTTON_TEXT_COLOR_DISABLED, LD.BUTTON_BORDER_COLOR,
                      is_cancel=True)
+
+
+# ---------------------------------------------------------------------------
+# FileNotFoundWarningDialog
+# ---------------------------------------------------------------------------
+
+class FileNotFoundWarningDialog:
+    """Modal warning shown when a project file has disappeared from disk.
+
+    Displays a red-bordered alert with a single OK button to dismiss.
+    """
+
+    def __init__(self, on_dismiss):
+        """Lay out the dialog centered on the screen.
+
+        Args:
+            on_dismiss (Callable[[], None]): Called when the user clicks OK
+                or presses Enter / Escape.
+        """
+        self._on_dismiss = on_dismiss
+
+        self.rect = pygame.Rect(0, 0, FW.WIDTH, FW.HEIGHT)
+        self.rect.center = (ScreenSettings.WIDTH // 2, ScreenSettings.HEIGHT // 2)
+
+        self._backdrop = pygame.Surface(
+            (ScreenSettings.WIDTH, ScreenSettings.HEIGHT)
+        )
+        self._backdrop.fill(FW.BACKDROP_COLOR)
+        self._backdrop.set_alpha(FW.BACKDROP_ALPHA)
+
+        self._title_surf = Fonts.text_box.render(FW.TITLE, True, FW.TITLE_COLOR)
+        self._message_surf = Fonts.text_box.render(FW.MESSAGE, True, FW.MESSAGE_COLOR)
+        self._ok_label = Fonts.text_box.render(FW.BUTTON_LABEL, True, FW.BUTTON_TEXT_COLOR)
+
+        cursor_y = self.rect.y + FW.PADDING
+        self._title_rect = self._title_surf.get_rect(
+            midtop=(self.rect.centerx, cursor_y)
+        )
+        cursor_y = self._title_rect.bottom + FW.SECTION_GAP
+        self._message_rect = self._message_surf.get_rect(
+            midtop=(self.rect.centerx, cursor_y)
+        )
+
+        button_y = self.rect.bottom - FW.PADDING - FW.BUTTON_HEIGHT
+        self._ok_rect = pygame.Rect(
+            self.rect.centerx - FW.BUTTON_WIDTH // 2,
+            button_y,
+            FW.BUTTON_WIDTH,
+            FW.BUTTON_HEIGHT,
+        )
+
+    def handle_event(self, event):
+        """Consume a single event; dismiss on OK, Enter, or Escape.
+
+        Returns:
+            bool: Always True — the dialog claims all events while open.
+        """
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_RETURN, pygame.K_ESCAPE, pygame.K_SPACE):
+                self._on_dismiss()
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == InputSettings.LEFT_CLICK:
+                if self._ok_rect.collidepoint(event.pos):
+                    self._on_dismiss()
+        return True
+
+    def draw(self, surface):
+        """Paint the backdrop, dialog body, title, message, and OK button."""
+        surface.blit(self._backdrop, (0, 0))
+        pygame.draw.rect(surface, FW.BODY_COLOR, self.rect)
+        pygame.draw.rect(surface, FW.BORDER_COLOR, self.rect, FW.BORDER_THICKNESS)
+
+        surface.blit(self._title_surf, self._title_rect)
+        surface.blit(self._message_surf, self._message_rect)
+
+        pygame.draw.rect(surface, FW.BUTTON_BG, self._ok_rect)
+        pygame.draw.rect(surface, FW.BUTTON_BORDER_COLOR, self._ok_rect, 1)
+        ok_label_rect = self._ok_label.get_rect(center=self._ok_rect.center)
+        surface.blit(self._ok_label, ok_label_rect)

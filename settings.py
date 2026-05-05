@@ -557,5 +557,32 @@ class LoadProjectDialogSettings:
     BACKDROP_ALPHA = 140
 
 
+class FileNotFoundWarningDialogSettings:
+    """Visual constants for the file-not-found warning dialog."""
+
+    WIDTH = 340
+    HEIGHT = 160
+    BODY_COLOR = (40, 40, 40)
+    BORDER_COLOR = ColorSettings.WORD_COLORS["MEDIUM_CARMINE"]
+    BORDER_THICKNESS = 2
+    PADDING = 20
+    SECTION_GAP = 12
+
+    TITLE = "FILE NOT FOUND"
+    TITLE_COLOR = ColorSettings.WORD_COLORS["MEDIUM_CARMINE"]
+    MESSAGE = "THE SAVE FILE NO LONGER EXISTS"
+    MESSAGE_COLOR = (200, 200, 200)
+
+    BUTTON_WIDTH = 100
+    BUTTON_HEIGHT = 36
+    BUTTON_BG = ColorSettings.WORD_COLORS["MEDIUM_CARMINE"]
+    BUTTON_TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    BUTTON_BORDER_COLOR = (120, 120, 120)
+    BUTTON_LABEL = "OK"
+
+    BACKDROP_COLOR = (0, 0, 0)
+    BACKDROP_ALPHA = 140
+
+
 class AudioSettings:
     pass
