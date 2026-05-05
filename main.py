@@ -49,6 +49,7 @@ class GameManager:
         pygame.display.set_caption(ScreenSettings.TITLE)
         self.clock = pygame.time.Clock()
         self.crt = CRT(self.screen)
+        self._crt_enabled = ScreenSettings.CRT_ENABLED_DEFAULT
 
         # -------- UI state --------
         self.text_boxes = TextBoxManager()
@@ -127,14 +128,32 @@ class GameManager:
             "view": {
                 "label": TopMenuBarSettings.VIEW_LABEL,
                 "items": (
-                    ("toggle_fullscreen", "TOGGLE FULLSCREEN", "F11"),
+                    (
+                        "toggle_fullscreen",
+                        TopMenuBarSettings.VIEW_TOGGLE_FULLSCREEN_LABEL,
+                        TopMenuBarSettings.VIEW_TOGGLE_FULLSCREEN_SHORTCUT,
+                    ),
+                    (
+                        "toggle_crt",
+                        TopMenuBarSettings.VIEW_TOGGLE_CRT_LABEL,
+                        TopMenuBarSettings.VIEW_TOGGLE_CRT_SHORTCUT,
+                    ),
                 ),
                 "actions": {
                     "toggle_fullscreen": pygame.display.toggle_fullscreen,
+                    "toggle_crt": self._toggle_crt,
                 },
             },
         }
         self.top_menu_bar = TopMenuBar(self.screen, menu_defs)
+
+    def _toggle_crt(self) -> None:
+        """Toggle whether the CRT overlay is drawn each frame.
+
+        Returns:
+            None
+        """
+        self._crt_enabled = not self._crt_enabled
 
     # -------------------------
     # BOOT / LIFECYCLE
@@ -425,6 +444,8 @@ class GameManager:
         # Global keys (always honored regardless of run state).
         if event.key == pygame.K_F11:
             pygame.display.toggle_fullscreen()
+        if event.key == pygame.K_F10:
+            self._toggle_crt()
         if event.key == pygame.K_ESCAPE:
             # Layered Esc behavior (priority order):
             # 1. Dialog/popup already open -> dialog handles its own Esc
@@ -746,7 +767,8 @@ class GameManager:
         self._draw_grid()
         self._draw()
         self.top_menu_bar.draw()
-        self.crt.draw()
+        if self._crt_enabled:
+            self.crt.draw()
         # Error banner draws after the CRT overlay so it's always legible.
         self._draw_error_banner()
 

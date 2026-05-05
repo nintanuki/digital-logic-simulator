@@ -58,6 +58,89 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 13:45 UTC — Add VIEW option to toggle CRT overlay
+
+**File:** settings.py
+**Date and Time:** 2026-05-05 13:45 UTC
+**Lines (at time of edit):** 50, 94-99 (modified)
+**Before:**
+    class ScreenSettings:
+        TITLE = "Digital Logic Simulator"
+        CRT_ALPHA_RANGE = (75, 90)
+
+    class TopMenuBarSettings:
+        VIEW_LABEL = "VIEW"
+        FILE_HIGHLIGHT_BG = COLOR_MENU_HIGHLIGHT
+**After:**
+    class ScreenSettings:
+        TITLE = "Digital Logic Simulator"
+        CRT_ENABLED_DEFAULT = True
+        CRT_ALPHA_RANGE = (75, 90)
+
+    class TopMenuBarSettings:
+        VIEW_LABEL = "VIEW"
+        VIEW_TOGGLE_FULLSCREEN_LABEL = "TOGGLE FULLSCREEN"
+        VIEW_TOGGLE_FULLSCREEN_SHORTCUT = "F11"
+        VIEW_TOGGLE_CRT_LABEL = "TOGGLE CRT"
+        VIEW_TOGGLE_CRT_SHORTCUT = "F10"
+        FILE_HIGHLIGHT_BG = COLOR_MENU_HIGHLIGHT
+**Why:** Added centralized constants for VIEW menu labels/shortcuts and a default
+CRT enabled flag so CRT toggling can be configured without hardcoded display text
+in GameManager.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 13:45 UTC
+**Lines (at time of edit):** 52, 128-146, 150-157, 447-448, 770-771 (modified)
+**Before:**
+    self.crt = CRT(self.screen)
+
+    "view": {
+        "items": (
+            ("toggle_fullscreen", "TOGGLE FULLSCREEN", "F11"),
+        ),
+        "actions": {
+            "toggle_fullscreen": pygame.display.toggle_fullscreen,
+        },
+    }
+
+    if event.key == pygame.K_F11:
+        pygame.display.toggle_fullscreen()
+
+    self.top_menu_bar.draw()
+    self.crt.draw()
+**After:**
+    self.crt = CRT(self.screen)
+    self._crt_enabled = ScreenSettings.CRT_ENABLED_DEFAULT
+
+    "view": {
+        "items": (
+            ("toggle_fullscreen", TopMenuBarSettings.VIEW_TOGGLE_FULLSCREEN_LABEL,
+             TopMenuBarSettings.VIEW_TOGGLE_FULLSCREEN_SHORTCUT),
+            ("toggle_crt", TopMenuBarSettings.VIEW_TOGGLE_CRT_LABEL,
+             TopMenuBarSettings.VIEW_TOGGLE_CRT_SHORTCUT),
+        ),
+        "actions": {
+            "toggle_fullscreen": pygame.display.toggle_fullscreen,
+            "toggle_crt": self._toggle_crt,
+        },
+    }
+
+    def _toggle_crt(self) -> None:
+        self._crt_enabled = not self._crt_enabled
+
+    if event.key == pygame.K_F11:
+        pygame.display.toggle_fullscreen()
+    if event.key == pygame.K_F10:
+        self._toggle_crt()
+
+    self.top_menu_bar.draw()
+    if self._crt_enabled:
+        self.crt.draw()
+**Why:** Added a VIEW menu option that toggles the CRT effect at runtime, plus
+a matching keyboard shortcut, while preserving fullscreen behavior.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-05 19:00 UTC — Restructure docs/TODO.md: replace pass-based planning with practical feature categories
 
 **File:** docs/TODO.md

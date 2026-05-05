@@ -47,6 +47,7 @@ class ScreenSettings:
     BG_COLOR = ColorSettings.WORD_COLORS["JELLYBEAN"]
     FPS = 60
     TITLE = "Digital Logic Simulator"
+    CRT_ENABLED_DEFAULT = True
     CRT_ALPHA_RANGE = (75, 90)
     CRT_SCANLINE_HEIGHT = 3 # vertical pixels between scanlines drawn on the CRT overlay
     GRID_SIZE = 32
@@ -91,6 +92,10 @@ class TopMenuBarSettings:
     FILE_LABEL = "FILE"
     EDIT_LABEL = "EDIT"
     VIEW_LABEL = "VIEW"
+    VIEW_TOGGLE_FULLSCREEN_LABEL = "TOGGLE FULLSCREEN"
+    VIEW_TOGGLE_FULLSCREEN_SHORTCUT = "F11"
+    VIEW_TOGGLE_CRT_LABEL = "TOGGLE CRT"
+    VIEW_TOGGLE_CRT_SHORTCUT = "F10"
     FILE_HIGHLIGHT_BG = COLOR_MENU_HIGHLIGHT
     FILE_UNDERLINE_THICKNESS = 2
     FILE_UNDERLINE_BOTTOM_INSET = 6
