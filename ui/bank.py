@@ -84,12 +84,31 @@ class ComponentBank:
         self.rect = UISettings.BANK_RECT
         self._text_boxes = text_boxes
         self._templates_and_spawners = self._build_templates()
-        self._protected_template_ids = {
-            id(tpl) for tpl, _spawn in self._templates_and_spawners
-        }
+        self._protected_template_ids = set()
+        self._refresh_protected_template_ids()
         self._drag_template = None
         self._drag_template_mouse_anchor = (0, 0)
         self._drag_template_rect_anchor = (0, 0)
+
+    def _refresh_protected_template_ids(self):
+        """Track non-removable base templates by object id.
+
+        Returns:
+            None
+        """
+        self._protected_template_ids = {
+            id(tpl) for tpl, _spawn in self._templates_and_spawners
+        }
+
+    def reset_to_default_templates(self):
+        """Reset the bank to base templates and drop saved-component entries.
+
+        Returns:
+            None
+        """
+        self._templates_and_spawners = self._build_templates()
+        self._refresh_protected_template_ids()
+        self._drag_template = None
 
     @property
     def templates(self):

@@ -221,6 +221,15 @@ class WireManager:
         if self.pending_source is not None and self.pending_source.parent is component:
             self._cancel_pending_wire()
 
+    def clear_all(self):
+        """Clear committed and in-flight wiring state.
+
+        Returns:
+            None
+        """
+        self.wires.clear()
+        self._cancel_pending_wire()
+
     # -------------------------
     # RENDER
     # -------------------------

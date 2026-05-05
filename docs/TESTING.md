@@ -16,7 +16,17 @@ Run this after major changes to ensure nothing broke:
 * Keep "middlemen" minimal, if A calls B, and all B does is call C, A should just call C
 * Keep code clean of dead imports, unused variables and functions, and legacy code.
 * GameManager must be light, offload responsibilities to other classes
-* When possible classes should comminicate to eachother through GameManager.
+* GameManager is an orchestrator, not a feature container.
+* GameManager should own app lifecycle, high-level state, and subsystem coordination.
+* Feature logic should live in the class that owns that feature.
+* State should live next to the behavior that uses it.
+* Avoid passing the full GameManager into other classes unless absolutely necessary.
+* Prefer explicit dependencies, narrow interfaces, and callbacks over giving a class access to all manager internals.
+* "Communicate through GameManager" means coordination, not global access to shared mutable state.
+* New features should not add large new blocks of logic directly into GameManager if a dedicated subsystem/controller is more appropriate.
+* Event handling, rendering, persistence, and UI state should be separated by responsibility as much as reasonably possible.
+* If a subsystem needs to trigger a cross-system action, prefer returning a result/action, calling a callback, or asking GameManager to coordinate it rather than directly reaching into another subsystem.
+* When possible classes should communicate to each other through GameManager.
 * Any new names for classes and functions must be clear regarding it's function
 * Keep all constants declared in settings.py, avoid magic numbers
 * All classes and functions must have a docstring.

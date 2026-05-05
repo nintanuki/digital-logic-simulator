@@ -58,6 +58,130 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 13:54 UTC — Clarify architecture rules and extract workspace interaction controller from GameManager
+
+**File:** docs/TESTING.md
+**Date and Time:** 2026-05-05 13:54 UTC
+**Lines (at time of edit):** 19-29 (modified)
+**Before:**
+    * GameManager must be light, offload responsibilities to other classes
+    * When possible classes should comminicate to eachother through GameManager.
+**After:**
+    * GameManager must be light, offload responsibilities to other classes
+    * GameManager is an orchestrator, not a feature container.
+    * GameManager should own app lifecycle, high-level state, and subsystem coordination.
+    * Feature logic should live in the class that owns that feature.
+    * State should live next to the behavior that uses it.
+    * Avoid passing the full GameManager into other classes unless absolutely necessary.
+    * Prefer explicit dependencies, narrow interfaces, and callbacks over giving a class access to all manager internals.
+    * "Communicate through GameManager" means coordination, not global access to shared mutable state.
+    * New features should not add large new blocks of logic directly into GameManager if a dedicated subsystem/controller is more appropriate.
+    * Event handling, rendering, persistence, and UI state should be separated by responsibility as much as reasonably possible.
+    * If a subsystem needs to trigger a cross-system action, prefer returning a result/action, calling a callback, or asking GameManager to coordinate it rather than directly reaching into another subsystem.
+    * When possible classes should communicate to each other through GameManager.
+**Why:** Clarified the architecture contract so "communicate through GameManager" is interpreted as orchestration and coordination, not broad shared-state access or passing the full manager into subsystems.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** core/workspace_controller.py
+**Date and Time:** 2026-05-05 13:54 UTC
+**Lines (at time of edit):** (new file)
+**Before:**
+    (file did not exist)
+**After:**
+    class WorkspaceInteractionController:
+        def prune_selection(self) -> None: ...
+        def delete_component_at_index(self, index: int) -> None: ...
+        def delete_selected_components(self) -> None: ...
+        def start_group_drag(self, mouse_pos: tuple[int, int], click_candidate) -> None: ...
+        def handle_group_drag_event(self, event: pygame.event.Event) -> bool: ...
+        def start_marquee(self, mouse_pos: tuple[int, int]) -> None: ...
+        def handle_marquee_event(self, event: pygame.event.Event) -> bool: ...
+        def draw_selection_marquee(self, screen: pygame.Surface) -> None: ...
+**Why:** Extracted selection, drag, marquee, and component-delete interaction logic out of GameManager into a dedicated subsystem with explicit dependencies (components, wires, history), reducing GameManager size and coupling.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 13:54 UTC
+**Lines (at time of edit):** 13, 24-29, 65-95, 232-239, 326-329, 395-547 (modified), 531-686 (deleted)
+**Before:**
+    self.selected_components = []
+    self._marquee_start = None
+    self._group_drag_anchor = None
+    ...
+    self._prune_selection()
+    self._delete_selected_components()
+    self._update_port_hover(event.pos)
+    self._handle_group_drag_event(event)
+    self._handle_marquee_event(event)
+    self._draw_selection_marquee()
+**After:**
+    self.workspace_interaction = WorkspaceInteractionController(
+        self.components,
+        self.wires,
+        self.history,
+    )
+    ...
+    self.workspace_interaction.prune_selection()
+    self.workspace_interaction.delete_selected_components()
+    self.workspace_interaction.update_port_hover(event.pos, self.bank.templates)
+    self.workspace_interaction.handle_group_drag_event(event)
+    self.workspace_interaction.handle_marquee_event(event)
+    self.workspace_interaction.draw_selection_marquee(self.screen)
+**Why:** Reduced GameManager from feature-container behavior to coordinator behavior by delegating workspace interaction responsibilities to a dedicated controller and using explicit subsystem APIs for workspace clear/reset.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-05 13:54 UTC
+**Lines (at time of edit):** 87-114 (modified)
+**Before:**
+    self._templates_and_spawners = self._build_templates()
+    self._protected_template_ids = {
+        id(tpl) for tpl, _spawn in self._templates_and_spawners
+    }
+    self._drag_template = None
+    self._drag_template_mouse_anchor = (0, 0)
+    self._drag_template_rect_anchor = (0, 0)
+**After:**
+    self._templates_and_spawners = self._build_templates()
+    self._protected_template_ids = set()
+    self._refresh_protected_template_ids()
+    self._drag_template = None
+    self._drag_template_mouse_anchor = (0, 0)
+    self._drag_template_rect_anchor = (0, 0)
+
+    def reset_to_default_templates(self):
+        self._templates_and_spawners = self._build_templates()
+        self._refresh_protected_template_ids()
+        self._drag_template = None
+**Why:** Replaced GameManager's direct mutation of bank internals with an explicit reset API and ensured protected-template IDs are recomputed on reset, preventing stale protection state.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/text_boxes.py
+**Date and Time:** 2026-05-05 13:54 UTC
+**Lines (at time of edit):** 391-399 (added)
+**Before:**
+    # No manager-level clear API; caller had to mutate manager internals.
+**After:**
+    def clear_all(self):
+        """Remove all text boxes and clear focus state."""
+        self.text_boxes.clear()
+        self._blur()
+**Why:** Added an explicit lifecycle API so GameManager can clear text boxes through the owning subsystem instead of mutating internal fields directly.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** core/wires.py
+**Date and Time:** 2026-05-05 13:54 UTC
+**Lines (at time of edit):** 224-232 (added)
+**Before:**
+    # No manager-level clear API; caller had to set wire internals directly.
+**After:**
+    def clear_all(self):
+        """Clear committed and in-flight wiring state."""
+        self.wires.clear()
+        self._cancel_pending_wire()
+**Why:** Added an explicit lifecycle API so GameManager clears wiring state via WireManager, keeping state ownership with the subsystem.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-05 13:45 UTC — Add VIEW option to toggle CRT overlay
 
 **File:** settings.py

@@ -388,6 +388,15 @@ class TextBoxManager:
             self.on_spawn(box)
         return box
 
+    def clear_all(self):
+        """Remove all text boxes and clear focus state.
+
+        Returns:
+            None
+        """
+        self.text_boxes.clear()
+        self._blur()
+
     # -------------------------
     # EVENT HANDLING
     # -------------------------
