@@ -58,6 +58,55 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-05 13:09 UTC — Add EDIT and VIEW to top menu bar
+
+**File:** settings.py
+**Date and Time:** 2026-05-05 13:09 UTC
+**Lines (at time of edit):** 101-104 (modified)
+**Before:**
+    class TopMenuBarSettings:
+        PADDING_X = 10
+        FILE_LABEL = "FILE"
+        FILE_HIGHLIGHT_BG = COLOR_MENU_HIGHLIGHT
+**After:**
+    class TopMenuBarSettings:
+        PADDING_X = 10
+        MENU_GAP_X = 2
+        FILE_LABEL = "FILE"
+        EDIT_LABEL = "EDIT"
+        VIEW_LABEL = "VIEW"
+        FILE_HIGHLIGHT_BG = COLOR_MENU_HIGHLIGHT
+**Why:** Added labels and spacing settings needed to render multiple top-level
+menu buttons (FILE, EDIT, VIEW) in a contiguous top bar.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-05 13:09 UTC
+**Lines (at time of edit):** 108-149, 559-668, 923-1149 (modified)
+**Before:**
+    Top menu logic was FILE-only (`_file_menu_open`, `_file_button_rect`,
+    `_file_menu_item_rects`) with FILE keyboard toggle and FILE dropdown
+    rendering/selection helpers.
+**After:**
+    Replaced FILE-only state with generic top-menu state:
+    `_top_menu_order = ("file", "edit", "view")`, `_top_menu_defs`,
+    `_active_top_menu_id`, shared geometry and item-surface maps.
+
+    Added EDIT menu items: `UNDO`, `REDO` (wired to history undo/redo).
+    Added VIEW menu item: `TOGGLE FULLSCREEN`.
+
+    Updated keyboard handling:
+    - `F` toggles FILE menu
+    - `E` toggles EDIT menu
+    - `V` toggles VIEW menu
+    - Up/Down/Enter/Esc navigate/activate/close the currently open top menu
+
+    Updated mouse handling and drawing to support all top menus through shared
+    helpers (`_toggle_top_menu`, `_top_menu_id_at`, `_draw_top_menu_popup`).
+**Why:** Implements requested top-level EDIT and VIEW menus next to FILE while
+keeping one shared interaction model for click and keyboard navigation.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-05 12:57 UTC — Decouple shortcut left inset from item spacing
 
 **File:** settings.py

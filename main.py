@@ -95,23 +95,57 @@ class GameManager:
         )
         self._hotkey_hint_surfs = self._build_hotkey_bar_text_surfaces()
         self._hotkey_hint_rects = []
-        self._file_menu_item_surfs = self._build_file_menu_item_surfaces()
-        self._file_label_surf = text_font.render(
-            TopMenuBarSettings.FILE_LABEL,
-            True,
-            TopMenuBarSettings.TEXT_COLOR,
-        )
-        self._file_label_surf_highlight = text_font.render(
-            TopMenuBarSettings.FILE_LABEL,
-            True,
-            COLOR_MENU_HIGHLIGHT_TEXT,
-        )
-        self._file_menu_open = False
-        self._file_menu_hover_index = 0
-        self._file_button_rect = pygame.Rect(0, 0, 0, 0)
-        self._file_menu_rect = pygame.Rect(0, 0, 0, 0)
-        self._file_menu_item_rects = []
-        self._rebuild_file_menu_geometry()
+        self._top_menu_order = ("file", "edit", "view")
+        self._top_menu_defs = {
+            "file": {
+                "label": TopMenuBarSettings.FILE_LABEL,
+                "items": MenuButtonSettings.ITEMS,
+                "actions": self._menu_actions,
+            },
+            "edit": {
+                "label": TopMenuBarSettings.EDIT_LABEL,
+                "items": (
+                    ("undo", "UNDO"),
+                    ("redo", "REDO"),
+                ),
+                "actions": {
+                    "undo": self.history.undo,
+                    "redo": self.history.redo,
+                },
+            },
+            "view": {
+                "label": TopMenuBarSettings.VIEW_LABEL,
+                "items": (
+                    ("toggle_fullscreen", "TOGGLE FULLSCREEN"),
+                ),
+                "actions": {
+                    "toggle_fullscreen": pygame.display.toggle_fullscreen,
+                },
+            },
+        }
+        self._top_menu_label_surfs = {
+            menu_id: text_font.render(
+                self._top_menu_defs[menu_id]["label"],
+                True,
+                TopMenuBarSettings.TEXT_COLOR,
+            )
+            for menu_id in self._top_menu_order
+        }
+        self._top_menu_label_surfs_highlight = {
+            menu_id: text_font.render(
+                self._top_menu_defs[menu_id]["label"],
+                True,
+                COLOR_MENU_HIGHLIGHT_TEXT,
+            )
+            for menu_id in self._top_menu_order
+        }
+        self._top_menu_item_surfs = self._build_top_menu_item_surfaces()
+        self._active_top_menu_id = None
+        self._top_menu_hover_index = 0
+        self._top_menu_button_rects = {}
+        self._top_menu_popup_rects = {}
+        self._top_menu_item_rects = {}
+        self._rebuild_top_menu_geometry()
         # Recoverable-error state. Set to (exc_type_name, message, timestamp_ms)
         # by the per-frame try/except in run(); cleared automatically after
         # ErrorBannerSettings.DISPLAY_MS so it only flashes briefly.
@@ -521,8 +555,8 @@ class GameManager:
                 self.close_game()
                 continue
 
-            # FILE menu captures focus while open.
-            if self._file_menu_open:
+            # Top menu captures focus while open.
+            if self._active_top_menu_id is not None:
                 if event.type == pygame.KEYDOWN:
                     self._handle_keydown(event)
                     continue
@@ -549,25 +583,27 @@ class GameManager:
         """Route a single keyboard press."""
         self._prune_selection()
         mods = pygame.key.get_mods()
-        if self._file_menu_open:
+        if self._active_top_menu_id is not None:
             if event.key == pygame.K_DOWN:
-                self._move_file_menu_selection(1)
+                self._move_top_menu_selection(1)
                 return
             if event.key == pygame.K_UP:
-                self._move_file_menu_selection(-1)
+                self._move_top_menu_selection(-1)
                 return
             if event.key == pygame.K_RETURN:
-                self._activate_file_menu_selection()
+                self._activate_top_menu_selection()
                 return
             if event.key == pygame.K_ESCAPE:
-                self._close_file_menu()
+                self._close_top_menu()
                 return
 
-        if event.key == pygame.K_f and not (mods & (pygame.KMOD_CTRL | pygame.KMOD_ALT)):
-            if self._file_menu_open:
-                self._close_file_menu()
-            else:
-                self._open_file_menu()
+        if event.key in (pygame.K_f, pygame.K_e, pygame.K_v) and not (mods & (pygame.KMOD_CTRL | pygame.KMOD_ALT)):
+            menu_id = {
+                pygame.K_f: "file",
+                pygame.K_e: "edit",
+                pygame.K_v: "view",
+            }[event.key]
+            self._toggle_top_menu(menu_id)
             return
 
         if event.key == pygame.K_z and (mods & pygame.KMOD_CTRL):
@@ -609,23 +645,22 @@ class GameManager:
                 return
 
         if event.type == pygame.MOUSEMOTION:
-            self._sync_file_menu_hover_with_mouse(event.pos)
+            self._sync_top_menu_hover_with_mouse(event.pos)
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.LEFT_CLICK:
-            if self._file_button_rect.collidepoint(event.pos):
-                if self._file_menu_open:
-                    self._close_file_menu()
-                else:
-                    self._open_file_menu()
+            clicked_top_menu_id = self._top_menu_id_at(event.pos)
+            if clicked_top_menu_id is not None:
+                self._toggle_top_menu(clicked_top_menu_id)
                 return
-            if self._file_menu_open:
-                if self._file_menu_rect.collidepoint(event.pos):
-                    index = self._file_menu_index_at(event.pos)
+            if self._active_top_menu_id is not None:
+                popup_rect = self._top_menu_popup_rects[self._active_top_menu_id]
+                if popup_rect.collidepoint(event.pos):
+                    index = self._top_menu_index_at(event.pos)
                     if index is not None:
-                        self._file_menu_hover_index = index
-                        self._activate_file_menu_selection()
+                        self._top_menu_hover_index = index
+                        self._activate_top_menu_selection()
                     return
-                self._close_file_menu()
+                self._close_top_menu()
                 return
 
         if event.type == pygame.MOUSEMOTION:
@@ -892,112 +927,147 @@ class GameManager:
             self._hotkey_hint_rects.append(text_rect.copy())
             x += surf.get_width() + item_gap
 
-    def _build_file_menu_item_surfaces(self):
-        """Render and cache FILE menu item labels once at startup."""
+    def _build_top_menu_item_surfaces(self):
+        """Render and cache all top-menu item labels once at startup."""
         font = Fonts.text_box
         if font is None:
-            raise RuntimeError("Fonts.init() must run before FILE menu text render")
-        return [
-            font.render(
-                label,
-                True,
-                MenuButtonSettings.ITEM_ENABLED_COLOR
-                if self._menu_actions.get(item_id) is not None
-                else MenuButtonSettings.ITEM_DISABLED_COLOR,
+            raise RuntimeError("Fonts.init() must run before top menu text render")
+        menu_surfs = {}
+        for menu_id in self._top_menu_order:
+            actions = self._top_menu_defs[menu_id]["actions"]
+            menu_surfs[menu_id] = [
+                font.render(
+                    label,
+                    True,
+                    MenuButtonSettings.ITEM_ENABLED_COLOR
+                    if actions.get(item_id) is not None
+                    else MenuButtonSettings.ITEM_DISABLED_COLOR,
+                )
+                for item_id, label in self._top_menu_defs[menu_id]["items"]
+            ]
+        return menu_surfs
+
+    def _rebuild_top_menu_geometry(self):
+        """Build top-menu button and popup geometry for FILE/EDIT/VIEW."""
+        x = 0
+        for menu_id in self._top_menu_order:
+            label_surf = self._top_menu_label_surfs[menu_id]
+            button_rect = pygame.Rect(
+                x,
+                0,
+                label_surf.get_width() + TopMenuBarSettings.PADDING_X * 2,
+                TopMenuBarSettings.HEIGHT,
             )
-            for item_id, label in MenuButtonSettings.ITEMS
-        ]
-
-    def _rebuild_file_menu_geometry(self):
-        """Build FILE button and popup item rects anchored to the top bar."""
-        self._file_button_rect = pygame.Rect(
-            0,
-            0,
-            self._file_label_surf.get_width() + TopMenuBarSettings.PADDING_X * 2,
-            TopMenuBarSettings.HEIGHT,
-        )
-        self._file_menu_rect = pygame.Rect(
-            self._file_button_rect.left,
-            TopMenuBarSettings.HEIGHT,
-            MenuButtonSettings.POPUP_WIDTH,
-            MenuButtonSettings.POPUP_HEIGHT,
-        )
-        self._file_menu_item_rects = [
-            pygame.Rect(
-                self._file_menu_rect.left,
-                self._file_menu_rect.top + index * MenuButtonSettings.ITEM_HEIGHT,
-                self._file_menu_rect.width,
-                MenuButtonSettings.ITEM_HEIGHT,
+            self._top_menu_button_rects[menu_id] = button_rect
+            items = self._top_menu_defs[menu_id]["items"]
+            popup_rect = pygame.Rect(
+                button_rect.left,
+                TopMenuBarSettings.HEIGHT,
+                MenuButtonSettings.POPUP_WIDTH,
+                len(items) * MenuButtonSettings.ITEM_HEIGHT,
             )
-            for index in range(len(MenuButtonSettings.ITEMS))
-        ]
+            self._top_menu_popup_rects[menu_id] = popup_rect
+            self._top_menu_item_rects[menu_id] = [
+                pygame.Rect(
+                    popup_rect.left,
+                    popup_rect.top + index * MenuButtonSettings.ITEM_HEIGHT,
+                    popup_rect.width,
+                    MenuButtonSettings.ITEM_HEIGHT,
+                )
+                for index in range(len(items))
+            ]
+            x = button_rect.right + TopMenuBarSettings.MENU_GAP_X
 
-    def _open_file_menu(self):
-        """Open FILE menu and seed selection to the first enabled item."""
-        self._file_menu_open = True
-        self._file_menu_hover_index = self._first_enabled_file_menu_index()
+    def _toggle_top_menu(self, menu_id):
+        """Toggle a top menu, switching menus when a different one is clicked."""
+        if self._active_top_menu_id == menu_id:
+            self._close_top_menu()
+            return
+        self._active_top_menu_id = menu_id
+        self._top_menu_hover_index = self._first_enabled_top_menu_index(menu_id)
 
-    def _close_file_menu(self):
-        """Close FILE menu and return keyboard focus to the workspace."""
-        self._file_menu_open = False
+    def _close_top_menu(self):
+        """Close active top menu and return focus to workspace."""
+        self._active_top_menu_id = None
+
+    def _top_menu_id_at(self, pos):
+        """Return the top-menu id whose button contains pos, else None."""
+        for menu_id, rect in self._top_menu_button_rects.items():
+            if rect.collidepoint(pos):
+                return menu_id
+        return None
 
     @staticmethod
-    def _file_menu_index_at_pos(item_rects, pos):
+    def _top_menu_index_at_pos(item_rects, pos):
         """Return the popup-item index containing pos, else None."""
         for index, rect in enumerate(item_rects):
             if rect.collidepoint(pos):
                 return index
         return None
 
-    def _file_menu_index_at(self, pos):
-        """Return the popup-item index at pos for the active FILE menu."""
-        return self._file_menu_index_at_pos(self._file_menu_item_rects, pos)
+    def _top_menu_index_at(self, pos):
+        """Return popup-item index at pos for the active top menu."""
+        if self._active_top_menu_id is None:
+            return None
+        return self._top_menu_index_at_pos(
+            self._top_menu_item_rects[self._active_top_menu_id],
+            pos,
+        )
 
-    def _first_enabled_file_menu_index(self):
-        """Return index of first menu item that has an action wired."""
-        for index, (item_id, _label) in enumerate(MenuButtonSettings.ITEMS):
-            if self._menu_actions.get(item_id) is not None:
+    def _first_enabled_top_menu_index(self, menu_id):
+        """Return index of first menu item with a wired action."""
+        menu_items = self._top_menu_defs[menu_id]["items"]
+        menu_actions = self._top_menu_defs[menu_id]["actions"]
+        for index, (item_id, _label) in enumerate(menu_items):
+            if menu_actions.get(item_id) is not None:
                 return index
         return 0
 
-    def _move_file_menu_selection(self, step):
-        """Move FILE menu selection by step over enabled items only."""
+    def _move_top_menu_selection(self, step):
+        """Move active top-menu selection by step over enabled items only."""
+        if self._active_top_menu_id is None:
+            return
+        menu_items = self._top_menu_defs[self._active_top_menu_id]["items"]
+        menu_actions = self._top_menu_defs[self._active_top_menu_id]["actions"]
         enabled_indices = [
             index
-            for index, (item_id, _label) in enumerate(MenuButtonSettings.ITEMS)
-            if self._menu_actions.get(item_id) is not None
+            for index, (item_id, _label) in enumerate(menu_items)
+            if menu_actions.get(item_id) is not None
         ]
         if not enabled_indices:
             return
-        if self._file_menu_hover_index not in enabled_indices:
-            self._file_menu_hover_index = enabled_indices[0]
+        if self._top_menu_hover_index not in enabled_indices:
+            self._top_menu_hover_index = enabled_indices[0]
             return
-        current = enabled_indices.index(self._file_menu_hover_index)
-        self._file_menu_hover_index = enabled_indices[(current + step) % len(enabled_indices)]
+        current = enabled_indices.index(self._top_menu_hover_index)
+        self._top_menu_hover_index = enabled_indices[(current + step) % len(enabled_indices)]
 
-    def _activate_file_menu_selection(self):
-        """Run the currently highlighted FILE menu action and close menu."""
-        if not MenuButtonSettings.ITEMS:
-            self._close_file_menu()
+    def _activate_top_menu_selection(self):
+        """Run the currently highlighted top-menu action and close menu."""
+        if self._active_top_menu_id is None:
             return
-        item_id, _label = MenuButtonSettings.ITEMS[self._file_menu_hover_index]
-        action = self._menu_actions.get(item_id)
+        menu_items = self._top_menu_defs[self._active_top_menu_id]["items"]
+        if not menu_items:
+            self._close_top_menu()
+            return
+        item_id, _label = menu_items[self._top_menu_hover_index]
+        action = self._top_menu_defs[self._active_top_menu_id]["actions"].get(item_id)
         if action is None:
             return
-        self._close_file_menu()
+        self._close_top_menu()
         action()
 
-    def _sync_file_menu_hover_with_mouse(self, mouse_pos):
-        """Mirror mouse hover into keyboard selection state while menu is open."""
-        if not self._file_menu_open:
+    def _sync_top_menu_hover_with_mouse(self, mouse_pos):
+        """Mirror mouse hover into keyboard selection state for active menu."""
+        if self._active_top_menu_id is None:
             return
-        index = self._file_menu_index_at(mouse_pos)
+        index = self._top_menu_index_at(mouse_pos)
         if index is None:
             return
-        self._file_menu_hover_index = index
+        self._top_menu_hover_index = index
 
     def _draw_top_menu_bar(self):
-        """Draw top FILE menu bar with highlighted FILE affordance."""
+        """Draw top FILE/EDIT/VIEW menu bar with highlighted active affordance."""
         bar_rect = pygame.Rect(0, 0, ScreenSettings.WIDTH, TopMenuBarSettings.HEIGHT)
         pygame.draw.rect(self.screen, TopMenuBarSettings.BG_COLOR, bar_rect)
         pygame.draw.line(
@@ -1008,62 +1078,74 @@ class GameManager:
             1,
         )
 
-        file_bg = TopMenuBarSettings.BG_COLOR
-        mouse_over_file = self._file_button_rect.collidepoint(pygame.mouse.get_pos())
-        file_is_highlighted = self._file_menu_open or mouse_over_file
-        if file_is_highlighted:
-            file_bg = TopMenuBarSettings.FILE_HIGHLIGHT_BG
-        pygame.draw.rect(self.screen, file_bg, self._file_button_rect)
-        file_label_surf = (
-            self._file_label_surf_highlight
-            if file_is_highlighted
-            else self._file_label_surf
-        )
-        label_rect = file_label_surf.get_rect(center=self._file_button_rect.center)
-        self.screen.blit(file_label_surf, label_rect)
-
-        # Underline only the leading F to mimic a classic mnemonic affordance.
         text_font = Fonts.text_box
         if text_font is None:
             return
-        f_width = text_font.size("F")[0]
-        underline_y = (
-            self._file_button_rect.bottom
-            - TopMenuBarSettings.FILE_UNDERLINE_BOTTOM_INSET
-        )
-        underline_x0 = label_rect.x
-        underline_color = (
-            COLOR_MENU_HIGHLIGHT_TEXT
-            if file_is_highlighted
-            else TopMenuBarSettings.TEXT_COLOR
-        )
-        pygame.draw.line(
-            self.screen,
-            underline_color,
-            (underline_x0, underline_y),
-            (underline_x0 + f_width, underline_y),
-            TopMenuBarSettings.FILE_UNDERLINE_THICKNESS,
-        )
+        mouse_pos = pygame.mouse.get_pos()
+        for menu_id in self._top_menu_order:
+            rect = self._top_menu_button_rects[menu_id]
+            is_highlighted = (
+                self._active_top_menu_id == menu_id
+                or rect.collidepoint(mouse_pos)
+            )
+            button_bg = (
+                TopMenuBarSettings.FILE_HIGHLIGHT_BG
+                if is_highlighted
+                else TopMenuBarSettings.BG_COLOR
+            )
+            pygame.draw.rect(self.screen, button_bg, rect)
+            label_surf = (
+                self._top_menu_label_surfs_highlight[menu_id]
+                if is_highlighted
+                else self._top_menu_label_surfs[menu_id]
+            )
+            label_rect = label_surf.get_rect(center=rect.center)
+            self.screen.blit(label_surf, label_rect)
 
-        if self._file_menu_open:
-            self._draw_file_menu_popup()
+            if menu_id == "file":
+                # Underline only the leading F to mimic a classic mnemonic affordance.
+                f_width = text_font.size("F")[0]
+                underline_y = (
+                    rect.bottom - TopMenuBarSettings.FILE_UNDERLINE_BOTTOM_INSET
+                )
+                underline_x0 = label_rect.x
+                underline_color = (
+                    COLOR_MENU_HIGHLIGHT_TEXT
+                    if is_highlighted
+                    else TopMenuBarSettings.TEXT_COLOR
+                )
+                pygame.draw.line(
+                    self.screen,
+                    underline_color,
+                    (underline_x0, underline_y),
+                    (underline_x0 + f_width, underline_y),
+                    TopMenuBarSettings.FILE_UNDERLINE_THICKNESS,
+                )
 
-    def _draw_file_menu_popup(self):
-        """Draw FILE dropdown menu and shared hover/selection highlight."""
-        pygame.draw.rect(self.screen, MenuButtonSettings.POPUP_BODY_COLOR, self._file_menu_rect)
+        if self._active_top_menu_id is not None:
+            self._draw_top_menu_popup()
+
+    def _draw_top_menu_popup(self):
+        """Draw active top-menu dropdown and shared hover/selection highlight."""
+        if self._active_top_menu_id is None:
+            return
+        popup_rect = self._top_menu_popup_rects[self._active_top_menu_id]
+        pygame.draw.rect(self.screen, MenuButtonSettings.POPUP_BODY_COLOR, popup_rect)
         pygame.draw.rect(
             self.screen,
             MenuButtonSettings.POPUP_BORDER_COLOR,
-            self._file_menu_rect,
+            popup_rect,
             MenuButtonSettings.POPUP_BORDER_THICKNESS,
         )
         text_font = Fonts.text_box
         if text_font is None:
             return
-        for index, (rect, surf) in enumerate(zip(self._file_menu_item_rects, self._file_menu_item_surfs)):
-            if index == self._file_menu_hover_index:
+        menu_items = self._top_menu_defs[self._active_top_menu_id]["items"]
+        item_surfs = self._top_menu_item_surfs[self._active_top_menu_id]
+        for index, (rect, surf) in enumerate(zip(self._top_menu_item_rects[self._active_top_menu_id], item_surfs)):
+            if index == self._top_menu_hover_index:
                 pygame.draw.rect(self.screen, COLOR_MENU_HIGHLIGHT, rect)
-                _item_id, label = MenuButtonSettings.ITEMS[index]
+                _item_id, label = menu_items[index]
                 selected_surf = text_font.render(label, True, COLOR_MENU_HIGHLIGHT_TEXT)
                 label_y = rect.y + (rect.height - selected_surf.get_height()) // 2
                 self.screen.blit(
