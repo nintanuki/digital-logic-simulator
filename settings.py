@@ -299,8 +299,8 @@ class SaveComponentDialogSettings:
     click-outside-cancels is fine because there's no in-flight work.
     """
     # Centered on the screen. Left panel stays compact for name/buttons;
-    # right panel hosts three stacked RGB fields.
-    WIDTH = 500
+    # right panel hosts three stacked RGB fields with matching side padding.
+    WIDTH = 420
     HEIGHT = 220
     BODY_COLOR = (40, 40, 40)
     BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
@@ -308,8 +308,8 @@ class SaveComponentDialogSettings:
     PADDING = 16
     # Vertical gap between the title and the name field.
     SECTION_GAP = 12
-    PANEL_GAP = 14
-    LEFT_PANEL_WIDTH = 250
+    PANEL_GAP = 12
+    LEFT_PANEL_WIDTH = 260
 
     # Title
     TITLE = "SAVE AS COMPONENT"
@@ -331,13 +331,12 @@ class SaveComponentDialogSettings:
     NAME_CARET_WIDTH = 2
 
     # RGB fields (right panel)
-    RGB_TITLE = "RGB"
-    RGB_RANGE_LABEL = "RANGE 0-255"
+    RGB_TITLE = "COLOR"
     RGB_LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
-    RGB_SUBTEXT_COLOR = (160, 160, 160)
     RGB_FIELD_WIDTH = 78
     RGB_FIELD_HEIGHT = 30
     RGB_FIELD_GAP = 10
+    RGB_LABEL_FIELD_GAP = 8
     RGB_FIELD_BG = NAME_FIELD_BG
     RGB_FIELD_BORDER = NAME_FIELD_BORDER
     RGB_FIELD_BORDER_FOCUSED = NAME_FIELD_BORDER_FOCUSED
@@ -347,6 +346,15 @@ class SaveComponentDialogSettings:
     RGB_FIELD_PADDING_X = 8
     RGB_MAX_LENGTH = 3
     DEFAULT_RGB = ColorSettings.WORD_COLORS["MEDIUM_CARMINE"]
+
+    # Live swatch between name field and action buttons.
+    PREVIEW_LABEL = "PREVIEW"
+    PREVIEW_LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    PREVIEW_HEIGHT = 28
+    PREVIEW_MIN_TOP_GAP = 14
+    PREVIEW_MIN_BOTTOM_GAP = 14
+    PREVIEW_BG = (24, 24, 24)
+    PREVIEW_BORDER = (120, 120, 120)
 
     # Save / Cancel buttons
     BUTTON_WIDTH = 120

@@ -273,8 +273,9 @@ class SaveComponentDialog:
 
         # Left panel widgets.
         cursor_y = self.rect.y + DS.PADDING
-        self._title_pos = (self._left_panel.x, cursor_y)
-        cursor_y += self._title_surf.get_height() + DS.SECTION_GAP
+        self._title_rect = self._title_surf.get_rect()
+        self._title_rect.midtop = (self._left_panel.centerx, cursor_y)
+        cursor_y = self._title_rect.bottom + DS.SECTION_GAP
         inner_width = self._left_panel.width
         self._name_field = _NameField(
             self._left_panel.x, cursor_y, inner_width,
@@ -286,19 +287,25 @@ class SaveComponentDialog:
         self._rgb_title_surf = Fonts.text_box.render(
             DS.RGB_TITLE, True, DS.RGB_LABEL_COLOR,
         )
-        self._rgb_range_surf = Fonts.text_box.render(
-            DS.RGB_RANGE_LABEL, True, DS.RGB_SUBTEXT_COLOR,
-        )
         self._rgb_label_surfs = [
             Fonts.text_box.render(label, True, DS.RGB_LABEL_COLOR)
             for label in ("R", "G", "B")
         ]
         rgb_start_y = self._right_panel.y + self._rgb_title_surf.get_height() + DS.SECTION_GAP
         default_r, default_g, default_b = DS.DEFAULT_RGB
+        rgb_row_width = max(
+            label_surf.get_width() for label_surf in self._rgb_label_surfs
+        ) + DS.RGB_LABEL_FIELD_GAP + DS.RGB_FIELD_WIDTH
+        rgb_row_left = self._right_panel.x + (self._right_panel.width - rgb_row_width) // 2
+        rgb_field_x = (
+            rgb_row_left
+            + max(label_surf.get_width() for label_surf in self._rgb_label_surfs)
+            + DS.RGB_LABEL_FIELD_GAP
+        )
         self._rgb_fields = [
-            _RgbField(self._right_panel.x + 18, rgb_start_y + 0 * (DS.RGB_FIELD_HEIGHT + DS.RGB_FIELD_GAP), default_r),
-            _RgbField(self._right_panel.x + 18, rgb_start_y + 1 * (DS.RGB_FIELD_HEIGHT + DS.RGB_FIELD_GAP), default_g),
-            _RgbField(self._right_panel.x + 18, rgb_start_y + 2 * (DS.RGB_FIELD_HEIGHT + DS.RGB_FIELD_GAP), default_b),
+            _RgbField(rgb_field_x, rgb_start_y + 0 * (DS.RGB_FIELD_HEIGHT + DS.RGB_FIELD_GAP), default_r),
+            _RgbField(rgb_field_x, rgb_start_y + 1 * (DS.RGB_FIELD_HEIGHT + DS.RGB_FIELD_GAP), default_g),
+            _RgbField(rgb_field_x, rgb_start_y + 2 * (DS.RGB_FIELD_HEIGHT + DS.RGB_FIELD_GAP), default_b),
         ]
 
         # Buttons: Save right-edge of left panel, Cancel to its left.
@@ -324,6 +331,19 @@ class SaveComponentDialog:
         )
         self._cancel_label = Fonts.text_box.render(
             DS.BUTTON_LABEL_CANCEL, True, DS.BUTTON_TEXT_COLOR_ENABLED,
+        )
+        self._preview_label_surf = Fonts.text_box.render(
+            DS.PREVIEW_LABEL, True, DS.PREVIEW_LABEL_COLOR,
+        )
+        preview_top = self._name_field.rect.bottom + DS.PREVIEW_MIN_TOP_GAP
+        preview_bottom = button_y - DS.PREVIEW_MIN_BOTTOM_GAP
+        preview_height = min(DS.PREVIEW_HEIGHT, max(12, preview_bottom - preview_top))
+        preview_y = preview_top + max(0, (preview_bottom - preview_top - preview_height) // 2)
+        self._preview_rect = pygame.Rect(
+            self._left_panel.x,
+            preview_y,
+            self._left_panel.width,
+            preview_height,
         )
 
     # -------------------------
@@ -448,23 +468,35 @@ class SaveComponentDialog:
         pygame.draw.rect(surface, DS.BODY_COLOR, self.rect)
         pygame.draw.rect(surface, DS.BORDER_COLOR, self.rect,
                          DS.BORDER_THICKNESS)
-        surface.blit(self._title_surf, self._title_pos)
+        surface.blit(self._title_surf, self._title_rect)
         self._draw_right_panel(surface)
         self._name_field.draw(surface)
+        self._draw_color_preview(surface)
         self._draw_buttons(surface)
 
     def _draw_right_panel(self, surface):
         """Render RGB labels and channel fields on the dialog's right side."""
-        surface.blit(self._rgb_title_surf, (self._right_panel.x, self._right_panel.y))
-        range_y = self._right_panel.y + self._rgb_title_surf.get_height() + 2
-        surface.blit(self._rgb_range_surf, (self._right_panel.x + 26, range_y))
+        title_rect = self._rgb_title_surf.get_rect()
+        title_rect.midtop = (self._right_panel.centerx, self._right_panel.y)
+        surface.blit(self._rgb_title_surf, title_rect)
 
         for i, field in enumerate(self._rgb_fields):
             label_surf = self._rgb_label_surfs[i]
-            label_x = self._right_panel.x
+            label_x = field.rect.x - DS.RGB_LABEL_FIELD_GAP - label_surf.get_width()
             label_y = field.rect.y + (field.rect.height - label_surf.get_height()) // 2
             surface.blit(label_surf, (label_x, label_y))
             field.draw(surface)
+
+    def _draw_color_preview(self, surface):
+        """Draw a live swatch of the currently selected RGB color."""
+        label_rect = self._preview_label_surf.get_rect()
+        label_rect.midbottom = (self._preview_rect.centerx, self._preview_rect.top - 4)
+        surface.blit(self._preview_label_surf, label_rect)
+
+        color = self._current_color()
+        fill_color = color if color is not None else DS.PREVIEW_BG
+        pygame.draw.rect(surface, fill_color, self._preview_rect)
+        pygame.draw.rect(surface, DS.PREVIEW_BORDER, self._preview_rect, 1)
 
     def _draw_buttons(self, surface):
         """Render the Save and Cancel buttons in their current states.
