@@ -493,9 +493,10 @@ class SavedComponent(Component):
         """
         ports = []
         for index, y in enumerate(self._port_y_offsets(self._input_count)):
-            ports.append(Port(self, 0, y, f"I{index}", Port.INPUT))
+            ports.append(Port(self, 0, y, chr(65 + index), Port.INPUT))
         for index, y in enumerate(self._port_y_offsets(self._output_count)):
-            ports.append(Port(self, self.rect.width, y, f"O{index}", Port.OUTPUT))
+            name = "OUT" if index == 0 else f"OUT{index}"
+            ports.append(Port(self, self.rect.width, y, name, Port.OUTPUT))
         return ports
 
     def _port_y_offsets(self, count):
