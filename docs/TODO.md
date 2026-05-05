@@ -10,16 +10,16 @@ Before starting any item, read `docs/TESTING.md` and skim recent entries in
 **Design principle:** fully usable with the mouse alone. Keyboard shortcuts exist
 alongside, never instead of, a clickable equivalent.
 
-**The selling point:** the abstraction loop — build a circuit, save it as a named
+**The selling point:** the abstraction loop ï¿½ build a circuit, save it as a named
 component, drop it into the next circuit as a black box, save that, and repeat.
 
 ---
 
-## Pass 1 — Spine (the abstraction loop, rough)
+## Pass 1 ï¿½ Spine (the abstraction loop, rough)
 
 Get the core teaching loop working end-to-end, rough as needed. By the end a
-student can build NOT, AND, OR, XOR, and SR latch from NANDs — each saved and
-reusable. **In-session only** — closing the program loses everything. Deliberate.
+student can build NOT, AND, OR, XOR, and SR latch from NANDs ï¿½ each saved and
+reusable. **In-session only** ï¿½ closing the program loses everything. Deliberate.
 
 - [x] **Save-as-Component dialog.**
 - [x] **Saved component appears as a new template in the toolbox.**
@@ -28,26 +28,15 @@ reusable. **In-session only** — closing the program loses everything. Deliberate
 
 ---
 
-## Pass 2 — Polish the spine
+## Pass 2 ï¿½ Polish the spine
 
 Fix things a student would notice in five seconds. Add the safety net.
 
 - [x] **Undo / redo.** Ctrl+Z / Ctrl+Y. Six command types in `commands.py`.
 - [x] **Switch / LED visual redesign.** Switch = sliding toggle. LED = bulb silhouette.
-- [ ] **Fix MENU button vs TEXT template visual confusion.** Both are
-  small dark squares with a four-letter white label, so it's not obvious
-  which is a control and which is a draggable component. Give MENU a
-  distinct treatment — different color, a `=` / `?` icon, or a
-  different shape — so it reads as a control surface, not an element.
-- [ ] **Fix text inside components (alignment + size).** Text needs to be
-  vertically and horizontally centered. The word "OUT" barely fits inside
-  the OUT component, and the circle can barely fit three letters. Either
-  shrink the font dynamically to fit the body, or resolve as part of the
-  IN/OUT visual redesign above (which changes the body shape anyway).
-- [ ] **F11 needs a mouse path.** Fullscreen is keyboard-only today.
-  Most likely answer: an entry on the bottom-left popup menu. (A future
-  top hotkey-hint bar in Pass 6 will add a second mouse path.)
 - [x] **Random color for saved components.** 8-color curated palette in `ColorSettings`.
+- [x] **Wrap the per-frame loop in a try/except** that flashes a banner and keeps
+  the app alive on unhandled exceptions.
 - [ ] **Esc should not quit silently.** Layered behavior, in priority
   order:
   1. If a popup / dialog is open, Esc dismisses it. *(MenuButton popup
@@ -55,23 +44,29 @@ Fix things a student would notice in five seconds. Add the safety net.
   2. Else if the game is fullscreen, Esc exits fullscreen (mirroring F11).
   3. Else Esc shows an in-game "Are you sure you want to quit?" confirm
      dialog. Only "Yes" actually quits.
+- [ ] **Fix MENU button vs TEXT template visual confusion.** Both are
+  small dark squares with a four-letter white label, so it's not obvious
+  which is a control and which is a draggable component. Give MENU a
+  distinct treatment ï¿½ different color, a `=` / `?` icon, or a
+  different shape ï¿½ so it reads as a control surface, not an element.
+- [ ] **F11 needs a mouse path.** Fullscreen is keyboard-only today.
+  Most likely answer: an entry on the bottom-left popup menu. (A future
+  top hotkey-hint bar in Pass 6 will add a second mouse path.)
 - [ ] **Trash mode / delete button.** Right-click on a touchpad
   (Chromebook, single-button mouse) is hard for kids. Optional toolbar
   trash icon that puts the cursor into "delete mode" until the next
   click. Combined with undo/redo above, this gives mouse-only students
   a complete safe-delete workflow. **Check classroom hardware before
-  building** — see Risks & Notes.
-- [x] **Wrap the per-frame loop in a try/except** that flashes a banner and keeps
-  the app alive on unhandled exceptions.
+  building** ï¿½ see Risks & Notes.
 - [ ] **Manual test the bottom-left popup menu.** Open the menu, click
   each item, confirm the popup closes and the action runs. Click outside
-  — popup closes, no spurious wire/component side effects. (Carried
+  ï¿½ popup closes, no spurious wire/component side effects. (Carried
   over from Pass 1; testable end-to-end once SAVE AS COMPONENT is wired
   up and the other items get their backing actions in Pass 3.)
 
 ---
 
-## Pass 3 — Persistence
+## Pass 3 ï¿½ Persistence
 
 Disk save/load so work survives across sessions and machines.
 
@@ -80,7 +75,7 @@ Disk save/load so work survives across sessions and machines.
   (source/target as `(component_id, port_name)` pairs), text boxes
   (position + text), and the embedded definitions of every saved
   sub-component. **Schema version field from day one** so future formats
-  can migrate cleanly. **Embed don't reference** — sub-circuit
+  can migrate cleanly. **Embed don't reference** ï¿½ sub-circuit
   definitions live inside the project save, otherwise sharing a project
   breaks the moment the recipient is missing one of the saved
   components. **Apply `.upper()` once to every text-box string when
@@ -108,20 +103,20 @@ Disk save/load so work survives across sessions and machines.
   the known gates (NOT, AND, OR, NAND, NOR, XOR, XNOR). If a match, the
   dialog pre-fills the recognized name and pops a "You discovered
   <NAME>!" banner. Student can override; this is a hint, not a lock.
-  Cheap to compute — =4 inputs covers the entire list, and the check
+  Cheap to compute ï¿½ =4 inputs covers the entire list, and the check
   runs once on save, not per frame.
 - [ ] **Color picker for saved components.** The save dialog grows a
-  color picker. Small palette swatch AND/OR an RGB / hex entry field —
+  color picker. Small palette swatch AND/OR an RGB / hex entry field ï¿½
   the hex/RGB option is a deliberate teaching moment so students see how
   digital colors are encoded. Color saves into the component definition,
   not the project.
-- [ ] **Rename the program.** "Circuit Builder" is a misnomer — there's
+- [ ] **Rename the program.** "Circuit Builder" is a misnomer ï¿½ there's
   no analog circuitry. Pick a name (see Questions) and migrate before
   Pass 3 ships, so save files reference the new name from day one.
 
 ---
 
-## Pass 4 — Polish persistence
+## Pass 4 ï¿½ Polish persistence
 
 Make the persistence layer robust enough to share with other CS
 teachers, not just survive a single classroom.
@@ -130,7 +125,7 @@ teachers, not just survive a single classroom.
   function that loads the old format and produces the new one. Refuse to
   load a future-version file with a clear error rather than guessing.
 - [ ] **Error recovery for malformed save files.** A truncated or
-  hand-edited save shouldn't crash the program — it should fall back to
+  hand-edited save shouldn't crash the program ï¿½ it should fall back to
   an empty workspace with a banner explaining what went wrong.
 - [ ] **Toolbox redesign for many components.** By Pass 4 the bank will
   overflow with saved components. Decide approach (see Questions:
@@ -149,7 +144,7 @@ teachers, not just survive a single classroom.
 
 ---
 
-## Pass 5 — Curriculum (rough)
+## Pass 5 ï¿½ Curriculum (rough)
 
 The teach-with-it features. Built on top of Save-as-Component (truth-
 table verification reuses Pass 3's machinery) and Persistence (puzzles
@@ -166,29 +161,29 @@ ship as project files).
 
 ---
 
-## Pass 6 — Polish curriculum + discoverability
+## Pass 6 ï¿½ Polish curriculum + discoverability
 
 Make the program teach itself. Smooths the rough Pass-5 lessons and
 adds the surfaces that lower the floor for a cold-start student.
 
 - [x] **Top hotkey-hint bar.** Always-on strip showing keyboard shortcuts.
 - [ ] **Keyboard shortcut overlay.** Press `?` to flash a translucent
-  cheat-sheet of every shortcut. Layers with the hint bar above — bar
+  cheat-sheet of every shortcut. Layers with the hint bar above ï¿½ bar
   is always-on, overlay is on-demand and exhaustive.
 - [ ] **Easy mode.** Optional starter set: students begin with AND,
   OR, NOT, NAND already in the toolbox so they can build interesting
   circuits before they've finished the NAND-only progression. Off by
-  default — the universal-NAND moment is the main pedagogical point.
+  default ï¿½ the universal-NAND moment is the main pedagogical point.
 - [ ] **Encyclopedia / dictionary.** Built-in glossary students can
   flip open: each gate, each common circuit (latch, flip-flop, adder,
   multiplexer) with a short definition and a worked example.
 
 ---
 
-## Pass 7+ — Treats
+## Pass 7+ ï¿½ Treats
 
 Stretch goals. Take them in any order, or not at all. None of these
-strengthen the abstraction loop — they decorate it.
+strengthen the abstraction loop ï¿½ they decorate it.
 
 - [ ] **Sound design.** Subtle click on placement, faint hum on HIGH
   signal, a small "snap" when a wire commits. CRT scanlines already
@@ -201,7 +196,7 @@ strengthen the abstraction loop — they decorate it.
   shareable file students can email or hand off. Pairs with the
   embed-don't-reference save-file decision in Pass 3.
 - [ ] **Wire bending / segments.** Already in Issues / Bugs as the
-  underlying complaint. Promote here as the proposed fix when ready —
+  underlying complaint. Promote here as the proposed fix when ready ï¿½
   click waypoints during the wire drag to add bend points; delete a
   waypoint by right-clicking it.
 - [ ] **Dynamic text-box width.** Right now `TextBoxSettings.WIDTH` is
@@ -221,7 +216,7 @@ call is made.
   and "CRT effect" become a single "Retro mode" master switch, or stay
   as two independent options? Decide before Pass 3's Options page.
 - [ ] **Toolbox-overflow approach.** Five candidates listed in Pass 4.
-  Pick one — or decide to layer two — once we have real data on how
+  Pick one ï¿½ or decide to layer two ï¿½ once we have real data on how
   many components a typical session produces. Don't pre-build all five.
 - [ ] **Lit wire color.** Currently green (matches `PORT_LIVE_COLOR`).
   Could go to amber, neon cyan, etc. Decide alongside Pass 4 once the
@@ -230,7 +225,7 @@ call is made.
   Candidates so far: "Digital Logic Simulator," "Logic Sandbox," "Logic
   Bench," "NAND Lab." Pick before Pass 3 so save files reference the
   new name from day one.
-- [ ] **Dynamic text-box width — wrap/width fixed point.** Width
+- [ ] **Dynamic text-box width ï¿½ wrap/width fixed point.** Width
   depends on the wrap, the wrap depends on the width. Resolve by either
   picking the longest unbroken line as the width seed, or iterating to
   a fixed point. Pick before the Pass-7+ idea gets implemented.
@@ -271,7 +266,7 @@ Re-read at the start of each pass.
   Chromebooks or laptops without a real two-button mouse, right-click
   delete is hard for kids and the program currently has no other path
   to delete a wire or text box. "Trash mode" is in Pass 2 because of
-  this — but verify the hardware reality before Pass 1 ships, because
+  this ï¿½ but verify the hardware reality before Pass 1 ships, because
   it might bump trash mode earlier.
 - [ ] **Save-as-Component is the keystone risk.** Three things have to
   be true at once for Pass 1 to feel right: (1) the embedded sub-
@@ -325,6 +320,6 @@ touched. Not bugs.
   are pure Python and trivial to cover. Three tests would catch the
   next signal refactor: NAND truth table, wire validation rejects
   same-direction / same-parent, and an SR latch built in code holds
-  state across two `SignalManager.update` calls. *(Optional — the
+  state across two `SignalManager.update` calls. *(Optional ï¿½ the
   changelog discipline is doing most of the regression-prevention
   work that tests would. Add when/if you want belt-and-suspenders.)*
