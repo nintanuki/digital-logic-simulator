@@ -1,4 +1,5 @@
 import pygame
+from typing import Callable
 
 from fonts import Fonts
 from settings import (
@@ -327,6 +328,11 @@ class TextBoxManager:
         # The currently focused box, or None. Mirrored on each box's
         # .focused flag so draw() doesn't need a back-ref to the manager.
         self.focused = None
+        # Optional callbacks set by GameManager to record undo/redo actions.
+        # on_spawn(box) - called after a text box is created.
+        # on_delete(box, index) - called after a text box is right-click deleted.
+        self.on_spawn: Callable[[TextBox], None] | None = None
+        self.on_delete: Callable[[TextBox, int], None] | None = None
 
     # -------------------------
     # SPAWN / LIFECYCLE
@@ -346,6 +352,8 @@ class TextBoxManager:
         box._clamp_to_workspace()
         self.text_boxes.append(box)
         self._focus(box)
+        if self.on_spawn:
+            self.on_spawn(box)
 
     # -------------------------
     # EVENT HANDLING
@@ -424,7 +432,10 @@ class TextBoxManager:
             if hit is not None:
                 if self.focused is hit:
                     self._blur()
+                idx = self.text_boxes.index(hit)
                 self.text_boxes.remove(hit)
+                if self.on_delete:
+                    self.on_delete(hit, idx)
                 return True
         return False
 

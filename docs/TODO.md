@@ -116,14 +116,25 @@ fine for now.
 Fix the things students would notice in five seconds and add the safety
 net that lets them experiment without fear of losing work.
 
-- [ ] **Undo / redo.** Now that Pass 1 lets students invest real effort
+- [x] **Undo / redo.** Now that Pass 1 lets students invest real effort
   into building components, an accidental delete is the most painful
   possible bug. Cleanest model: every mutating action (place, delete,
   wire, unwire, edit text, save-as-component) routes through a Command
   object with `do()` and `undo()`. Manager pushes to a deque; Ctrl+Z
   pops, Ctrl+Y replays. Mouse equivalent: undo/redo arrows on a future
   toolbar, or the bottom-left menu — pick when the dispatch lands.
-- [ ] **IN / OUT visual redesign.** Switch and LED currently render as
+    *(Done 2026-05-04. `commands.py` introduced with Action base and six
+    concrete commands: PlaceComponent, DeleteComponent, PlaceWire,
+    DeleteWire, PlaceTextBox, DeleteTextBox. History is a deque-backed
+    two-stack in `History`; capped at 100 steps. Ctrl+Z undoes,
+    Ctrl+Y / Ctrl+Shift+Z redoes. Mutation callbacks wired into
+    WireManager (on_commit / on_delete) and TextBoxManager (on_spawn /
+    on_delete); component placement tracked by comparing list length
+    before/after each bank spawn. Caveats: text content edits
+    (keystrokes) are NOT individually undoable — only box create/delete
+    are tracked. Save-as-component clears the history so stale object
+    references can never resurface. Mouse-equivalent undo/redo buttons
+    deferred to a future toolbar pass.)*
   circles with different fill colors, which reads as "the same component
   in two states" and confuses students. Redesign:
   - **Switch** as a physical toggle: rectangle with a sliding handle
@@ -144,6 +155,14 @@ net that lets them experiment without fear of losing work.
 - [ ] **F11 needs a mouse path.** Fullscreen is keyboard-only today.
   Most likely answer: an entry on the bottom-left popup menu. (A future
   top hotkey-hint bar in Pass 6 will add a second mouse path.)
+- [x] **Random color for saved components.** Every saved component
+  spawned in MEDIUM_CARMINE (red), making all abstractions look
+  identical. Each save now picks at random from
+  `ColorSettings.SAVED_COMPONENT_COLORS` (8 curated muted colors) so
+  sibling abstractions are visually distinct at a glance. A future
+  "advanced save" dialog (Pass 3+) can offer a color picker so the
+  student can assign meaningful colors intentionally.
+  *(Done 2026-05-04.)*
 - [ ] **Esc should not quit silently.** Layered behavior, in priority
   order:
   1. If a popup / dialog is open, Esc dismisses it. *(MenuButton popup

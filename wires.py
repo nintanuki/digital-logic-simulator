@@ -1,4 +1,5 @@
 import pygame
+from typing import Callable
 
 from elements import Port
 from settings import InputSettings, WireSettings
@@ -88,6 +89,11 @@ class WireManager:
         # Last-known cursor position so the ghost wire can extend to it
         # every frame even on frames without a fresh MOUSEMOTION.
         self.cursor_pos = (0, 0)
+        # Optional callbacks set by GameManager to record undo/redo actions.
+        # on_commit(wire, displaced_wire_or_None) - called after a wire is committed.
+        # on_delete(wire) - called after a wire is right-click deleted.
+        self.on_commit: Callable[[Wire, Wire | None], None] | None = None
+        self.on_delete: Callable[[Wire], None] | None = None
 
     # -------------------------
     # EVENT HANDLING
@@ -131,13 +137,17 @@ class WireManager:
                 wire = self._wire_at(event.pos)
                 if wire is not None:
                     self.wires.remove(wire)
+                    if self.on_delete:
+                        self.on_delete(wire)
                     return True
 
         if event.type == pygame.MOUSEBUTTONUP:
             if event.button == InputSettings.LEFT_CLICK and self.pending_source is not None:
                 target = self._port_at(event.pos, components)
                 if target is not None and self._is_valid(self.pending_source, target):
-                    self._commit(self.pending_source, target)
+                    new_wire, displaced = self._commit(self.pending_source, target)
+                    if self.on_commit:
+                        self.on_commit(new_wire, displaced)
                 # Whether or not the release landed on a valid port, the
                 # drag is over. Releasing on empty space silently cancels
                 # per the roadmap spec.
@@ -253,8 +263,15 @@ class WireManager:
         Args:
             a (Port): One endpoint of the new connection.
             b (Port): The other endpoint of the new connection.
+
+        Returns:
+            tuple[Wire, Wire | None]: The newly committed wire and the wire
+                it displaced (or None if the input was previously unconnected).
         """
         source = a if a.direction == Port.OUTPUT else b
         target = b if a.direction == Port.OUTPUT else a
+        displaced = next((w for w in self.wires if w.target is target), None)
         self.wires = [w for w in self.wires if w.target is not target]
-        self.wires.append(Wire(source, target))
+        new_wire = Wire(source, target)
+        self.wires.append(new_wire)
+        return new_wire, displaced

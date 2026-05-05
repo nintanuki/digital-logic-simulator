@@ -3,6 +3,7 @@ from __future__ import annotations
 import pygame
 import sys
 from copy import deepcopy
+import random
 
 from elements import Component, LED, SavedComponent, Switch
 from fonts import Fonts
@@ -13,6 +14,12 @@ from text_boxes import TextBoxManager
 from ui import ComponentBank
 from crt import CRT
 from wires import WireManager
+from commands import (
+    History,
+    PlaceComponent, DeleteComponent,
+    PlaceWire, DeleteWire,
+    PlaceTextBox, DeleteTextBox,
+)
 
 
 class GameManager:
@@ -73,6 +80,25 @@ class GameManager:
         self.components = [] # Start with an empty workspace. Components will be added by the user.
         self.wires = WireManager()
         self.signals = SignalManager()
+
+        # -------- Undo / redo --------
+        self.history = History()
+        # Wire up mutation callbacks so every reversible action is recorded.
+        # Lambdas stay here (not in the subsystems) so the command objects
+        # can hold references to self.components / self.wires / self.text_boxes
+        # without coupling those modules to commands.py.
+        self.wires.on_commit = (
+            lambda wire, displaced: self.history.push(PlaceWire(self.wires, wire, displaced))
+        )
+        self.wires.on_delete = (
+            lambda wire: self.history.push(DeleteWire(self.wires, wire))
+        )
+        self.text_boxes.on_spawn = (
+            lambda box: self.history.push(PlaceTextBox(self.text_boxes, box))
+        )
+        self.text_boxes.on_delete = (
+            lambda box, idx: self.history.push(DeleteTextBox(self.text_boxes, box, idx))
+        )
 
     # -------------------------
     # BOOT / LIFECYCLE
@@ -141,7 +167,7 @@ class GameManager:
         )
         record = {
             "name": name,
-            "color": ColorSettings.WORD_COLORS["MEDIUM_CARMINE"],
+            "color": random.choice(ColorSettings.SAVED_COMPONENT_COLORS),
             "inputs": input_switches,
             "outputs": output_leds,
             "definition": definition,
@@ -167,6 +193,9 @@ class GameManager:
         self.wires.pending_source = None
         self.text_boxes.text_boxes.clear()
         self.text_boxes.focused = None
+        # History holds references to the old components and wires.  Clear
+        # it so undo can't resurrect objects from the previous workspace.
+        self.history.clear()
 
     def _snapshot_workspace_definition(self, input_switches, output_leds):
         """Serialize the current workspace into a saved-component definition.
@@ -303,6 +332,21 @@ class GameManager:
 
     def _handle_keydown(self, event: pygame.event.Event) -> None:
         """Route a single keyboard press."""
+        # Undo / redo - checked before any other key so Ctrl+Z/Y are never
+        # intercepted by a focused text box (the manager consumes keydowns
+        # while a box is focused, so these lines are only reached when no
+        # box is active).
+        mods = pygame.key.get_mods()
+        if event.key == pygame.K_z and (mods & pygame.KMOD_CTRL):
+            if mods & pygame.KMOD_SHIFT:
+                self.history.redo()
+            else:
+                self.history.undo()
+            return
+        if event.key == pygame.K_y and (mods & pygame.KMOD_CTRL):
+            self.history.redo()
+            return
+
         # Global keys (always honored regardless of run state).
         if event.key == pygame.K_F11:
             pygame.display.toggle_fullscreen()
@@ -321,7 +365,10 @@ class GameManager:
         # primed, _moved_while_dragging set). Keeping the duplicate here
         # would re-introduce drift the moment the bank's spawner changes.
         if event.key == pygame.K_n:
+            before = len(self.components)
             self.bank.spawn_component(Component, pygame.mouse.get_pos(), self.components)
+            if len(self.components) > before:
+                self.history.push(PlaceComponent(self.components, self.wires, self.components[-1]))
         # T spawns an annotation text box at the current cursor position
         # and immediately focuses it so the user can start typing. Only
         # reachable when no text box is already focused (the manager
@@ -361,8 +408,11 @@ class GameManager:
         # Try the bank first since it has priority for clicks in its area. If it returns True,
         # it handled the event and we can skip the rest.
         # Returns True if a new game was spawned
+        before = len(self.components)
         if self.bank.handle_event(event, self.components):
-            return # If the bank handled it, we're done.
+            if len(self.components) > before:
+                self.history.push(PlaceComponent(self.components, self.wires, self.components[-1]))
+            return
 
         # Check components (backwards for proper layering/removal)
         for i in range(len(self.components) - 1, -1, -1):
@@ -374,9 +424,14 @@ class GameManager:
             if action == "DELETE":
                 # Drop any wires touching this component before it disappears,
                 # otherwise wires would dangle on a freed Port reference.
+                affected_wires = [
+                    w for w in self.wires.wires
+                    if w.source.parent is comp or w.target.parent is comp
+                ]
                 self.wires.drop_wires_for_component(comp)
-                self.components.pop(i) # This is the "What then?"—we remove it!
-                break # Stop checking others so one click only deletes one gate
+                self.components.pop(i)
+                self.history.push(DeleteComponent(self.components, self.wires, comp, affected_wires, i))
+                break
 
     def _update_port_hover(self, mouse_pos) -> None:
         """Refresh the hovered flag on every port given the current cursor.

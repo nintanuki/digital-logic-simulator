@@ -16,6 +16,21 @@ class ColorSettings:
         
     }
 
+    # Curated palette for saved-component body colors. Each save picks one
+    # at random so sibling abstractions are visually distinct at a glance.
+    # Colors are muted / medium-brightness so the white name label stays
+    # readable on top without needing a separate contrast check.
+    SAVED_COMPONENT_COLORS = (
+        (180, 60, 60),   # carmine (existing default, kept in pool)
+        (60, 120, 180),  # steel blue
+        (60, 160, 80),   # muted green
+        (160, 100, 40),  # amber
+        (120, 60, 160),  # purple
+        (155, 135, 40),  # gold
+        (40, 140, 140),  # teal
+        (160, 80, 130),  # rose
+    )
+
 class ScreenSettings:
     WIDTH = 1280
     HEIGHT = 720

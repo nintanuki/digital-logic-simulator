@@ -212,10 +212,6 @@ class Component:
         text_rect = text_surf.get_rect(center=self.rect.center)
         surface.blit(text_surf, text_rect)
 
-        # Hover labels last so they always sit on top of the body and border.
-        for port in self.ports:
-            port.draw_label(surface)
-
     def _draw_body(self, surface):
         """Draw the rectangular body and border.
 
