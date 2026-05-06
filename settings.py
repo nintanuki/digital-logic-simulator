@@ -81,6 +81,19 @@ class UISettings:
     # > IN/OUT) and the first draggable template, so the control surfaces
     # read as a separate group from the drag-and-drop component row.
     BANK_BUTTON_GROUP_GAP = 24
+    # Vertical divider separating left controls (TOOLBOX / > IN-OUT)
+    # from the draggable component template strip.
+    BANK_GROUP_DIVIDER_COLOR = (130, 130, 130)
+    BANK_GROUP_DIVIDER_THICKNESS = 2
+    BANK_GROUP_DIVIDER_INSET_Y = 16
+    # Clamp oversized component previews so large abstractions still fit
+    # inside the toolbox row.
+    BANK_TEMPLATE_MAX_WIDTH = 120
+    BANK_TEMPLATE_MAX_HEIGHT = 72
+    BANK_TEMPLATE_PREVIEW_PORT_RADIUS = 4
+    BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE = 6
+    BANK_TEMPLATE_LABEL_PADDING_X = 8
+    BANK_TEMPLATE_LABEL_MIN_FONT_SIZE = 8
 
 
 class TopMenuBarSettings:

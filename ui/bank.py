@@ -62,6 +62,182 @@ class TextTemplate:
         surface.blit(self._label_surf, label_rect)
 
 
+class CompactSavedTemplate:
+    """Compact toolbox preview for a saved component abstraction.
+
+    Keeps large multi-port saved components visually manageable in the
+    bottom toolbox by clamping preview size and showing only compact side
+    port markers instead of a full runtime-sized body.
+    """
+
+    def __init__(self, x, y, name, color, input_count, output_count):
+        """Initialize the clamped preview body.
+
+        Args:
+            x (int): Top-left x in screen coordinates.
+            y (int): Top-left y in screen coordinates.
+            name (str): Saved component display name.
+            color (tuple[int, int, int]): RGB body color.
+            input_count (int): Number of exposed inputs.
+            output_count (int): Number of exposed outputs.
+        """
+        max_ports = max(input_count, output_count, 1)
+        dynamic_height = (
+            (max_ports - 1) * ComponentSettings.SAVED_PORT_PITCH
+            + 2 * ComponentSettings.SAVED_PORT_VERTICAL_PADDING
+        )
+        label_width = Fonts.component_label.size(name)[0] + 24
+        width = min(
+            max(ComponentSettings.DEFAULT_WIDTH, label_width),
+            UISettings.BANK_TEMPLATE_MAX_WIDTH,
+        )
+        height = min(
+            max(ComponentSettings.DEFAULT_HEIGHT, dynamic_height),
+            UISettings.BANK_TEMPLATE_MAX_HEIGHT,
+        )
+        self.rect = pygame.Rect(x, y, width, height)
+        self.name = name
+        self.color = color
+        self.input_count = input_count
+        self.output_count = output_count
+        label_width = self.rect.width - 2 * UISettings.BANK_TEMPLATE_LABEL_PADDING_X
+        self._label_surf = self._fit_label_surface(self.name, label_width)
+        # Preview templates are spawn handles only; they do not expose real
+        # bank-hover ports for wiring.
+        self.ports = ()
+
+    @staticmethod
+    def _truncate_to_width(text, font, max_width):
+        """Return text shortened with ellipsis so it fits max_width.
+
+        Args:
+            text (str): Original label text.
+            font (pygame.font.Font): Font used for width checks.
+            max_width (int): Max rendered width in pixels.
+
+        Returns:
+            str: Original or truncated label text.
+        """
+        if font.size(text)[0] <= max_width:
+            return text
+        ellipsis = "..."
+        if font.size(ellipsis)[0] > max_width:
+            return ""
+        for cut in range(len(text), -1, -1):
+            candidate = f"{text[:cut].rstrip()}{ellipsis}"
+            if font.size(candidate)[0] <= max_width:
+                return candidate
+        return ellipsis
+
+    @staticmethod
+    def _fit_label_surface(text, max_width):
+        """Build a label surface that always fits inside the preview body.
+
+        Tries progressively smaller font sizes first, then falls back to
+        ellipsis truncation at the minimum size.
+
+        Args:
+            text (str): Label text.
+            max_width (int): Max rendered width in pixels.
+
+        Returns:
+            pygame.Surface: Fitted text surface.
+        """
+        max_size = ComponentSettings.FONT_SIZE
+        min_size = UISettings.BANK_TEMPLATE_LABEL_MIN_FONT_SIZE
+        for size in range(max_size, min_size - 1, -1):
+            font = pygame.font.Font(ComponentSettings.FONT, size)
+            if font.size(text)[0] <= max_width:
+                return font.render(text, True, (255, 255, 255))
+        min_font = pygame.font.Font(ComponentSettings.FONT, min_size)
+        truncated = CompactSavedTemplate._truncate_to_width(text, min_font, max_width)
+        return min_font.render(truncated, True, (255, 255, 255))
+
+    @staticmethod
+    def _preview_y_positions(count, height):
+        """Return evenly spaced preview marker y offsets.
+
+        Args:
+            count (int): Number of ports to represent.
+            height (int): Preview body height in pixels.
+
+        Returns:
+            list[int]: Relative y positions inside the preview rect.
+        """
+        capped = min(count, UISettings.BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE)
+        if capped <= 0:
+            return []
+        if capped == 1:
+            return [height // 2]
+        top = ComponentSettings.SAVED_PORT_VERTICAL_PADDING
+        bottom = height - ComponentSettings.SAVED_PORT_VERTICAL_PADDING
+        span = max(0, bottom - top)
+        return [top + (span * idx) // (capped - 1) for idx in range(capped)]
+
+    @staticmethod
+    def _preview_port_radius(port_count, height):
+        """Return a dynamic preview marker radius based on shown port density.
+
+        Low-port components keep the normal port size; dense components
+        shrink markers enough to avoid overlap inside the compact preview.
+
+        Args:
+            port_count (int): Number of ports on one side before capping.
+            height (int): Preview body height in pixels.
+
+        Returns:
+            int: Marker radius in pixels.
+        """
+        base_radius = ComponentSettings.PORT_RADIUS
+        shown = min(port_count, UISettings.BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE)
+        if shown <= 1:
+            return base_radius
+        top = ComponentSettings.SAVED_PORT_VERTICAL_PADDING
+        bottom = height - ComponentSettings.SAVED_PORT_VERTICAL_PADDING
+        span = max(1, bottom - top)
+        pitch = span / (shown - 1)
+        clearance = 2
+        max_radius_from_pitch = int((pitch - clearance) // 2)
+        min_radius = UISettings.BANK_TEMPLATE_PREVIEW_PORT_RADIUS
+        return max(min_radius, min(base_radius, max_radius_from_pitch))
+
+    def draw(self, surface):
+        """Draw compact saved-component preview body and side markers.
+
+        Args:
+            surface (pygame.Surface): The surface to draw onto.
+        """
+        pygame.draw.rect(surface, self.color, self.rect)
+        pygame.draw.rect(
+            surface,
+            ComponentSettings.BORDER_COLOR,
+            self.rect,
+            ComponentSettings.BORDER_THICKNESS,
+        )
+
+        text_rect = self._label_surf.get_rect(center=self.rect.center)
+        surface.blit(self._label_surf, text_rect)
+
+        left_radius = self._preview_port_radius(self.input_count, self.rect.height)
+        right_radius = self._preview_port_radius(self.output_count, self.rect.height)
+        left_x = self.rect.left
+        right_x = self.rect.right
+        for rel_y in self._preview_y_positions(self.input_count, self.rect.height):
+            pygame.draw.circle(
+                surface,
+                ComponentSettings.PORT_COLOR,
+                (left_x, self.rect.top + rel_y),
+                left_radius,
+            )
+        for rel_y in self._preview_y_positions(self.output_count, self.rect.height):
+            pygame.draw.circle(
+                surface,
+                ComponentSettings.PORT_COLOR,
+                (right_x, self.rect.top + rel_y),
+                right_radius,
+            )
+
+
 class ComponentBank:
     """The toolbox at the bottom of the screen — templates students drag onto the workspace.
 
@@ -76,7 +252,7 @@ class ComponentBank:
     # Order is the left-to-right order shown in the toolbox. Switch and
     # LED used to live here as draggable templates but were moved into
     # the > IN/OUT popup so the user can only spawn IN/OUT through that
-    # control surface. Component is the NAND gate.
+    # control surface. Text + NAND are the fixed base templates.
     TEMPLATE_CLASSES = (Component,)
 
     def __init__(self, text_boxes, components_provider=None,
@@ -112,7 +288,9 @@ class ComponentBank:
         self._active_popup_button = None
         self._templates_and_spawners = self._build_templates()
         self._protected_template_ids = set()
+        self._protected_template_order_ids = []
         self._refresh_protected_template_ids()
+        self._reflow_templates()
         self._drag_template = None
         self._drag_template_mouse_anchor = (0, 0)
         self._drag_template_rect_anchor = (0, 0)
@@ -126,6 +304,9 @@ class ComponentBank:
         self._protected_template_ids = {
             id(tpl) for tpl, _spawn in self._templates_and_spawners
         }
+        self._protected_template_order_ids = [
+            id(tpl) for tpl, _spawn in self._templates_and_spawners
+        ]
 
     def reset_to_default_templates(self):
         """Reset the bank to base templates and drop saved-component entries.
@@ -135,6 +316,7 @@ class ComponentBank:
         """
         self._templates_and_spawners = self._build_templates()
         self._refresh_protected_template_ids()
+        self._reflow_templates()
         self._drag_template = None
         self._active_popup_button = None
 
@@ -155,7 +337,7 @@ class ComponentBank:
         """Lay out one template per spawnable kind, left-to-right inside the bank.
 
         Templates start to the right of the leftmost popup buttons so the
-        bank reads as: [TOOLBOX] [> IN/OUT] | [NAND] [TEXT] [saved...].
+        bank reads as: [TOOLBOX] [> IN/OUT] | [TEXT] [NAND] [saved...].
         Each template is vertically centered inside the bank regardless of
         its own height, so a future smaller / larger component still looks
         intentional. Spacing comes from UISettings so the layout has no
@@ -167,15 +349,52 @@ class ComponentBank:
         """
         x = self._templates_start_x()
         entries = []
+        text_tpl = TextTemplate(x, 0)
+        text_tpl.rect.y = self.rect.y + (self.rect.height - text_tpl.rect.height) // 2
+        entries.append((text_tpl, self._make_textbox_spawner()))
+        x += text_tpl.rect.width + UISettings.BANK_TEMPLATE_GAP
         for cls in self.TEMPLATE_CLASSES:
             tpl = cls(x, 0)
             tpl.rect.y = self.rect.y + (self.rect.height - tpl.rect.height) // 2
             entries.append((tpl, self._make_component_spawner(tpl, cls)))
             x += tpl.rect.width + UISettings.BANK_TEMPLATE_GAP
-        text_tpl = TextTemplate(x, 0)
-        text_tpl.rect.y = self.rect.y + (self.rect.height - text_tpl.rect.height) // 2
-        entries.append((text_tpl, self._make_textbox_spawner()))
         return entries
+
+    def _reflow_templates(self):
+        """Snap templates into bank slots with fixed base-template ordering.
+
+        Protected base templates (TEXT, NAND) are pinned to the left side
+        of the component strip and cannot be rearranged. Non-protected
+        templates preserve their current relative x order and are laid out
+        to the right.
+
+        Returns:
+            None
+        """
+        protected_map = {
+            id(tpl): (tpl, spawn)
+            for tpl, spawn in self._templates_and_spawners
+            if id(tpl) in self._protected_template_ids
+        }
+        ordered = [
+            protected_map[tpl_id]
+            for tpl_id in self._protected_template_order_ids
+            if tpl_id in protected_map
+        ]
+        movable = [
+            entry for entry in self._templates_and_spawners
+            if id(entry[0]) not in self._protected_template_ids
+        ]
+        movable.sort(key=lambda entry: entry[0].rect.x)
+        ordered.extend(movable)
+
+        x = self._templates_start_x()
+        center_y = self.rect.y + self.rect.height // 2
+        for tpl, _spawn in ordered:
+            tpl.rect.x = x
+            tpl.rect.centery = center_y
+            x = tpl.rect.right + UISettings.BANK_TEMPLATE_GAP
+        self._templates_and_spawners = ordered
 
     def _templates_start_x(self):
         """Return the x where the draggable template row begins.
@@ -191,6 +410,43 @@ class ComponentBank:
             return self.rect.x + UISettings.BANK_PADDING_X
         last_button = self._popup_buttons[-1]
         return last_button["rect"].right + UISettings.BANK_BUTTON_GROUP_GAP
+
+    def _templates_left_bound_x(self):
+        """Return the minimum x draggable templates are allowed to use.
+
+        Returns:
+            int: Left clamp bound in screen coordinates.
+        """
+        return self._templates_start_x()
+
+    def _group_divider_x(self):
+        """Return x coordinate of the visual divider between button groups.
+
+        Returns:
+            int: Divider x in screen coordinates.
+        """
+        if not self._popup_buttons:
+            return self.rect.x + UISettings.BANK_PADDING_X
+        last_button = self._popup_buttons[-1]
+        gap = UISettings.BANK_BUTTON_GROUP_GAP
+        return last_button["rect"].right + gap // 2
+
+    def _draw_group_divider(self, surface):
+        """Draw vertical divider between left controls and component strip.
+
+        Args:
+            surface (pygame.Surface): The surface to draw onto.
+        """
+        x = self._group_divider_x()
+        top = self.rect.top + UISettings.BANK_GROUP_DIVIDER_INSET_Y
+        bottom = self.rect.bottom - UISettings.BANK_GROUP_DIVIDER_INSET_Y
+        pygame.draw.line(
+            surface,
+            UISettings.BANK_GROUP_DIVIDER_COLOR,
+            (x, top),
+            (x, bottom),
+            UISettings.BANK_GROUP_DIVIDER_THICKNESS,
+        )
 
     @staticmethod
     def _make_component_spawner(tpl, cls):
@@ -271,7 +527,16 @@ class ComponentBank:
         if self._templates_and_spawners:
             last_tpl, _last_spawn = self._templates_and_spawners[-1]
             x = last_tpl.rect.right + UISettings.BANK_TEMPLATE_GAP
-        template = SavedComponent(x, 0, name, color, definition)
+        input_count = len(definition["input_component_indices"])
+        output_count = len(definition["output_component_indices"])
+        template = CompactSavedTemplate(
+            x,
+            0,
+            name,
+            color,
+            input_count,
+            output_count,
+        )
         template.rect.y = self.rect.y + (self.rect.height - template.rect.height) // 2
 
         def spawn(event_pos, components_list):
@@ -286,6 +551,7 @@ class ComponentBank:
             components_list.append(new_comp)
 
         self._templates_and_spawners.append((template, spawn))
+        self._reflow_templates()
 
     def spawn_component(self, cls, event_pos, components_list):
         """Spawn an instance of `cls` through the bank's own spawn path.
@@ -329,6 +595,7 @@ class ComponentBank:
             2,
         )
         self._draw_popup_buttons(surface)
+        self._draw_group_divider(surface)
         for tpl, _spawn in self._templates_and_spawners:
             tpl.draw(surface)
         # Active popup is drawn last so it floats above the bank and any
@@ -357,13 +624,14 @@ class ComponentBank:
         template = self._drag_template
         template.rect.x = self._drag_template_rect_anchor[0] + dx
         template.rect.y = self._drag_template_rect_anchor[1] + dy
-        template.rect.x = max(self.rect.left, min(template.rect.x, self.rect.right - template.rect.width))
+        min_x = self._templates_left_bound_x()
+        template.rect.x = max(min_x, min(template.rect.x, self.rect.right - template.rect.width))
         template.rect.y = max(self.rect.top, min(template.rect.y, self.rect.bottom - template.rect.height))
 
     def _end_template_drag(self):
         """Finish drag and keep template draw/hit order aligned to x position."""
         self._drag_template = None
-        self._templates_and_spawners.sort(key=lambda entry: entry[0].rect.x)
+        self._reflow_templates()
 
     def handle_event(self, event, components_list):
         """Route bank events: popup buttons first, then templates.
@@ -390,6 +658,8 @@ class ComponentBank:
             if hit is None:
                 return False
             tpl, _spawn_fn = hit
+            if id(tpl) in self._protected_template_ids:
+                return True
             self._begin_template_drag(tpl, event.pos)
             return True
 
@@ -414,6 +684,7 @@ class ComponentBank:
                 entry for entry in self._templates_and_spawners
                 if entry[0] is not tpl
             ]
+            self._reflow_templates()
             return True
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.LEFT_CLICK:

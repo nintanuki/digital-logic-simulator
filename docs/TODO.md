@@ -86,6 +86,8 @@ The essential teaching loop and foundational user workflows.
   brute-force compare its truth table against known gates (NOT, AND, OR, NAND, NOR,
   XOR, XNOR). If match found, dialog pre-fills recognized name and pops banner.
   Cheap to compute (4 inputs covers entire list), runs once on save, not per frame.
+  - Add auto-naming handoff: when a user-built component is recognized (e.g. OR gate),
+    suggest/apply the discovered label automatically in the save flow.
 
 - [ ] **Color picker for saved components.** Save dialog grows a color picker:
   small palette swatch AND/OR RGB/hex entry field. Hex/RGB option is a deliberate

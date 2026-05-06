@@ -519,6 +519,61 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 **Why:** Added an explicit lifecycle API so GameManager clears wiring state via WireManager, keeping state ownership with the subsystem.
 **Editor:** GitHub Copilot (GPT-5.3-Codex)
 
+## 2026-05-06 23:01 UTC — Add toolbox divider, pin TEXT/NAND templates, and compact large saved-template previews
+
+**File:** settings.py
+**Date and Time:** 2026-05-06 23:01 UTC
+**Lines (at time of edit):** 86-94 (modified)
+**Before:**
+    BANK_BUTTON_GROUP_GAP = 24
+**After:**
+    BANK_BUTTON_GROUP_GAP = 24
+    BANK_GROUP_DIVIDER_COLOR = (130, 130, 130)
+    BANK_GROUP_DIVIDER_THICKNESS = 2
+    BANK_GROUP_DIVIDER_INSET_Y = 16
+    BANK_TEMPLATE_MAX_WIDTH = 120
+    BANK_TEMPLATE_MAX_HEIGHT = 72
+    BANK_TEMPLATE_PREVIEW_PORT_RADIUS = 4
+    BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE = 6
+**Why:** Added explicit constants for the bank's new visual divider and compact template-preview sizing so oversized saved components can fit in the toolbox consistently without magic numbers.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-06 23:01 UTC
+**Lines (at time of edit):** 65-163, 218-330, 342-379, 443-475, 589-615 (modified/new)
+**Before:**
+    # Base row built as NAND then TEXT, and all templates could be moved.
+    entries.append((tpl, self._make_component_spawner(tpl, cls)))
+    ...
+    text_tpl = TextTemplate(x, 0)
+    entries.append((text_tpl, self._make_textbox_spawner()))
+    ...
+    if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.MIDDLE_CLICK:
+        self._begin_template_drag(tpl, event.pos)
+
+    if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.RIGHT_CLICK:
+        if id(tpl) in self._protected_template_ids:
+            return True
+**After:**
+    # Base row is now TEXT then NAND, pinned as protected templates.
+    text_tpl = TextTemplate(x, 0)
+    entries.append((text_tpl, self._make_textbox_spawner()))
+    ...
+    entries.append((tpl, self._make_component_spawner(tpl, cls)))
+    ...
+    class CompactSavedTemplate: ...
+    def _reflow_templates(self): ...
+    def _draw_group_divider(self, surface): ...
+    ...
+    if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.MIDDLE_CLICK:
+        if id(tpl) in self._protected_template_ids:
+            return True
+        self._begin_template_drag(tpl, event.pos)
+    ...
+    template = CompactSavedTemplate(...)
+**Why:** Added a visible divider between the left control cluster and component strip, swapped TEXT/NAND order (TEXT left, NAND right), prevented those two base templates from being moved/deleted, and introduced compact saved-component previews with smaller side markers so high-port abstractions still fit in the toolbox while preserving full-size spawned runtime components.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-05 13:45 UTC — Add VIEW option to toggle CRT overlay
 
 **File:** settings.py
@@ -4485,3 +4540,69 @@ layout self-consistent if MENU's size ever changes — no second magic
 number to keep in sync. Click handling and the popup arrive in the
 next bullet.
 **Editor:** Claude (Opus 4.6)
+
+## 2026-05-06 23:14 UTC — Make toolbox preview ports adaptive and fit long labels
+
+**File:** settings.py
+**Date and Time:** 2026-05-06 23:14 UTC
+**Lines (at time of edit):** 95-96 (modified)
+**Before:**
+    BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE = 6
+**After:**
+    BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE = 6
+    BANK_TEMPLATE_LABEL_PADDING_X = 8
+    BANK_TEMPLATE_LABEL_MIN_FONT_SIZE = 8
+**Why:** Added explicit layout constants for compact-template text fitting so label rendering can shrink/truncate predictably without magic numbers.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-06 23:14 UTC
+**Lines (at time of edit):** 95-218 (modified)
+**Before:**
+    # Compact preview always used one fixed small node radius and
+    # always rendered the full label with component_label font.
+    radius = UISettings.BANK_TEMPLATE_PREVIEW_PORT_RADIUS
+    text_surf = Fonts.component_label.render(self.name, True, (255, 255, 255))
+**After:**
+    # Node markers now scale by shown node density; low-node previews
+    # keep regular port size while high-node previews shrink to avoid overlap.
+    def _preview_port_radius(port_count, height): ...
+
+    # Labels now fit the preview body: shrink font first, then
+    # truncate with ellipsis when still too long.
+    def _truncate_to_width(text, font, max_width): ...
+    def _fit_label_surface(text, max_width): ...
+    self._label_surf = self._fit_label_surface(self.name, label_width)
+**Why:** Fixed the regression where all non-NAND previews had uniformly tiny nodes and long names spilled/clashed across neighboring templates. Port markers now only shrink when node count density requires it, and labels stay contained inside each preview.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-06 23:14 UTC
+**Lines (at time of edit):** 89-90 (modified)
+**Before:**
+    - [ ] Truth-table auto-detect ... If match found, dialog pre-fills recognized name and pops banner.
+**After:**
+    - [ ] Truth-table auto-detect ... If match found, dialog pre-fills recognized name and pops banner.
+      - Add auto-naming handoff: when a user-built component is recognized (e.g. OR gate),
+        suggest/apply the discovered label automatically in the save flow.
+**Why:** Captured the requested future enhancement: automatic labeling of recognized user-built logic structures.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-06 23:15 UTC — Refine adaptive toolbox markers to scale per side
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-06 23:15 UTC
+**Lines (at time of edit):** 221-236 (modified)
+**Before:**
+    marker_count = max(self.input_count, self.output_count)
+    radius = self._preview_port_radius(marker_count, self.rect.height)
+    ...
+    pygame.draw.circle(..., radius)
+**After:**
+    left_radius = self._preview_port_radius(self.input_count, self.rect.height)
+    right_radius = self._preview_port_radius(self.output_count, self.rect.height)
+    ...
+    pygame.draw.circle(..., left_radius)
+    pygame.draw.circle(..., right_radius)
+**Why:** Ensures marker sizing reflects each side's actual node density instead of shrinking both sides because one side is dense.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
