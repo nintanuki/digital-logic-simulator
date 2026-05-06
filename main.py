@@ -5,7 +5,6 @@ import pygame
 import sys
 import traceback as _traceback
 from copy import deepcopy
-from typing import Tuple
 
 from core.elements import Component, LED, SavedComponent, Switch
 from core.project_manager import ProjectManager
@@ -40,7 +39,8 @@ class GameManager:
     to keep this class light and focused on orchestration.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize pygame, core subsystems, and cross-system wiring."""
         # -------- Pygame core --------
         pygame.init()
         Fonts.init()
@@ -100,7 +100,7 @@ class GameManager:
         # Error banner display state
         self._error_info = None
     
-    def _setup_menu_bar(self):
+    def _setup_menu_bar(self) -> None:
         """Initialize the top menu bar with FILE/EDIT/VIEW menus.
 
         SAVE AS COMPONENT used to live under the FILE menu and was moved to
@@ -159,11 +159,7 @@ class GameManager:
         self.top_menu_bar = TopMenuBar(self.screen, menu_defs)
 
     def _toggle_crt(self) -> None:
-        """Toggle whether the CRT overlay is drawn each frame.
-
-        Returns:
-            None
-        """
+        """Toggle whether the CRT overlay is drawn each frame."""
         self._crt_enabled = not self._crt_enabled
 
     def _on_bank_spawn(self, component) -> None:
@@ -186,8 +182,8 @@ class GameManager:
     # BOOT / LIFECYCLE
     # -------------------------
 
-    def close_game(self):
-        """Quit pygame and exit the process."""
+    def close_game(self) -> None:
+        """Quit pygame and terminate the process."""
         pygame.quit()
         sys.exit()
 
@@ -196,35 +192,24 @@ class GameManager:
     # -------------------------
 
     def save_as_component(self) -> None:
-        """Open the SAVE AS COMPONENT dialog.
-        
-        Bound into the FILE menu. The dialog collects the component name and
-        color; workspace snapshot happens in _finalize_save_as_component at
-        Save time. Reading the workspace at finalize is safe because the
-        dialog is modal — events that could mutate components are blocked.
-        
-        Returns:
-            None
-        """
+        """Open the SAVE AS COMPONENT dialog."""
         self.dialog = SaveComponentDialog(
             on_save=self._finalize_save_as_component,
             on_cancel=self._dismiss_dialog,
         )
 
-    def _finalize_save_as_component(self, name: str, color: Tuple[int, int, int]) -> None:
-        """Auto-infer ports from the workspace, stash the record, dismiss.
-        
+    def _finalize_save_as_component(self, name: str, color: tuple[int, int, int]) -> None:
+        """
+        Auto-infer ports from the workspace, stash the record, dismiss.
+
         Per the "Save-as-Component port inference rule": every Switch in the
         workspace becomes an INPUT port and every LED becomes an OUTPUT port;
         ordering is ascending Y so the top-of-screen IN is port 0, the next one
         down is port 1, and so on.
-        
+
         Args:
             name: Saved component's display name (uppercase, already trimmed).
             color: Saved wrapper body color (RGB tuple).
-        
-        Returns:
-            None
         """
         input_switches, output_leds = SaveAsComponentHandler.infer_component_ports(self.components)
         definition = SaveAsComponentHandler.snapshot_workspace_definition(
@@ -250,15 +235,7 @@ class GameManager:
         self._dismiss_dialog()
 
     def _clear_workspace(self) -> None:
-        """Reset the live workspace to an empty canvas.
-
-        Clears placed components, committed/pending wires, and text-box
-        annotations. Used after Save-as-Component so the student can start
-        the next abstraction layer immediately.
-        
-        Returns:
-            None
-        """
+        """Reset the live workspace to an empty canvas."""
         self.components.clear()
         self.wires.clear_all()
         self.text_boxes.clear_all()
@@ -272,22 +249,14 @@ class GameManager:
     # -------------------------
 
     def _save_project(self) -> None:
-        """Save directly if a project name is already set; otherwise open Save As.
-        
-        Returns:
-            None
-        """
+        """Save directly if a project name is already set; otherwise open Save As."""
         if self._current_project_name is not None:
             self._finalize_save_project(self._current_project_name)
         else:
             self._open_save_as_dialog()
 
     def _open_save_as_dialog(self) -> None:
-        """Open the SAVE AS dialog (list of existing projects + name input).
-        
-        Returns:
-            None
-        """
+        """Open the SAVE AS dialog (list of existing projects + name input)."""
         existing = self.project_manager.list_project_names()
         self.dialog = SaveProjectDialog(
             existing_names=existing,
@@ -297,12 +266,13 @@ class GameManager:
 
     # Keep old name as alias so any future callers still work.
     def _open_save_project_dialog(self) -> None:
-        """Alias for _open_save_as_dialog for backward compatibility."""
+        """Delegate legacy save-dialog calls to the SAVE AS dialog flow."""
         self._open_save_as_dialog()
 
     def _finalize_save_project(self, name: str) -> None:
-        """Serialize the workspace to projects/<name>.json and remember the name.
-        
+        """
+        Serialize the workspace to projects/<name>.json and remember the name.
+
         Args:
             name: Project name to save as.
         """
@@ -326,8 +296,9 @@ class GameManager:
         )
 
     def _finalize_load_project(self, safe_name: str) -> None:
-        """Load a project from disk and replace the current workspace.
-        
+        """
+        Load a project from disk and replace the current workspace.
+
         Args:
             safe_name: Sanitized project name to load.
         """
@@ -350,7 +321,7 @@ class GameManager:
         )
 
     def _new_project(self) -> None:
-        """Clear the workspace to start a fresh project."""
+        """Clear the workspace and reset project-specific session state."""
         self._clear_workspace()
         # Also reset the in-session saved-components library and bank templates.
         self.saved_components.clear()
@@ -361,18 +332,12 @@ class GameManager:
     # DIALOG MANAGEMENT
     # -------------------------
 
-    def _dismiss_dialog(self):
-        """Close whichever dialog is currently open.
-
-        Reaching this with `self.dialog is None` should not happen in
-        practice — both Cancel and Esc paths inside the dialog go
-        through here, and a no-op is the right safe default if a
-        future caller somehow double-dismisses.
-        """
+    def _dismiss_dialog(self) -> None:
+        """Close whichever dialog is currently open."""
         self.dialog = None
 
-    def _show_quit_confirm(self):
-        """Open the quit-confirmation dialog; only YES closes the app."""
+    def _show_quit_confirm(self) -> None:
+        """Open the quit-confirmation dialog where only YES exits."""
         self.dialog = QuitConfirmDialog(
             on_confirm=self.close_game,
             on_cancel=self._dismiss_dialog,
@@ -387,13 +352,13 @@ class GameManager:
     # -------------------------
 
     def _process_events(self) -> None:
-        """Pump the event queue and route each event to the right handler."""
+        """Pump the event queue and route each event to the correct subsystem."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.close_game()
                 continue
 
-            # Top menu captures focus while open.
+            # Open menus are modal for navigation consistency with keyboard shortcuts.
             if self.top_menu_bar.is_menu_open():
                 if event.type == pygame.KEYDOWN:
                     self._handle_keydown(event)
@@ -402,24 +367,24 @@ class GameManager:
                     self._handle_mouse(event)
                     continue
 
-            # Modal dialog owns all events while open.
+            # Dialogs intentionally block workspace interaction until dismissal.
             if self.dialog is not None:
                 self.dialog.handle_event(event)
                 continue
 
-            # Text boxes claim keystrokes and clicks before wires/components.
+            # Text boxes consume events first so typing does not trigger tools.
             if self.text_boxes.handle_event(event):
                 continue
 
-            # Route logic to specialized handlers
             if event.type == pygame.KEYDOWN:
                 self._handle_keydown(event)
             elif event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
                 self._handle_mouse(event)
 
     def _handle_keydown(self, event: pygame.event.Event) -> None:
-        """Route a single keyboard press.
-        
+        """
+        Route a single keyboard press.
+
         Args:
             event: Pygame keyboard event.
         """
@@ -464,27 +429,24 @@ class GameManager:
             self.workspace_interaction.delete_selected_components()
             return
 
-        # Global keys (always honored regardless of run state).
+        # Global keys are available even when no tool is active.
         if event.key == pygame.K_F11:
             pygame.display.toggle_fullscreen()
         if event.key == pygame.K_F10:
             self._toggle_crt()
         if event.key == pygame.K_ESCAPE:
-            # Layered Esc behavior (priority order):
-            # 1. Dialog/popup already open -> dialog handles its own Esc
-            #    (self.dialog routes events before _handle_keydown runs).
-            # 2. Fullscreen -> exit fullscreen.
+            # Esc exits fullscreen first; otherwise it opens quit confirmation.
             if pygame.display.get_surface().get_flags() & pygame.FULLSCREEN:
                 pygame.display.toggle_fullscreen()
                 return
-            # 3. Show quit confirm dialog; only YES actually quits.
             self._show_quit_confirm()
         if event.key == pygame.K_t:
             self.text_boxes.spawn_at(pygame.mouse.get_pos())
 
     def _handle_mouse(self, event: pygame.event.Event) -> None:
-        """Pass mouse events to the component manager or components directly.
-        
+        """
+        Pass mouse events to the component manager or components directly.
+
         Args:
             event: Pygame mouse event.
         """
@@ -526,8 +488,7 @@ class GameManager:
             self.workspace_interaction.handle_marquee_event(event)
             return
 
-        # Wires get the event before bank/components: a click that lands on a
-        # port should start a wire, not drag the underlying component.
+        # Wire starts must win over drag starts when clicking a port hotspot.
         if self.wires.handle_event(event, self.components, workspace_rect):
             return
 
@@ -537,7 +498,7 @@ class GameManager:
                 spawned_component = self.components[-1]
                 self.history.push(PlaceComponent(self.components, self.wires, spawned_component))
                 self.workspace_interaction.set_selected_components([spawned_component])
-                # Spawned components should drag immediately if the mouse is held.
+                # Immediate drag keeps spawn behavior feeling direct and predictable.
                 self.workspace_interaction.start_group_drag(event.pos, click_candidate=None)
             return
 
@@ -566,7 +527,7 @@ class GameManager:
     # PER-FRAME UPDATE / RENDER
     # -------------------------
 
-    def _draw(self):
+    def _draw(self) -> None:
         """Draw all workspace layers in back-to-front order."""
         for comp in self.components:
             comp.draw(self.screen)
@@ -577,8 +538,8 @@ class GameManager:
         if self.dialog is not None:
             self.dialog.draw(self.screen)
 
-    def _draw_grid(self):
-        """Draw the background grid lines."""
+    def _draw_grid(self) -> None:
+        """Draw the background grid lines for alignment feedback."""
         grid_color = ColorSettings.WORD_COLORS["WHITE"]
         grid_size = ScreenSettings.GRID_SIZE
         for x in range(0, ScreenSettings.WIDTH, grid_size):
@@ -586,15 +547,8 @@ class GameManager:
         for y in range(0, ScreenSettings.HEIGHT, grid_size):
             pygame.draw.line(self.screen, grid_color, (0, y), (ScreenSettings.WIDTH, y), 1)
 
-    def _draw_error_banner(self):
-        """Draw a red error banner below the shortcut bar when an error occurred.
-
-        Reads self._error_info (set by the run() try/except) and renders a
-        dark-red strip showing the exception type and message. Clears
-        self._error_info automatically once ErrorBannerSettings.DISPLAY_MS
-        has elapsed, so the banner flashes briefly then disappears without
-        any extra bookkeeping in the caller.
-        """
+    def _draw_error_banner(self) -> None:
+        """Draw a transient error banner below the top menu when needed."""
         if self._error_info is None:
             return
         exc_type, message, timestamp = self._error_info
@@ -620,29 +574,24 @@ class GameManager:
              bar.y + (bar.height - surf.get_height()) // 2),
         )
 
-    def _render_frame(self):
-        """Clear the screen and draw all layers for this frame."""
+    def _render_frame(self) -> None:
+        """Clear the screen and draw all render layers for this frame."""
         self.screen.fill(ScreenSettings.BG_COLOR)
         self._draw_grid()
         self._draw()
         self.top_menu_bar.draw()
         if self._crt_enabled:
+            # CRT runs as a post-process over the composed frame, like a screen filter.
             self.crt.draw()
         # Error banner draws after the CRT overlay so it's always legible.
         self._draw_error_banner()
 
-    def run(self):
-        """Run the main event loop, keeping the app alive on recoverable errors.
-
-        Wraps the per-frame update + render in a try/except so an unhandled
-        exception during simulation or rendering stores a brief error record
-        instead of crashing the process. The error banner (drawn by
-        _draw_error_banner via _render_frame) then flashes for a few seconds
-        before clearing, leaving the workspace in whatever state it was in.
-        """
+    def run(self) -> None:
+        """Run the main loop and keep the app responsive after recoverable errors."""
         while True:
             try:
                 self._process_events()
+                # Signal propagation must happen before draw so ports and LEDs show current state.
                 self.signals.update(self.components, self.wires.wires)
                 self._render_frame()
             except Exception as exc:
@@ -662,9 +611,7 @@ class GameManager:
             pygame.display.flip()
             self.clock.tick(ScreenSettings.FPS)
 
-
 # Main execution
 if __name__ == '__main__':
     game_manager = GameManager()
     game_manager.run()
-
