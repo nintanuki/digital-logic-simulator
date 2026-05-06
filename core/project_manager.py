@@ -231,7 +231,7 @@ class ProjectManager:
         
         # Reset the saved-component library and bank templates
         saved_components.clear()
-        bank._templates_and_spawners = bank._build_templates()
+        bank.reset_to_default_templates()
         
         # Restore saved-component library first so spawned SavedComponents in the workspace exist in the bank
         for rec in payload.get("saved_components", []):

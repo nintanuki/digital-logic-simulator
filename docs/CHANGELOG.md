@@ -4745,3 +4745,65 @@ next bullet.
     strip_x = self._group_divider_x() + UISettings.BANK_COMPONENT_STRIP_OFFSET_FROM_DIVIDER
 **Why:** Decoupled the color-transition seam from the TEXT template position so TEXT no longer appears to hug the color-change edge.
 **Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-06 19:46 UTC — Limit toolbar custom components to MRU six and add text library menu
+
+**File:** settings.py
+**Date and Time:** 2026-05-06 19:46 UTC
+**Lines (at time of edit):** 102-108 (modified)
+**Before:**
+    BANK_TEMPLATE_LABEL_MIN_FONT_SIZE = 8
+    # Hard limits for save-as-component inferred external ports.
+**After:**
+    BANK_TEMPLATE_LABEL_MIN_FONT_SIZE = 8
+    BANK_RECENT_CUSTOM_COMPONENT_LIMIT = 6
+    # Hard limits for save-as-component inferred external ports.
+**Why:** Added a single settings constant that caps how many custom saved-component templates are shown directly in the bottom toolbar, while leaving base templates (TEXT and NAND) unaffected.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-06 19:46 UTC
+**Lines (at time of edit):** 97-100, 283-556, 754-1137 (modified/new)
+**Before:**
+    self._templates_and_spawners = self._build_templates()
+    ...
+    def add_saved_component_template(self, name, color, definition):
+        self._templates_and_spawners.append((template, spawn))
+        self._reflow_templates()
+    ...
+    toolbox_handlers = {
+        "save_component": self._on_save_component,
+        "load_component": None,
+        "library": None,
+    }
+**After:**
+    self._saved_component_library = {}
+    self._recent_saved_component_names = []
+    self._library_popup_open = False
+    ...
+    def _mark_saved_component_used(self, name):
+        ...
+    def _rebuild_saved_component_templates(self):
+        ...  # renders only first 6 MRU names as toolbar templates
+    def _draw_library_popup(self, surface):
+        ...  # text-only list of all saved component names
+    ...
+    toolbox_handlers = {
+        "save_component": self._on_save_component,
+        "load_component": None,
+        "library": self._open_library_popup,
+    }
+**Why:** Implemented two-tier saved-component access: the toolbar now shows only the six most recently used custom components (excluding TEXT/NAND), and TOOLBOX > LIBRARY opens a text-only menu listing all saved component names.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** core/project_manager.py
+**Date and Time:** 2026-05-06 19:46 UTC
+**Lines (at time of edit):** 231-234 (modified)
+**Before:**
+    saved_components.clear()
+    bank._templates_and_spawners = bank._build_templates()
+**After:**
+    saved_components.clear()
+    bank.reset_to_default_templates()
+**Why:** Switched project load reset logic to the bank's public API so saved-component MRU/library state resets consistently without mutating bank internals.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)

@@ -102,6 +102,9 @@ class UISettings:
     BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE = 8
     BANK_TEMPLATE_LABEL_PADDING_X = 8
     BANK_TEMPLATE_LABEL_MIN_FONT_SIZE = 8
+    # Max custom saved components shown directly in the toolbar strip.
+    # Base templates (TEXT and NAND) are always shown separately.
+    BANK_RECENT_CUSTOM_COMPONENT_LIMIT = 6
     # Hard limits for save-as-component inferred external ports.
     MAX_COMPONENT_INPUTS = 8
     MAX_COMPONENT_OUTPUTS = 8

@@ -97,6 +97,7 @@ class CompactSavedTemplate:
         )
         self.rect = pygame.Rect(x, y, width, height)
         self.name = name
+        self.saved_component_name = None
         self.color = color
         self.input_count = input_count
         self.output_count = output_count
@@ -282,6 +283,9 @@ class ComponentBank:
         self._components_provider = components_provider or (lambda: [])
         self._on_save_component = on_save_component
         self._on_spawn_wall_component = on_spawn_wall_component
+        self._saved_component_library = {}
+        self._recent_saved_component_names = []
+        self._library_popup_open = False
         # Two left-anchored popup buttons. TOOLBOX hosts the component
         # library actions; > IN/OUT spawns input switches / output LEDs.
         self._popup_buttons = self._build_popup_buttons()
@@ -314,11 +318,238 @@ class ComponentBank:
         Returns:
             None
         """
+        self._saved_component_library.clear()
+        self._recent_saved_component_names.clear()
         self._templates_and_spawners = self._build_templates()
         self._refresh_protected_template_ids()
         self._reflow_templates()
         self._drag_template = None
         self._active_popup_button = None
+        self._library_popup_open = False
+
+    @staticmethod
+    def _spawn_saved_component(template, name, color, definition, event_pos, components_list):
+        """Spawn one SavedComponent instance from a compact bank template.
+
+        Args:
+            template (CompactSavedTemplate): Template used for cursor centering.
+            name (str): Saved component display name.
+            color (tuple[int, int, int]): Wrapper body color.
+            definition (dict): Serialized wrapped-circuit payload.
+            event_pos (tuple[int, int]): Mouse position at click time.
+            components_list (list): Live workspace components list.
+
+        Returns:
+            None
+        """
+        new_comp = SavedComponent(
+            event_pos[0] - template.rect.width // 2,
+            event_pos[1] - template.rect.height // 2,
+            name,
+            color,
+            deepcopy(definition),
+        )
+        ComponentBank._prime_spawn_drag(new_comp, event_pos)
+        components_list.append(new_comp)
+
+    @staticmethod
+    def _recent_custom_limit():
+        """Return the max number of custom templates shown on the toolbar.
+
+        Returns:
+            int: Maximum visible custom templates.
+        """
+        return UISettings.BANK_RECENT_CUSTOM_COMPONENT_LIMIT
+
+    def _mark_saved_component_used(self, name):
+        """Move a saved component to the front of the recency list.
+
+        Args:
+            name (str): Saved component display name.
+
+        Returns:
+            None
+        """
+        if name in self._recent_saved_component_names:
+            self._recent_saved_component_names.remove(name)
+        self._recent_saved_component_names.insert(0, name)
+        self._rebuild_saved_component_templates()
+
+    def _rebuild_saved_component_templates(self):
+        """Rebuild custom bank entries from MRU names and reflow layout.
+
+        Returns:
+            None
+        """
+        protected_map = {
+            id(tpl): (tpl, spawn)
+            for tpl, spawn in self._templates_and_spawners
+            if id(tpl) in self._protected_template_ids
+        }
+        base_entries = [
+            protected_map[tpl_id]
+            for tpl_id in self._protected_template_order_ids
+            if tpl_id in protected_map
+        ]
+        custom_entries = []
+        for name in self._recent_saved_component_names[:self._recent_custom_limit()]:
+            record = self._saved_component_library.get(name)
+            if record is None:
+                continue
+            definition = record["definition"]
+            color = record["color"]
+            input_count = len(definition["input_component_indices"])
+            output_count = len(definition["output_component_indices"])
+            template = CompactSavedTemplate(
+                0,
+                0,
+                name,
+                color,
+                input_count,
+                output_count,
+            )
+            template.saved_component_name = name
+
+            def spawn(event_pos, components_list, tpl=template, rec_name=name):
+                record_payload = self._saved_component_library.get(rec_name)
+                if record_payload is None:
+                    return
+                self._spawn_saved_component(
+                    tpl,
+                    rec_name,
+                    record_payload["color"],
+                    record_payload["definition"],
+                    event_pos,
+                    components_list,
+                )
+                self._mark_saved_component_used(rec_name)
+
+            custom_entries.append((template, spawn))
+        self._templates_and_spawners = base_entries + custom_entries
+        self._reflow_templates()
+
+    def _library_entries(self):
+        """Return saved-component names for the text-only library popup.
+
+        Returns:
+            list[str]: Saved component names in alphabetical order.
+        """
+        return sorted(self._saved_component_library.keys())
+
+    def _library_button(self):
+        """Return the TOOLBOX popup button record if present.
+
+        Returns:
+            dict | None: TOOLBOX button record or None.
+        """
+        for button in self._popup_buttons:
+            if button["id"] == "toolbox":
+                return button
+        return None
+
+    def _open_library_popup(self):
+        """Open the text-only library popup and close other popups.
+
+        Returns:
+            None
+        """
+        self._active_popup_button = None
+        self._library_popup_open = True
+
+    def _close_library_popup(self):
+        """Close the text-only library popup.
+
+        Returns:
+            None
+        """
+        self._library_popup_open = False
+
+    def _library_popup_rect(self, button):
+        """Return the library popup rect aligned to the TOOLBOX button.
+
+        Args:
+            button (dict): TOOLBOX button record.
+
+        Returns:
+            pygame.Rect: Popup container rect.
+        """
+        font = Fonts.text_box
+        items = self._library_entries()
+        if not items:
+            items = ["NO SAVED COMPONENTS"]
+        longest = max(font.size(label)[0] for label in items)
+        width = max(
+            BankToolboxButtonSettings.POPUP_WIDTH,
+            longest + 2 * BankPopupButtonSettings.ITEM_PADDING_X,
+        )
+        height = len(items) * BankPopupButtonSettings.ITEM_HEIGHT
+        top = button["rect"].top - BankPopupButtonSettings.POPUP_GAP - height
+        min_top = TopMenuBarSettings.HEIGHT + BankPopupButtonSettings.POPUP_GAP
+        top = max(min_top, top)
+        return pygame.Rect(button["rect"].left, top, width, height)
+
+    def _draw_library_popup(self, surface):
+        """Draw the text-only list of all saved component names.
+
+        Args:
+            surface (pygame.Surface): The surface to draw onto.
+
+        Returns:
+            None
+        """
+        if not self._library_popup_open:
+            return
+        button = self._library_button()
+        if button is None:
+            return
+        popup_rect = self._library_popup_rect(button)
+        pygame.draw.rect(surface, BankPopupButtonSettings.POPUP_BODY_COLOR, popup_rect)
+        pygame.draw.rect(
+            surface,
+            BankPopupButtonSettings.POPUP_BORDER_COLOR,
+            popup_rect,
+            BankPopupButtonSettings.POPUP_BORDER_THICKNESS,
+        )
+        font = Fonts.text_box
+        labels = self._library_entries()
+        text_color = BankPopupButtonSettings.ITEM_ENABLED_COLOR
+        if not labels:
+            labels = ["NO SAVED COMPONENTS"]
+            text_color = BankPopupButtonSettings.ITEM_DISABLED_COLOR
+        item_rects = self._popup_item_rects(popup_rect, len(labels))
+        for label, rect in zip(labels, item_rects):
+            label_surf = font.render(label, True, text_color)
+            surface.blit(
+                label_surf,
+                (
+                    rect.left + BankPopupButtonSettings.ITEM_PADDING_X,
+                    rect.y + (rect.height - label_surf.get_height()) // 2,
+                ),
+            )
+
+    def _handle_library_popup_event(self, event):
+        """Handle click-to-close behavior for the text-only library popup.
+
+        Args:
+            event (pygame.event.Event): Mouse-down event.
+
+        Returns:
+            bool: True when the click is consumed by the library popup.
+        """
+        if not self._library_popup_open:
+            return False
+        button = self._library_button()
+        if button is None:
+            self._close_library_popup()
+            return False
+        popup_rect = self._library_popup_rect(button)
+        if popup_rect.collidepoint(event.pos):
+            return True
+        if button["rect"].collidepoint(event.pos):
+            self._close_library_popup()
+            return True
+        self._close_library_popup()
+        return False
 
     @property
     def templates(self):
@@ -523,35 +754,12 @@ class ComponentBank:
             color (tuple[int, int, int]): RGB body color.
             definition (dict): Serialized sub-circuit definition.
         """
-        x = self._templates_start_x()
-        if self._templates_and_spawners:
-            last_tpl, _last_spawn = self._templates_and_spawners[-1]
-            x = last_tpl.rect.right + UISettings.BANK_TEMPLATE_GAP
-        input_count = len(definition["input_component_indices"])
-        output_count = len(definition["output_component_indices"])
-        template = CompactSavedTemplate(
-            x,
-            0,
-            name,
-            color,
-            input_count,
-            output_count,
-        )
-        template.rect.y = self.rect.y + (self.rect.height - template.rect.height) // 2
-
-        def spawn(event_pos, components_list):
-            new_comp = SavedComponent(
-                event_pos[0] - template.rect.width // 2,
-                event_pos[1] - template.rect.height // 2,
-                name,
-                color,
-                deepcopy(definition),
-            )
-            self._prime_spawn_drag(new_comp, event_pos)
-            components_list.append(new_comp)
-
-        self._templates_and_spawners.append((template, spawn))
-        self._reflow_templates()
+        self._saved_component_library[name] = {
+            "name": name,
+            "color": color,
+            "definition": deepcopy(definition),
+        }
+        self._mark_saved_component_used(name)
 
     def spawn_component(self, cls, event_pos, components_list):
         """Spawn an instance of `cls` through the bank's own spawn path.
@@ -609,6 +817,7 @@ class ComponentBank:
         # Active popup is drawn last so it floats above the bank and any
         # template body that happens to fall under it.
         self._draw_active_popup(surface)
+        self._draw_library_popup(surface)
 
     def _template_at(self, pos):
         """Return top-most bank template and spawn_fn under pos, else None."""
@@ -688,6 +897,12 @@ class ComponentBank:
             tpl, _spawn_fn = hit
             if id(tpl) in self._protected_template_ids:
                 return True
+            saved_name = getattr(tpl, "saved_component_name", None)
+            if saved_name is not None:
+                if saved_name in self._recent_saved_component_names:
+                    self._recent_saved_component_names.remove(saved_name)
+                self._rebuild_saved_component_templates()
+                return True
             self._templates_and_spawners = [
                 entry for entry in self._templates_and_spawners
                 if entry[0] is not tpl
@@ -754,7 +969,7 @@ class ComponentBank:
         toolbox_handlers = {
             "save_component": self._on_save_component,
             "load_component": None,
-            "library": None,
+            "library": self._open_library_popup,
         }
         toolbox_items = [
             (item_id, label, toolbox_handlers.get(item_id))
@@ -895,6 +1110,8 @@ class ComponentBank:
         """
         if event.type != pygame.MOUSEBUTTONDOWN or event.button != InputSettings.LEFT_CLICK:
             return False
+        if self._handle_library_popup_event(event):
+            return True
         # If a popup is open, route the click to the popup first.
         if self._active_popup_button is not None:
             button = self._active_popup_button
@@ -919,6 +1136,7 @@ class ComponentBank:
 
         for button in self._popup_buttons:
             if button["rect"].collidepoint(event.pos):
+                self._close_library_popup()
                 self._active_popup_button = button
                 return True
         return False
