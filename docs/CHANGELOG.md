@@ -58,6 +58,166 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-06 18:00 UTC — Wall-anchored IN/OUT, redesigned LED, TOOLBOX + > IN/OUT bank popups
+
+**File:** settings.py
+**Date and Time:** 2026-05-06 18:00 UTC
+**Lines (at time of edit):** 80, 218-237 (modified); 308-376 (new)
+**Before:**
+    BANK_LED_SHIFT_X = 10
+    ...
+    class LedSettings:
+        SIZE = 60
+        BULB_RADIUS = 20
+        BULB_Y_OFFSET = 22
+        BASE_WIDTH = 18
+        BASE_HEIGHT = 10
+        BASE_Y_OFFSET = 46
+        BASE_CORNER = 3
+        ...
+        OFF_BASE_COLOR = (40, 40, 40)
+        ON_BASE_COLOR = (175, 145, 25)
+**After:**
+    BANK_BUTTON_GROUP_GAP = 24
+    ...
+    class LedSettings:
+        SIZE = 60
+        BULB_RADIUS = 22
+        GLOW_EXTRA_RADIUS = 7
+        OFF_GLOBE_COLOR = (55, 55, 55)
+        ON_GLOBE_COLOR = (255, 220, 50)
+        GLOW_COLOR = (255, 200, 30)
+        BORDER_COLOR = ColorSettings.WORD_COLORS["BLACK"]
+        BORDER_THICKNESS = 2
+
+    class WallDragBarSettings: ...
+    class BankPopupButtonSettings: ...
+    class BankToolboxButtonSettings: ...
+    class BankIOButtonSettings: ...
+**Why:** Dropped the awkward base/lead from the LED visual (the source of the "drooping port" complaint), centered the globe vertically so the INPUT port lines up with its equator, and added shared visual constants for the wall-side drag bar plus the new bottom-bank popup buttons (TOOLBOX, > IN/OUT).
+**Editor:** GitHub Copilot (Claude Opus 4.7)
+
+**File:** core/elements.py
+**Date and Time:** 2026-05-06 18:00 UTC
+**Lines (at time of edit):** 6-15, 18-42 (new helper); 295-410 (Switch overrides); 495-624 (LED rewrite)
+**Before:**
+    class Switch(Component):
+        def __init__(self, x, y): ...
+        def _draw_body(self, surface): ...   # body was the drag handle
+    class LED(Component):
+        def _draw_body(self, surface):
+            bulb_cy = r.y + LedSettings.BULB_Y_OFFSET
+            ... # globe in upper portion + base/lead rectangle below
+**After:**
+    def _draw_wall_drag_bar(surface, bar_rect, hovered): ...
+    class Switch(Component):
+        WALL_SIDE = "LEFT"
+        bar_hovered = False
+        def _clamp_to_workspace(self):
+            self.rect.x = 0
+            ...
+        @property
+        def drag_bar_rect(self): ...
+    class LED(Component):
+        WALL_SIDE = "RIGHT"
+        def _clamp_to_workspace(self):
+            self.rect.x = ScreenSettings.WIDTH - self.rect.width
+            ...
+        def _draw_body(self, surface):
+            bulb_cy = r.centery   # globe centered, port on equator
+            ...
+            _draw_wall_drag_bar(surface, self.drag_bar_rect, self.bar_hovered)
+**Why:** IN/OUT components now glue to the wall they belong to (Switch left, LED right) and only move vertically. The wall-side bar is the sole drag handle so a body click on a Switch unambiguously toggles it, and the LED visual drops the awkward base/lead in favor of a centered globe so its INPUT port no longer "droops" below the bulb.
+**Editor:** GitHub Copilot (Claude Opus 4.7)
+
+**File:** core/workspace_controller.py
+**Date and Time:** 2026-05-06 18:00 UTC
+**Lines (at time of edit):** 36-43, 56-72 (modified); 152-180, 195-218, 229-260 (modified/new)
+**Before:**
+    self._click_candidate_component = None
+    ...
+    for comp in self._components:
+        for port in comp.ports:
+            port.hovered = port.rect.collidepoint(mouse_pos)
+    ...
+    def handle_group_drag_event(self, event):
+        ... # no wall-collision pass; on-click fires even if click was on bar
+**After:**
+    self._click_candidate_component = None
+    self._click_started_on_bar = False
+    ...
+    for comp in self._components:
+        for port in comp.ports:
+            port.hovered = port.rect.collidepoint(mouse_pos)
+        if hasattr(comp, "drag_bar_rect"):
+            comp.bar_hovered = comp.drag_bar_rect.collidepoint(mouse_pos)
+    ...
+    def handle_group_drag_event(self, event):
+        ...
+        self._resolve_wall_collisions()
+        ...
+        if not self._group_drag_moved and not self._click_started_on_bar:
+            ... # only fire _on_click for body-clicks
+    def _resolve_wall_collisions(self): ...
+**Why:** Drives the wall drag-bar hover highlight, suppresses Switch toggle when the user grabs the bar, and forbids dragged wall components from passing through other same-wall components (so users must rewire instead of overlapping IN/OUT).
+**Editor:** GitHub Copilot (Claude Opus 4.7)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-06 18:00 UTC
+**Lines (at time of edit):** 4-15, 73-104, 127-167, 252-256, 311-330, 358-377, 416-650 (modified/new)
+**Before:**
+    TEMPLATE_CLASSES = (Switch, Component, LED)
+    def __init__(self, text_boxes): ...
+    def _build_templates(self):
+        ...
+        if cls is LED:
+            tpl.rect.x += UISettings.BANK_LED_SHIFT_X
+**After:**
+    TEMPLATE_CLASSES = (Component,)
+    def __init__(self, text_boxes, components_provider=None,
+                 on_save_component=None, on_spawn_wall_component=None): ...
+    def _build_popup_buttons(self): ...      # TOOLBOX + > IN/OUT
+    def _draw_popup_buttons(self, surface): ...
+    def _handle_popup_event(self, event): ... # consumes clicks ahead of templates
+    def _spawn_switch_on_left_wall(self): ...
+    def _spawn_led_on_right_wall(self): ...
+    def _next_wall_spawn_y(...): ...         # auto-stack non-overlapping
+**Why:** Switches and LEDs are no longer loose draggable templates on the bottom bank; they're spawned exclusively through the new > IN/OUT popup. The TOOLBOX popup hosts SAVE COMPONENT (and a placeholder LOAD COMPONENT for a future feature), pushing the remaining template row to the right of the popup-button cluster.
+**Editor:** GitHub Copilot (Claude Opus 4.7)
+
+**File:** main.py
+**Date and Time:** 2026-05-06 18:00 UTC
+**Lines (at time of edit):** 56-63, 96-127, 158-179 (modified)
+**Before:**
+    self.bank = ComponentBank(self.text_boxes)
+    ...
+    "items": tuple(
+        (item_id, label, "ESC" if item_id == "quit" else "")
+        for item_id, label in MenuButtonSettings.ITEMS
+    ),
+    "actions": {..., "save_as_component": self.save_as_component, ...},
+**After:**
+    self.bank = ComponentBank(
+        self.text_boxes,
+        components_provider=lambda: self.components,
+        on_save_component=self.save_as_component,
+        on_spawn_wall_component=self._on_bank_spawn,
+    )
+    ...
+    file_items = tuple(
+        (item_id, label, "ESC" if item_id == "quit" else "")
+        for item_id, label in MenuButtonSettings.ITEMS
+        if item_id != "save_as_component"
+    )
+    ...
+    def _on_bank_spawn(self, component):
+        self.history.push(PlaceComponent(self.components, self.wires, component))
+        self.workspace_interaction.set_selected_components([component])
+**Why:** Wires the new bank callbacks so > IN/OUT spawns reach the workspace and the spawn is undoable, and removes SAVE AS COMPONENT from the FILE menu so the only entry point is the new TOOLBOX popup (avoiding duplicate affordances).
+**Editor:** GitHub Copilot (Claude Opus 4.7)
+
+---
+
 ## 2026-05-05 13:58 UTC — Move Fonts module from root into ui package
 
 **File:** ui/fonts.py

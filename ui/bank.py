@@ -4,10 +4,14 @@ from copy import deepcopy
 from core.elements import Component, LED, SavedComponent, Switch
 from ui.fonts import Fonts
 from settings import (
+    BankIOButtonSettings,
+    BankPopupButtonSettings,
+    BankToolboxButtonSettings,
     ComponentSettings,
     InputSettings,
     ScreenSettings,
     TextTemplateSettings,
+    TopMenuBarSettings,
     UISettings,
 )
 
@@ -69,20 +73,43 @@ class ComponentBank:
     spawns a TextBox via the manager) and future saved sub-circuits.
     """
 
-    # Order is the left-to-right order shown in the toolbox.
-    TEMPLATE_CLASSES = (Switch, Component, LED)
+    # Order is the left-to-right order shown in the toolbox. Switch and
+    # LED used to live here as draggable templates but were moved into
+    # the > IN/OUT popup so the user can only spawn IN/OUT through that
+    # control surface. Component is the NAND gate.
+    TEMPLATE_CLASSES = (Component,)
 
-    def __init__(self, text_boxes):
-        """Build the bank rect and the row of templates with their spawners.
+    def __init__(self, text_boxes, components_provider=None,
+                 on_save_component=None, on_spawn_wall_component=None):
+        """Build the bank rect, leftmost popup buttons, and template row.
 
         Args:
             text_boxes (TextBoxManager): Manager that owns workspace text
                 boxes. Captured by the TEXT template's spawn closure so a
                 click on that template can drop a focused TextBox without
                 routing back through GameManager.
+            components_provider (Callable[[], list] | None): Callback that
+                returns the live workspace components list. Used by the
+                > IN/OUT popup so spawning IN-1 / OUT-1 can append into the
+                same list the rest of the workspace renders from.
+            on_save_component (Callable[[], None] | None): Callback bound
+                to the TOOLBOX > SAVE COMPONENT menu item. Triggers the
+                save-as-component dialog flow on the GameManager side.
+            on_spawn_wall_component (Callable[[Component], None] | None):
+                Optional callback fired after the bank spawns a Switch or
+                LED via the > IN/OUT popup. Lets GameManager record the
+                new component in undo history, mirroring how template
+                spawns are tracked there.
         """
         self.rect = UISettings.BANK_RECT
         self._text_boxes = text_boxes
+        self._components_provider = components_provider or (lambda: [])
+        self._on_save_component = on_save_component
+        self._on_spawn_wall_component = on_spawn_wall_component
+        # Two left-anchored popup buttons. TOOLBOX hosts the component
+        # library actions; > IN/OUT spawns input switches / output LEDs.
+        self._popup_buttons = self._build_popup_buttons()
+        self._active_popup_button = None
         self._templates_and_spawners = self._build_templates()
         self._protected_template_ids = set()
         self._refresh_protected_template_ids()
@@ -109,6 +136,7 @@ class ComponentBank:
         self._templates_and_spawners = self._build_templates()
         self._refresh_protected_template_ids()
         self._drag_template = None
+        self._active_popup_button = None
 
     @property
     def templates(self):
@@ -126,6 +154,8 @@ class ComponentBank:
     def _build_templates(self):
         """Lay out one template per spawnable kind, left-to-right inside the bank.
 
+        Templates start to the right of the leftmost popup buttons so the
+        bank reads as: [TOOLBOX] [> IN/OUT] | [NAND] [TEXT] [saved...].
         Each template is vertically centered inside the bank regardless of
         its own height, so a future smaller / larger component still looks
         intentional. Spacing comes from UISettings so the layout has no
@@ -135,12 +165,10 @@ class ComponentBank:
         Returns:
             list[tuple]: (template_drawable, spawn_fn) pairs in display order.
         """
-        x = self.rect.x + UISettings.BANK_PADDING_X
+        x = self._templates_start_x()
         entries = []
         for cls in self.TEMPLATE_CLASSES:
             tpl = cls(x, 0)
-            if cls is LED:
-                tpl.rect.x += UISettings.BANK_LED_SHIFT_X
             tpl.rect.y = self.rect.y + (self.rect.height - tpl.rect.height) // 2
             entries.append((tpl, self._make_component_spawner(tpl, cls)))
             x += tpl.rect.width + UISettings.BANK_TEMPLATE_GAP
@@ -148,6 +176,21 @@ class ComponentBank:
         text_tpl.rect.y = self.rect.y + (self.rect.height - text_tpl.rect.height) // 2
         entries.append((text_tpl, self._make_textbox_spawner()))
         return entries
+
+    def _templates_start_x(self):
+        """Return the x where the draggable template row begins.
+
+        The row is pushed right by the width of the popup-button cluster
+        plus a visual separator gap so the controls and templates read as
+        two distinct groups inside the same bank.
+
+        Returns:
+            int: Screen x in pixels.
+        """
+        if not self._popup_buttons:
+            return self.rect.x + UISettings.BANK_PADDING_X
+        last_button = self._popup_buttons[-1]
+        return last_button["rect"].right + UISettings.BANK_BUTTON_GROUP_GAP
 
     @staticmethod
     def _make_component_spawner(tpl, cls):
@@ -224,7 +267,7 @@ class ComponentBank:
             color (tuple[int, int, int]): RGB body color.
             definition (dict): Serialized sub-circuit definition.
         """
-        x = self.rect.x + UISettings.BANK_PADDING_X
+        x = self._templates_start_x()
         if self._templates_and_spawners:
             last_tpl, _last_spawn = self._templates_and_spawners[-1]
             x = last_tpl.rect.right + UISettings.BANK_TEMPLATE_GAP
@@ -272,7 +315,7 @@ class ComponentBank:
         raise KeyError(f"No bank template for {cls.__name__}")
 
     def draw(self, surface):
-        """Render the bank background, separator line, and every template.
+        """Render the bank background, separator line, popup buttons, templates, and any open popup.
 
         Args:
             surface (pygame.Surface): The surface to draw onto.
@@ -285,8 +328,12 @@ class ComponentBank:
             (ScreenSettings.WIDTH, self.rect.y),
             2,
         )
+        self._draw_popup_buttons(surface)
         for tpl, _spawn in self._templates_and_spawners:
             tpl.draw(surface)
+        # Active popup is drawn last so it floats above the bank and any
+        # template body that happens to fall under it.
+        self._draw_active_popup(surface)
 
     def _template_at(self, pos):
         """Return top-most bank template and spawn_fn under pos, else None."""
@@ -319,11 +366,13 @@ class ComponentBank:
         self._templates_and_spawners.sort(key=lambda entry: entry[0].rect.x)
 
     def handle_event(self, event, components_list):
-        """Route a left-click on a template through to its spawn_fn.
+        """Route bank events: popup buttons first, then templates.
 
-        Each template's spawn_fn owns the actual placement logic — see
-        _make_component_spawner — so this loop only finds the clicked
-        template and delegates.
+        Popup buttons (TOOLBOX, > IN/OUT) and any open popup own the event
+        ahead of template clicks so a click on a popup item never falls
+        through to the template under it. Each template's spawn_fn owns
+        the actual placement logic — see _make_component_spawner — so the
+        template loop only finds the clicked template and delegates.
 
         Args:
             event (pygame.event.Event): The event to inspect.
@@ -331,8 +380,11 @@ class ComponentBank:
                 list, passed through to spawn_fn for component templates.
 
         Returns:
-            bool: True if a template was clicked and the event was handled.
+            bool: True if the bank consumed the event.
         """
+        if self._handle_popup_event(event):
+            return True
+
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == InputSettings.MIDDLE_CLICK:
             hit = self._template_at(event.pos)
             if hit is None:
@@ -372,3 +424,302 @@ class ComponentBank:
             spawn_fn(event.pos, components_list)
             return True
         return False
+
+    # -------------------------
+    # POPUP BUTTONS (TOOLBOX, > IN/OUT)
+    # -------------------------
+
+    def _build_popup_buttons(self):
+        """Build the leftmost popup-button cluster for the bottom bank.
+
+        Each entry is a dict carrying the button rect, label surface, and
+        the popup configuration (items + per-item enabled flag + dispatch
+        callback). The TOOLBOX button hosts component-library actions
+        (SAVE COMPONENT, LOAD COMPONENT). The > IN/OUT button hosts the
+        IN-1 / OUT-1 spawners for wall components.
+
+        Returns:
+            list[dict]: Popup button records in left-to-right order.
+        """
+        font = Fonts.text_box
+        cy = self.rect.y + (self.rect.height - BankPopupButtonSettings.HEIGHT) // 2
+        x = self.rect.x + UISettings.BANK_PADDING_X
+        buttons = []
+        for spec in self._popup_button_specs():
+            label_surf = font.render(
+                spec["label"], True, BankPopupButtonSettings.LABEL_COLOR,
+            )
+            width = label_surf.get_width() + 2 * BankPopupButtonSettings.LABEL_PADDING_X
+            rect = pygame.Rect(x, cy, width, BankPopupButtonSettings.HEIGHT)
+            buttons.append({
+                "id": spec["id"],
+                "label": spec["label"],
+                "label_surf": label_surf,
+                "rect": rect,
+                "popup_width": spec["popup_width"],
+                "items": spec["items"],
+            })
+            x = rect.right + BankPopupButtonSettings.GAP_X
+        return buttons
+
+    def _popup_button_specs(self):
+        """Build per-button popup item specs (label + enabled + handler).
+
+        Items are described as (item_id, label, handler_or_None). A None
+        handler renders as a disabled (greyed) item — used for
+        LOAD COMPONENT, which is reserved for a future feature.
+
+        Returns:
+            list[dict]: One spec per button.
+        """
+        toolbox_handlers = {
+            "save_component": self._on_save_component,
+            "load_component": None,
+        }
+        toolbox_items = [
+            (item_id, label, toolbox_handlers.get(item_id))
+            for item_id, label in BankToolboxButtonSettings.ITEMS
+        ]
+        io_handlers = {
+            "spawn_switch": self._spawn_switch_on_left_wall,
+            "spawn_led": self._spawn_led_on_right_wall,
+        }
+        io_items = [
+            (item_id, label, io_handlers.get(item_id))
+            for item_id, label in BankIOButtonSettings.ITEMS
+        ]
+        return [
+            {
+                "id": "toolbox",
+                "label": BankToolboxButtonSettings.LABEL,
+                "popup_width": BankToolboxButtonSettings.POPUP_WIDTH,
+                "items": toolbox_items,
+            },
+            {
+                "id": "io",
+                "label": BankIOButtonSettings.LABEL,
+                "popup_width": BankIOButtonSettings.POPUP_WIDTH,
+                "items": io_items,
+            },
+        ]
+
+    def _popup_rect_for(self, button):
+        """Return the popup rect for ``button`` floating above the bank.
+
+        Args:
+            button (dict): Popup button record from _build_popup_buttons.
+
+        Returns:
+            pygame.Rect: Popup rect in screen coordinates.
+        """
+        height = len(button["items"]) * BankPopupButtonSettings.ITEM_HEIGHT
+        top = button["rect"].top - BankPopupButtonSettings.POPUP_GAP - height
+        return pygame.Rect(button["rect"].left, top, button["popup_width"], height)
+
+    def _popup_item_rects(self, popup_rect, item_count):
+        """Return per-item rects stacked top-down inside ``popup_rect``.
+
+        Args:
+            popup_rect (pygame.Rect): The popup container rect.
+            item_count (int): Number of items in the popup.
+
+        Returns:
+            list[pygame.Rect]: One rect per item.
+        """
+        return [
+            pygame.Rect(
+                popup_rect.left,
+                popup_rect.top + index * BankPopupButtonSettings.ITEM_HEIGHT,
+                popup_rect.width,
+                BankPopupButtonSettings.ITEM_HEIGHT,
+            )
+            for index in range(item_count)
+        ]
+
+    def _draw_popup_buttons(self, surface):
+        """Draw the cluster of popup buttons on the left side of the bank.
+
+        Args:
+            surface (pygame.Surface): The surface to draw onto.
+        """
+        mouse_pos = pygame.mouse.get_pos()
+        for button in self._popup_buttons:
+            rect = button["rect"]
+            is_active = self._active_popup_button is button
+            is_hover = rect.collidepoint(mouse_pos)
+            body_color = (
+                BankPopupButtonSettings.BODY_HOVER_COLOR
+                if is_active or is_hover
+                else BankPopupButtonSettings.BODY_COLOR
+            )
+            pygame.draw.rect(surface, body_color, rect)
+            pygame.draw.rect(
+                surface,
+                BankPopupButtonSettings.BORDER_COLOR,
+                rect,
+                BankPopupButtonSettings.BORDER_THICKNESS,
+            )
+            label_rect = button["label_surf"].get_rect(center=rect.center)
+            surface.blit(button["label_surf"], label_rect)
+
+    def _draw_active_popup(self, surface):
+        """Draw the popup belonging to the currently open popup button.
+
+        Args:
+            surface (pygame.Surface): The surface to draw onto.
+        """
+        button = self._active_popup_button
+        if button is None:
+            return
+        font = Fonts.text_box
+        popup_rect = self._popup_rect_for(button)
+        pygame.draw.rect(surface, BankPopupButtonSettings.POPUP_BODY_COLOR, popup_rect)
+        pygame.draw.rect(
+            surface,
+            BankPopupButtonSettings.POPUP_BORDER_COLOR,
+            popup_rect,
+            BankPopupButtonSettings.POPUP_BORDER_THICKNESS,
+        )
+        mouse_pos = pygame.mouse.get_pos()
+        item_rects = self._popup_item_rects(popup_rect, len(button["items"]))
+        for (item_id, label, handler), rect in zip(button["items"], item_rects):
+            enabled = handler is not None
+            hovered = enabled and rect.collidepoint(mouse_pos)
+            if hovered:
+                pygame.draw.rect(surface, BankPopupButtonSettings.ITEM_HOVER_BG, rect)
+            text_color = (
+                BankPopupButtonSettings.ITEM_HOVER_TEXT if hovered else
+                BankPopupButtonSettings.ITEM_ENABLED_COLOR if enabled else
+                BankPopupButtonSettings.ITEM_DISABLED_COLOR
+            )
+            label_surf = font.render(label, True, text_color)
+            surface.blit(
+                label_surf,
+                (rect.left + BankPopupButtonSettings.ITEM_PADDING_X,
+                 rect.y + (rect.height - label_surf.get_height()) // 2),
+            )
+
+    def _handle_popup_event(self, event):
+        """Handle clicks on popup buttons and any open popup.
+
+        Returns True if the event was consumed so the rest of handle_event
+        won't double-process it. Click-outside-the-popup closes the popup
+        without dispatching; click-on-disabled-item is a no-op.
+
+        Args:
+            event (pygame.event.Event): The event to inspect.
+
+        Returns:
+            bool: True if the bank's popup machinery consumed the event.
+        """
+        if event.type != pygame.MOUSEBUTTONDOWN or event.button != InputSettings.LEFT_CLICK:
+            return False
+        # If a popup is open, route the click to the popup first.
+        if self._active_popup_button is not None:
+            button = self._active_popup_button
+            popup_rect = self._popup_rect_for(button)
+            if popup_rect.collidepoint(event.pos):
+                item_rects = self._popup_item_rects(popup_rect, len(button["items"]))
+                for (item_id, label, handler), rect in zip(button["items"], item_rects):
+                    if rect.collidepoint(event.pos) and handler is not None:
+                        self._active_popup_button = None
+                        handler()
+                        return True
+                return True  # consumed (clicked a disabled item or padding)
+            # Click outside the popup closes it. Also consume the click if
+            # it landed on the same toggle button so re-clicking it just
+            # closes the popup without immediately reopening it below.
+            if button["rect"].collidepoint(event.pos):
+                self._active_popup_button = None
+                return True
+            self._active_popup_button = None
+            # Fall through so the click can hit a different popup button
+            # or template behind the just-closed popup.
+
+        for button in self._popup_buttons:
+            if button["rect"].collidepoint(event.pos):
+                self._active_popup_button = button
+                return True
+        return False
+
+    # -------------------------
+    # IN/OUT SPAWN PLACEMENT
+    # -------------------------
+
+    def _spawn_switch_on_left_wall(self):
+        """Spawn a Switch glued to the left wall at a non-overlapping y.
+
+        First spawn lands centered vertically in the workspace band; later
+        spawns step downward by SPAWN_VERTICAL_PITCH and skip past any
+        existing same-wall component so they don't pile up at the same y.
+
+        Returns:
+            None
+        """
+        components_list = self._components_provider()
+        new_comp = Switch(0, 0)
+        new_comp.rect.y = self._next_wall_spawn_y(new_comp, "LEFT", components_list)
+        new_comp._clamp_to_workspace()
+        components_list.append(new_comp)
+        if self._on_spawn_wall_component is not None:
+            self._on_spawn_wall_component(new_comp)
+
+    def _spawn_led_on_right_wall(self):
+        """Spawn an LED glued to the right wall at a non-overlapping y.
+
+        Returns:
+            None
+        """
+        components_list = self._components_provider()
+        new_comp = LED(0, 0)
+        new_comp.rect.y = self._next_wall_spawn_y(new_comp, "RIGHT", components_list)
+        new_comp._clamp_to_workspace()
+        components_list.append(new_comp)
+        if self._on_spawn_wall_component is not None:
+            self._on_spawn_wall_component(new_comp)
+
+    @staticmethod
+    def _next_wall_spawn_y(new_comp, wall_side, components_list):
+        """Pick a y for a freshly spawned wall component that avoids overlap.
+
+        Starts at the workspace center and walks downward (then upward if
+        needed) in SPAWN_VERTICAL_PITCH steps until it finds a y where the
+        new component doesn't intersect any existing same-wall component.
+
+        Args:
+            new_comp (Component): The component about to be placed.
+            wall_side (str): "LEFT" or "RIGHT".
+            components_list (list): Live workspace components.
+
+        Returns:
+            int: Top-y in screen coordinates for the new component.
+        """
+        workspace_top = TopMenuBarSettings.HEIGHT
+        workspace_bottom = UISettings.BANK_RECT.top
+        center_y = (workspace_top + workspace_bottom - new_comp.rect.height) // 2
+        same_wall = [
+            c for c in components_list
+            if getattr(c, "WALL_SIDE", None) == wall_side
+        ]
+        pitch = new_comp.rect.height + BankIOButtonSettings.SPAWN_VERTICAL_PITCH
+
+        def fits(candidate_y):
+            candidate = pygame.Rect(
+                0, candidate_y, new_comp.rect.width, new_comp.rect.height,
+            )
+            return not any(candidate.colliderect(c.rect) for c in same_wall)
+
+        # Walk downward then upward from center until a clear slot is found.
+        for step in range(0, 200):
+            for direction in (1, -1) if step else (1,):
+                candidate_y = center_y + direction * step * pitch
+                if candidate_y < workspace_top:
+                    continue
+                if candidate_y > workspace_bottom - new_comp.rect.height:
+                    continue
+                if fits(candidate_y):
+                    return candidate_y
+        # Fall back to center if every candidate slot collided (workspace
+        # is wall-to-wall full); _clamp_to_workspace will at least keep it
+        # on screen, and the wall-collision rule will still apply on drag.
+        return center_y

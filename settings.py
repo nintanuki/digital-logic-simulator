@@ -77,7 +77,10 @@ class UISettings:
     # magic numbers.
     BANK_PADDING_X = 20
     BANK_TEMPLATE_GAP = 20
-    BANK_LED_SHIFT_X = 10
+    # Extra horizontal gap between the leftmost popup buttons (TOOLBOX,
+    # > IN/OUT) and the first draggable template, so the control surfaces
+    # read as a separate group from the drag-and-drop component row.
+    BANK_BUTTON_GROUP_GAP = 24
 
 
 class TopMenuBarSettings:
@@ -218,25 +221,36 @@ class SwitchSettings:
 class LedSettings:
     """Visual constants for the read-only output LED bulb ('OUT') component.
 
-    LED is rendered as a light-bulb silhouette: a round globe with a small
-    rectangular base/lead below it. A wider glow ring appears around the
-    globe when the signal is HIGH.
+    LED is rendered as a circular globe centered in its bounding box, with
+    its INPUT port on the left edge vertically centered with the globe and
+    a vertical drag bar pinned to the right (wall) side. A wider glow ring
+    appears around the globe when the signal is HIGH.
     """
     SIZE = 60                  # bounding box stays square
-    BULB_RADIUS = 20
-    BULB_Y_OFFSET = 22         # bulb center = rect.y + BULB_Y_OFFSET
-    BASE_WIDTH = 18
-    BASE_HEIGHT = 10
-    BASE_Y_OFFSET = 46         # base rect.top = rect.y + BASE_Y_OFFSET
-    BASE_CORNER = 3
+    BULB_RADIUS = 22           # slightly larger now that base/lead is gone
     GLOW_EXTRA_RADIUS = 7      # glow circle radius = BULB_RADIUS + this
     OFF_GLOBE_COLOR = (55, 55, 55)
     ON_GLOBE_COLOR = (255, 220, 50)
-    OFF_BASE_COLOR = (40, 40, 40)
-    ON_BASE_COLOR = (175, 145, 25)
     GLOW_COLOR = (255, 200, 30)
     BORDER_COLOR = ColorSettings.WORD_COLORS["BLACK"]
     BORDER_THICKNESS = 2
+
+
+class WallDragBarSettings:
+    """Visual + interaction constants for the wall-side drag bar on IN/OUT components.
+
+    Switches are anchored to the left wall and LEDs to the right wall; in
+    both cases a thin vertical bar sits flush with the wall and acts as the
+    handle for vertical drags. The body of the component is no longer the
+    drag target — clicking the body of a Switch toggles it, clicking the
+    body of an LED does nothing. Hovering the bar lights it up so users can
+    see the affordance before grabbing it.
+    """
+    WIDTH = 8
+    COLOR = (90, 90, 90)
+    HOVER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    BORDER_COLOR = ColorSettings.WORD_COLORS["BLACK"]
+    BORDER_THICKNESS = 1
 
 
 class TextBoxSettings:
@@ -366,6 +380,75 @@ class MenuButtonSettings:
     # Vertical gap between the top of the button and the bottom of the
     # popup so the popup doesn't visually fuse with the button.
     POPUP_GAP = 4
+
+
+class BankPopupButtonSettings:
+    """Shared visual constants for popup-style bottom-bank buttons.
+
+    The TOOLBOX and > IN/OUT buttons sit at the far left of the bottom
+    bank and open a small context menu above the bank. They mirror the
+    POPUP styling of MenuButtonSettings so the bank reads as one
+    consistent control surface.
+    """
+    HEIGHT = 36
+    BODY_COLOR = (60, 60, 60)
+    BODY_HOVER_COLOR = (90, 90, 90)
+    BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    BORDER_THICKNESS = 1
+    LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    LABEL_PADDING_X = 12
+    GAP_X = 8                  # horizontal gap between adjacent bank buttons
+    # Popup container (mirrors MenuButtonSettings popup styling).
+    POPUP_BODY_COLOR = (60, 60, 60)
+    POPUP_BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    POPUP_BORDER_THICKNESS = 1
+    POPUP_GAP = 4              # vertical gap between popup bottom and button top
+    ITEM_HEIGHT = 32
+    ITEM_PADDING_X = 10
+    ITEM_ENABLED_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    ITEM_DISABLED_COLOR = (140, 140, 140)
+    ITEM_HOVER_BG = ColorSettings.WORD_COLORS["WHITE"]
+    ITEM_HOVER_TEXT = (0, 0, 0)
+
+
+class BankToolboxButtonSettings:
+    """Bottom-left TOOLBOX button: opens a popup with component-library actions.
+
+    Houses SAVE COMPONENT today and a placeholder LOAD COMPONENT for a
+    future feature. Lives separately from MenuButtonSettings (which is
+    the legacy bottom-left MENU placeholder) so the bank button can
+    evolve independently of the top FILE menu.
+    """
+    LABEL = "TOOLBOX"
+    POPUP_WIDTH = 200
+    # Stable IDs drive dispatch; labels are presentation-only.
+    ITEMS = (
+        ("save_component", "SAVE COMPONENT"),
+        ("load_component", "LOAD COMPONENT"),
+    )
+    POPUP_HEIGHT = len(ITEMS) * BankPopupButtonSettings.ITEM_HEIGHT
+
+
+class BankIOButtonSettings:
+    """Bottom-bank > IN/OUT button: spawns input switches and output LEDs.
+
+    Replaces the loose Switch and LED templates that used to live in the
+    component row. IN-1 spawns a Switch glued to the left wall; OUT-1
+    spawns an LED glued to the right wall. Both are placed centered
+    vertically on first spawn; subsequent spawns step downward by
+    SPAWN_VERTICAL_PITCH so they don't stack on top of each other.
+    """
+    LABEL = "> IN/OUT"
+    POPUP_WIDTH = 140
+    ITEMS = (
+        ("spawn_switch", "IN-1"),
+        ("spawn_led", "OUT-1"),
+    )
+    POPUP_HEIGHT = len(ITEMS) * BankPopupButtonSettings.ITEM_HEIGHT
+    # Vertical pitch between successive auto-placed IN/OUT spawns. Picked
+    # large enough that the wall components don't touch and small enough
+    # that several fit on screen before wrapping.
+    SPAWN_VERTICAL_PITCH = 12
 
 
 class SaveComponentDialogSettings:

@@ -40,6 +40,7 @@ class WorkspaceInteractionController:
         self._group_drag_start_positions: dict = {}
         self._group_drag_moved = False
         self._click_candidate_component = None
+        self._click_started_on_bar = False
 
     def clear_interaction_state(self) -> None:
         """Reset selection and gesture state.
@@ -54,6 +55,9 @@ class WorkspaceInteractionController:
     def update_port_hover(self, mouse_pos: tuple[int, int], bank_templates: list) -> None:
         """Refresh hovered flags for workspace and bank template ports.
 
+        Also refreshes the wall drag-bar hover flag for Switch/LED so the
+        bar lights up before the user grabs it.
+
         Args:
             mouse_pos (tuple[int, int]): Cursor position in screen space.
             bank_templates (list): Toolbox templates exposing ``ports``.
@@ -64,6 +68,8 @@ class WorkspaceInteractionController:
         for comp in self._components:
             for port in comp.ports:
                 port.hovered = port.rect.collidepoint(mouse_pos)
+            if hasattr(comp, "drag_bar_rect"):
+                comp.bar_hovered = comp.drag_bar_rect.collidepoint(mouse_pos)
         for tpl in bank_templates:
             for port in tpl.ports:
                 port.hovered = port.rect.collidepoint(mouse_pos)
@@ -166,6 +172,14 @@ class WorkspaceInteractionController:
         }
         self._group_drag_moved = False
         self._click_candidate_component = click_candidate
+        # If the user grabbed a wall component by its drag bar, suppress
+        # the on-click action (Switch toggle) on release so dragging is
+        # a clean gesture even when the cursor doesn't actually move.
+        self._click_started_on_bar = bool(
+            click_candidate is not None
+            and hasattr(click_candidate, "drag_bar_rect")
+            and click_candidate.drag_bar_rect.collidepoint(mouse_pos)
+        )
 
     def cancel_group_drag(self) -> None:
         """Reset group-drag state.
@@ -177,6 +191,7 @@ class WorkspaceInteractionController:
         self._group_drag_start_positions = {}
         self._group_drag_moved = False
         self._click_candidate_component = None
+        self._click_started_on_bar = False
 
     def is_group_drag_active(self) -> bool:
         """Return whether a group-drag gesture is in progress.
@@ -206,10 +221,12 @@ class WorkspaceInteractionController:
                 comp.rect.x = start_x + dx
                 comp.rect.y = start_y + dy
                 comp._clamp_to_workspace()
+            self._resolve_wall_collisions()
             return True
         if event.type == pygame.MOUSEBUTTONUP and event.button == InputSettings.LEFT_CLICK:
             if (
                 not self._group_drag_moved
+                and not self._click_started_on_bar
                 and self._click_candidate_component is not None
                 and len(self.selected_components) == 1
                 and self.selected_components[0] is self._click_candidate_component
@@ -218,6 +235,41 @@ class WorkspaceInteractionController:
             self.cancel_group_drag()
             return True
         return False
+
+    def _resolve_wall_collisions(self) -> None:
+        """Block dragged wall components from passing through their siblings.
+
+        Switches (left wall) and LEDs (right wall) are not allowed to
+        overlap other same-wall components. After the per-frame clamp we
+        compare each dragged wall component to every non-dragged same-wall
+        component on the same side and snap the dragged one back to just
+        before the obstacle if they overlap. This is what forces the user
+        to rewire instead of dragging an IN/OUT past another one.
+
+        Returns:
+            None
+        """
+        dragged = set(self._group_drag_start_positions.keys())
+        for comp, (_start_x, start_y) in self._group_drag_start_positions.items():
+            wall = getattr(comp, "WALL_SIDE", None)
+            if wall is None:
+                continue
+            moving_down = comp.rect.y >= start_y
+            for other in self._components:
+                if other is comp or other in dragged:
+                    continue
+                if getattr(other, "WALL_SIDE", None) != wall:
+                    continue
+                if not comp.rect.colliderect(other.rect):
+                    continue
+                # Snap back to just outside the obstacle on the side we
+                # came from so a downward drag stops at the top of the
+                # obstacle and an upward drag stops at its bottom.
+                if moving_down:
+                    comp.rect.y = other.rect.top - comp.rect.height
+                else:
+                    comp.rect.y = other.rect.bottom
+            comp._clamp_to_workspace()
 
     def start_marquee(self, mouse_pos: tuple[int, int]) -> None:
         """Start a drag-to-select marquee.

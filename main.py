@@ -55,7 +55,12 @@ class GameManager:
         # -------- UI state --------
         self.text_boxes = TextBoxManager()
         self.dialog = None
-        self.bank = ComponentBank(self.text_boxes)
+        self.bank = ComponentBank(
+            self.text_boxes,
+            components_provider=lambda: self.components,
+            on_save_component=self.save_as_component,
+            on_spawn_wall_component=self._on_bank_spawn,
+        )
         
         # -------- Workspace state --------
         self.components = []
@@ -96,22 +101,29 @@ class GameManager:
         self._error_info = None
     
     def _setup_menu_bar(self):
-        """Initialize the top menu bar with FILE/EDIT/VIEW menus."""
+        """Initialize the top menu bar with FILE/EDIT/VIEW menus.
+
+        SAVE AS COMPONENT used to live under the FILE menu and was moved to
+        the bottom-bank TOOLBOX popup; it is filtered out here so the
+        single SAVE COMPONENT entry under TOOLBOX is the sole entry point.
+        """
+        file_actions = {
+            "new_project": self._new_project,
+            "load_project": self._open_load_project_dialog,
+            "save_project": self._save_project,
+            "save_project_as": self._open_save_as_dialog,
+            "quit": self.close_game,
+        }
+        file_items = tuple(
+            (item_id, label, "ESC" if item_id == "quit" else "")
+            for item_id, label in MenuButtonSettings.ITEMS
+            if item_id != "save_as_component"
+        )
         menu_defs = {
             "file": {
                 "label": TopMenuBarSettings.FILE_LABEL,
-                "items": tuple(
-                    (item_id, label, "ESC" if item_id == "quit" else "")
-                    for item_id, label in MenuButtonSettings.ITEMS
-                ),
-                "actions": {
-                    "new_project": self._new_project,
-                    "load_project": self._open_load_project_dialog,
-                    "save_project": self._save_project,
-                    "save_project_as": self._open_save_as_dialog,
-                    "save_as_component": self.save_as_component,
-                    "quit": self.close_game,
-                },
+                "items": file_items,
+                "actions": file_actions,
             },
             "edit": {
                 "label": TopMenuBarSettings.EDIT_LABEL,
@@ -153,6 +165,22 @@ class GameManager:
             None
         """
         self._crt_enabled = not self._crt_enabled
+
+    def _on_bank_spawn(self, component) -> None:
+        """Record a wall-component spawn (IN-1 / OUT-1) in undo history.
+
+        Mirrors the template-spawn path: pushes a PlaceComponent action and
+        selects the new component so the next click can drag it.
+
+        Args:
+            component: The Switch or LED that was just appended to the
+                workspace by the bank's > IN/OUT popup.
+
+        Returns:
+            None
+        """
+        self.history.push(PlaceComponent(self.components, self.wires, component))
+        self.workspace_interaction.set_selected_components([component])
 
     # -------------------------
     # BOOT / LIFECYCLE

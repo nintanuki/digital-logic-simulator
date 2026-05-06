@@ -10,8 +10,36 @@ from settings import (
     LedSettings,
     ScreenSettings,
     SwitchSettings,
+    TopMenuBarSettings,
     UISettings,
+    WallDragBarSettings,
 )
+
+
+def _draw_wall_drag_bar(surface, bar_rect, hovered):
+    """Draw the wall-side vertical drag bar used by Switch and LED.
+
+    Shared between Switch (left wall) and LED (right wall) so the look
+    stays consistent. Hover state is driven by the workspace controller
+    (which sets each component's bar_hovered flag) so this draw call has
+    no opinion about input \u2014 it just paints whichever color matches.
+
+    Args:
+        surface (pygame.Surface): The surface to draw onto.
+        bar_rect (pygame.Rect): Bar rect in screen coordinates.
+        hovered (bool): True when the cursor is over the bar.
+    """
+    color = (
+        WallDragBarSettings.HOVER_COLOR if hovered
+        else WallDragBarSettings.COLOR
+    )
+    pygame.draw.rect(surface, color, bar_rect)
+    pygame.draw.rect(
+        surface,
+        WallDragBarSettings.BORDER_COLOR,
+        bar_rect,
+        WallDragBarSettings.BORDER_THICKNESS,
+    )
 
 
 class Port:
@@ -298,15 +326,23 @@ class Component:
 class Switch(Component):
     """A manual ON/OFF toggle that drives a single OUTPUT port.
 
-    Clicking the body without dragging flips the toggle. Holding and moving
-    drags the component as usual. Switches are how students inject signal
-    into a circuit — they sit on the left and wire into a gate's inputs.
+    Switches are anchored to the LEFT wall of the workspace: their x
+    coordinate is forced to 0 and they can only be moved vertically by
+    grabbing the wall-side drag bar on their left edge. Clicking the body
+    (anywhere off the bar) without dragging flips the toggle. They are how
+    students inject signal into a circuit — they sit on the left and wire
+    into a gate's inputs.
     """
+
+    # Anchor the component to the left workspace wall. Read by the
+    # workspace controller to drive wall-collision and group-drag rules.
+    WALL_SIDE = "LEFT"
 
     def __init__(self, x, y):
         """
         Args:
-            x (int): Initial top-left x in screen coordinates.
+            x (int): Initial top-left x in screen coordinates. Ignored after
+                construction — _clamp_to_workspace forces x to the left wall.
             y (int): Initial top-left y in screen coordinates.
         """
         # Body label "IN" is retained on the object so serialization and any
@@ -322,6 +358,11 @@ class Switch(Component):
         # Toggle state. Mirrored to the output port every frame by
         # update_logic so SignalManager can drive wires from it.
         self._state = False
+        # True while the cursor is over the wall-side drag bar. Drives the
+        # bar's hover highlight in _draw_body. Updated by the workspace
+        # controller alongside port hover.
+        self.bar_hovered = False
+        self._clamp_to_workspace()
 
     def _build_ports(self):
         """One OUTPUT port on the right edge, vertically centered.
@@ -368,11 +409,13 @@ class Switch(Component):
             )
 
     def _draw_body(self, surface):
-        """Render the switch as a horizontal sliding toggle.
+        """Render the switch as a horizontal sliding toggle plus wall drag bar.
 
         Background rounded rectangle + recessed track + sliding knob.
         A state label ("1" or "0") is drawn on the empty side of the knob
-        so the current value is always explicit.
+        so the current value is always explicit. A vertical drag bar is
+        rendered flush with the left (wall) edge — that bar is the only
+        drag handle, leaving body clicks free to toggle the switch.
 
         Args:
             surface (pygame.Surface): The surface to draw onto.
@@ -439,25 +482,69 @@ class Switch(Component):
         label_rect = label_surf.get_rect(center=(label_cx, knob_cy))
         surface.blit(label_surf, label_rect)
 
+        # Wall-side drag bar on the left edge.
+        _draw_wall_drag_bar(surface, self.drag_bar_rect, self.bar_hovered)
+
+    @property
+    def drag_bar_rect(self):
+        """Return the wall-side drag-bar hit rect for this Switch.
+
+        Switch is left-anchored, so the bar sits flush with the left edge
+        of the body and spans its full height.
+
+        Returns:
+            pygame.Rect: Bar rect in screen coordinates.
+        """
+        return pygame.Rect(
+            self.rect.x,
+            self.rect.y,
+            WallDragBarSettings.WIDTH,
+            self.rect.height,
+        )
+
+    def _clamp_to_workspace(self):
+        """Force x to the left wall and clamp y to the workspace band.
+
+        Switches do not move horizontally. The vertical band starts below
+        the top menu bar and ends at the top of the toolbox bank, matching
+        Component._clamp_to_workspace for non-wall components.
+        """
+        self.rect.x = 0
+        max_y = UISettings.BANK_RECT.top - self.rect.height
+        min_y = TopMenuBarSettings.HEIGHT
+        if self.rect.y < min_y:
+            self.rect.y = min_y
+        elif self.rect.y > max_y:
+            self.rect.y = max_y
+
 
 class LED(Component):
-    """A read-only output display whose body color reflects its INPUT port.
+    """A read-only output display whose globe color reflects its INPUT port.
 
-    LEDs are how students see the result of a circuit — they sit on the
-    right and wire from a gate's output. No update_logic override: an LED
-    has no outputs to compute.
+    LEDs are anchored to the RIGHT wall of the workspace: their x is forced
+    to the right edge and they can only be moved vertically by grabbing the
+    wall-side drag bar on their right edge. The globe is centered in the
+    bounding box and its INPUT port sits flush with the left edge,
+    vertically centered with the globe \u2014 no more "drooping" port.
     """
+
+    # Anchor the component to the right workspace wall.
+    WALL_SIDE = "RIGHT"
 
     def __init__(self, x, y):
         """
         Args:
-            x (int): Initial top-left x in screen coordinates.
+            x (int): Initial top-left x in screen coordinates. Ignored after
+                construction — _clamp_to_workspace forces x to the right wall.
             y (int): Initial top-left y in screen coordinates.
         """
         size = LedSettings.SIZE
         # Body label "OUT" so students reading the workspace see the role,
         # not the implementation detail. See Switch for the parallel naming.
         super().__init__(x, y, width=size, height=size, name="OUT")
+        # Updated by the workspace controller; drives the bar hover highlight.
+        self.bar_hovered = False
+        self._clamp_to_workspace()
 
     def _build_ports(self):
         """One INPUT port on the left edge, vertically centered.
@@ -482,10 +569,10 @@ class LED(Component):
         return
 
     def draw(self, surface):
-        """Render ports, bulb body, and selection outline — no name label.
+        """Render ports, bulb body, and selection outline \u2014 no name label.
 
-        The light-bulb silhouette communicates "output" clearly enough
-        without a text label overlapping the globe.
+        The globe silhouette communicates "output" clearly enough
+        without a text label overlapping it.
 
         Args:
             surface (pygame.Surface): The surface to draw onto.
@@ -503,11 +590,13 @@ class LED(Component):
             )
 
     def _draw_body(self, surface):
-        """Render the LED as a light-bulb silhouette.
+        """Render the LED as a centered globe with a wall-side drag bar.
 
-        A round globe (circle) sits in the upper part of the bounding rect;
-        a small rectangular base/lead sits below it. When the input signal
-        is HIGH a wider glow ring is drawn behind the globe.
+        Globe is centered both horizontally and vertically within the
+        bounding rect so the INPUT port (which sits at rect mid-height)
+        lines up with the globe's equator. A vertical drag bar pinned to
+        the right (wall) edge is the sole drag handle. When the input
+        signal is HIGH a wider glow ring is drawn behind the globe.
 
         Args:
             surface (pygame.Surface): The surface to draw onto.
@@ -516,7 +605,7 @@ class LED(Component):
         lit = self.ports[0].live
 
         bulb_cx = r.centerx
-        bulb_cy = r.y + LedSettings.BULB_Y_OFFSET
+        bulb_cy = r.centery
         bulb_radius = LedSettings.BULB_RADIUS
 
         # Glow ring behind the globe when lit
@@ -536,24 +625,35 @@ class LED(Component):
             bulb_radius, LedSettings.BORDER_THICKNESS,
         )
 
-        # Base / lead below the globe
-        base_w = LedSettings.BASE_WIDTH
-        base_h = LedSettings.BASE_HEIGHT
-        base_rect = pygame.Rect(
-            bulb_cx - base_w // 2,
-            r.y + LedSettings.BASE_Y_OFFSET,
-            base_w,
-            base_h,
+        # Wall-side drag bar on the right edge.
+        _draw_wall_drag_bar(surface, self.drag_bar_rect, self.bar_hovered)
+
+    @property
+    def drag_bar_rect(self):
+        """Return the wall-side drag-bar hit rect for this LED.
+
+        LED is right-anchored, so the bar sits flush with the right edge
+        of the body and spans its full height.
+
+        Returns:
+            pygame.Rect: Bar rect in screen coordinates.
+        """
+        return pygame.Rect(
+            self.rect.right - WallDragBarSettings.WIDTH,
+            self.rect.y,
+            WallDragBarSettings.WIDTH,
+            self.rect.height,
         )
-        base_color = LedSettings.ON_BASE_COLOR if lit else LedSettings.OFF_BASE_COLOR
-        pygame.draw.rect(
-            surface, base_color, base_rect,
-            border_radius=LedSettings.BASE_CORNER,
-        )
-        pygame.draw.rect(
-            surface, LedSettings.BORDER_COLOR, base_rect, 1,
-            border_radius=LedSettings.BASE_CORNER,
-        )
+
+    def _clamp_to_workspace(self):
+        """Force x to the right wall and clamp y to the workspace band."""
+        self.rect.x = ScreenSettings.WIDTH - self.rect.width
+        max_y = UISettings.BANK_RECT.top - self.rect.height
+        min_y = TopMenuBarSettings.HEIGHT
+        if self.rect.y < min_y:
+            self.rect.y = min_y
+        elif self.rect.y > max_y:
+            self.rect.y = max_y
 
 
 class _InternalWire:
