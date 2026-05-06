@@ -37,7 +37,7 @@ class TopMenuBar:
         """
         self.screen = screen
         self.menu_defs = menu_defs
-        self._top_menu_order: Tuple[str, ...] = ("file", "edit", "view")
+        self._top_menu_order: Tuple[str, ...] = tuple(menu_defs.keys())
         self._active_top_menu_id: Optional[str] = None
         self._top_menu_hover_index: int = 0
         

@@ -155,6 +155,17 @@ class GameManager:
                     "toggle_crt": self._toggle_crt,
                 },
             },
+            "help": {
+                "label": TopMenuBarSettings.HELP_LABEL,
+                "items": (
+                    ("tutorial", TopMenuBarSettings.HELP_TUTORIAL_LABEL, ""),
+                    ("diagrams", TopMenuBarSettings.HELP_DIAGRAMS_LABEL, ""),
+                ),
+                "actions": {
+                    "tutorial": None,
+                    "diagrams": None,
+                },
+            },
         }
         self.top_menu_bar = TopMenuBar(self.screen, menu_defs)
 
@@ -212,6 +223,15 @@ class GameManager:
             color: Saved wrapper body color (RGB tuple).
         """
         input_switches, output_leds = SaveAsComponentHandler.infer_component_ports(self.components)
+        max_inputs = UISettings.MAX_COMPONENT_INPUTS
+        max_outputs = UISettings.MAX_COMPONENT_OUTPUTS
+        if len(input_switches) > max_inputs or len(output_leds) > max_outputs:
+            self._error_info = (
+                "SAVE LIMIT",
+                f"MAX {max_inputs} INPUTS AND {max_outputs} OUTPUTS",
+                pygame.time.get_ticks(),
+            )
+            return
         definition = SaveAsComponentHandler.snapshot_workspace_definition(
             self.components,
             self.wires.wires,
@@ -406,11 +426,12 @@ class GameManager:
                 self.top_menu_bar.close_menu()
                 return
 
-        if event.key in (pygame.K_f, pygame.K_e, pygame.K_v) and not (mods & (pygame.KMOD_CTRL | pygame.KMOD_ALT)):
+        if event.key in (pygame.K_f, pygame.K_e, pygame.K_v, pygame.K_h) and not (mods & (pygame.KMOD_CTRL | pygame.KMOD_ALT)):
             menu_id = {
                 pygame.K_f: "file",
                 pygame.K_e: "edit",
                 pygame.K_v: "view",
+                pygame.K_h: "help",
             }[event.key]
             self.top_menu_bar.toggle_menu(menu_id)
             return

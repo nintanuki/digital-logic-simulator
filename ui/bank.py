@@ -587,6 +587,14 @@ class ComponentBank:
             surface (pygame.Surface): The surface to draw onto.
         """
         pygame.draw.rect(surface, UISettings.BANK_COLOR, self.rect)
+        strip_x = self._group_divider_x() + UISettings.BANK_COMPONENT_STRIP_OFFSET_FROM_DIVIDER
+        component_strip = pygame.Rect(
+            strip_x,
+            self.rect.y,
+            self.rect.right - strip_x,
+            self.rect.height,
+        )
+        pygame.draw.rect(surface, UISettings.BANK_COMPONENT_STRIP_COLOR, component_strip)
         pygame.draw.line(
             surface,
             UISettings.BANK_LINE_COLOR,
@@ -746,6 +754,7 @@ class ComponentBank:
         toolbox_handlers = {
             "save_component": self._on_save_component,
             "load_component": None,
+            "library": None,
         }
         toolbox_items = [
             (item_id, label, toolbox_handlers.get(item_id))
@@ -829,6 +838,7 @@ class ComponentBank:
                 BankPopupButtonSettings.BORDER_COLOR,
                 rect,
                 BankPopupButtonSettings.BORDER_THICKNESS,
+                border_radius=BankPopupButtonSettings.BORDER_RADIUS,
             )
             label_rect = button["label_surf"].get_rect(center=rect.center)
             surface.blit(button["label_surf"], label_rect)

@@ -4606,3 +4606,142 @@ next bullet.
     pygame.draw.circle(..., right_radius)
 **Why:** Ensures marker sizing reflects each side's actual node density instead of shrinking both sides because one side is dense.
 **Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-06 23:29 UTC — Enforce 8/8 save limits, expand preview nodes to 8, and add MENU/HELP UI polish
+
+**File:** settings.py
+**Date and Time:** 2026-05-06 23:29 UTC
+**Lines (at time of edit):** 78, 98-102, 118, 123, 421, 452 (modified)
+**Before:**
+    BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE = 8
+    LABEL = "TOOLBOX"
+    ITEMS = (
+        ("save_component", "SAVE COMPONENT"),
+        ("load_component", "LOAD COMPONENT"),
+    )
+**After:**
+    BANK_COMPONENT_STRIP_COLOR = (62, 62, 66)
+    BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE = 8
+    MAX_COMPONENT_INPUTS = 8
+    MAX_COMPONENT_OUTPUTS = 8
+    HELP_LABEL = "HELP"
+    HELP_TUTORIAL_LABEL = "TUTORIAL"
+    HELP_DIAGRAMS_LABEL = "DIAGRAMS"
+    BORDER_RADIUS = 6
+    LABEL = "MENU"
+    ITEMS = (
+        ("save_component", "SAVE COMPONENT"),
+        ("load_component", "LOAD COMPONENT"),
+        ("library", "LIBRARY"),
+    )
+**Why:** Added explicit constants for the new UI split styling, top HELP menu labels, strict 8/8 save limits, rounded bank control buttons, and the new LIBRARY popup item under LOAD COMPONENT.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-06 23:29 UTC
+**Lines (at time of edit):** 588-603, 756-760, 841 (modified)
+**Before:**
+    pygame.draw.rect(surface, UISettings.BANK_COLOR, self.rect)
+    ...
+    toolbox_handlers = {
+        "save_component": self._on_save_component,
+        "load_component": None,
+    }
+    ...
+    pygame.draw.rect(surface, body_color, rect)
+**After:**
+    pygame.draw.rect(surface, UISettings.BANK_COLOR, self.rect)
+    component_strip = pygame.Rect(...)
+    pygame.draw.rect(surface, UISettings.BANK_COMPONENT_STRIP_COLOR, component_strip)
+    ...
+    toolbox_handlers = {
+        "save_component": self._on_save_component,
+        "load_component": None,
+        "library": None,
+    }
+    ...
+    pygame.draw.rect(..., border_radius=BankPopupButtonSettings.BORDER_RADIUS)
+**Why:** Visually separates the left MENU/IN-OUT control cluster from the right template strip, adds the LIBRARY placeholder item in the MENU popup, and rounds the MENU/IN-OUT control borders as requested.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-06 23:29 UTC
+**Lines (at time of edit):** 159-168, 226-234, 429-434 (modified)
+**Before:**
+    menu_defs = {"file": ..., "edit": ..., "view": ...}
+    ...
+    input_switches, output_leds = SaveAsComponentHandler.infer_component_ports(self.components)
+    definition = SaveAsComponentHandler.snapshot_workspace_definition(...)
+    ...
+    if event.key in (pygame.K_f, pygame.K_e, pygame.K_v):
+        ...
+**After:**
+    menu_defs = {"file": ..., "edit": ..., "view": ..., "help": ...}
+    ...
+    input_switches, output_leds = SaveAsComponentHandler.infer_component_ports(self.components)
+    if len(input_switches) > UISettings.MAX_COMPONENT_INPUTS or len(output_leds) > UISettings.MAX_COMPONENT_OUTPUTS:
+        self._error_info = ("SAVE LIMIT", "MAX 8 INPUTS AND 8 OUTPUTS", ...)
+        return
+    definition = SaveAsComponentHandler.snapshot_workspace_definition(...)
+    ...
+    if event.key in (pygame.K_f, pygame.K_e, pygame.K_v, pygame.K_h):
+        ...
+**Why:** Enforced strict save-time port limits (max 8 inputs and 8 outputs), added a HELP top menu with TUTORIAL/DIAGRAMS placeholders, and wired the H mnemonic hotkey to open HELP.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/top_menu_bar.py
+**Date and Time:** 2026-05-06 23:29 UTC
+**Lines (at time of edit):** 40 (modified)
+**Before:**
+    self._top_menu_order: Tuple[str, ...] = ("file", "edit", "view")
+**After:**
+    self._top_menu_order: Tuple[str, ...] = tuple(menu_defs.keys())
+**Why:** Allows the top bar to render newly added menus (HELP) without hardcoding menu IDs in this class.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-06 23:32 UTC — Add a little more spacing after divider before TEXT/NAND
+
+**File:** settings.py
+**Date and Time:** 2026-05-06 23:32 UTC
+**Lines (at time of edit):** 84 (modified)
+**Before:**
+    BANK_BUTTON_GROUP_GAP = 24
+**After:**
+    BANK_BUTTON_GROUP_GAP = 30
+**Why:** Nudged the fixed TEXT/NAND templates slightly to the right so the TEXT tile no longer feels pressed against the vertical divider.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-06 23:35 UTC — Nudge TEXT/NAND one more step right from divider
+
+**File:** settings.py
+**Date and Time:** 2026-05-06 23:35 UTC
+**Lines (at time of edit):** 87 (modified)
+**Before:**
+    BANK_BUTTON_GROUP_GAP = 30
+**After:**
+    BANK_BUTTON_GROUP_GAP = 36
+**Why:** Added a small extra offset so the TEXT tile has visible breathing room from the divider in the bottom bank.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-06 23:36 UTC — Move lighter-strip boundary off the TEXT tile edge
+
+**File:** settings.py
+**Date and Time:** 2026-05-06 23:36 UTC
+**Lines (at time of edit):** 81-83 (modified)
+**Before:**
+    BANK_COMPONENT_STRIP_COLOR = (85, 67, 57)
+**After:**
+    BANK_COMPONENT_STRIP_COLOR = (85, 67, 57)
+    BANK_COMPONENT_STRIP_OFFSET_FROM_DIVIDER = 4
+**Why:** Added a dedicated offset constant so the lighter component-strip starts near the divider rather than at the left edge of the TEXT tile.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-06 23:36 UTC
+**Lines (at time of edit):** 592 (modified)
+**Before:**
+    strip_x = self._templates_start_x()
+**After:**
+    strip_x = self._group_divider_x() + UISettings.BANK_COMPONENT_STRIP_OFFSET_FROM_DIVIDER
+**Why:** Decoupled the color-transition seam from the TEXT template position so TEXT no longer appears to hug the color-change edge.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)

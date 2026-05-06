@@ -72,6 +72,14 @@ class UISettings:
         ScreenSettings.WIDTH,
         BANK_HEIGHT,
     )
+    # Right side of the bottom bank (component templates) uses a lighter
+    # background than the left control cluster so the two groups read as
+    # distinct surfaces.
+    BANK_COMPONENT_STRIP_COLOR = (85, 67, 57)
+    # Start the lighter component-strip fill a little to the right of the
+    # divider (not at the TEXT tile edge) so TEXT doesn't look attached to
+    # the color transition.
+    BANK_COMPONENT_STRIP_OFFSET_FROM_DIVIDER = 12
     # Horizontal padding for the first toolbox template and the gap between
     # adjacent templates. Pulled out of ComponentBank so the layout has no
     # magic numbers.
@@ -80,7 +88,7 @@ class UISettings:
     # Extra horizontal gap between the leftmost popup buttons (TOOLBOX,
     # > IN/OUT) and the first draggable template, so the control surfaces
     # read as a separate group from the drag-and-drop component row.
-    BANK_BUTTON_GROUP_GAP = 24
+    BANK_BUTTON_GROUP_GAP = 36
     # Vertical divider separating left controls (TOOLBOX / > IN-OUT)
     # from the draggable component template strip.
     BANK_GROUP_DIVIDER_COLOR = (130, 130, 130)
@@ -90,10 +98,13 @@ class UISettings:
     # inside the toolbox row.
     BANK_TEMPLATE_MAX_WIDTH = 120
     BANK_TEMPLATE_MAX_HEIGHT = 72
-    BANK_TEMPLATE_PREVIEW_PORT_RADIUS = 4
-    BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE = 6
+    BANK_TEMPLATE_PREVIEW_PORT_RADIUS = 2
+    BANK_TEMPLATE_PREVIEW_MAX_PORTS_PER_SIDE = 8
     BANK_TEMPLATE_LABEL_PADDING_X = 8
     BANK_TEMPLATE_LABEL_MIN_FONT_SIZE = 8
+    # Hard limits for save-as-component inferred external ports.
+    MAX_COMPONENT_INPUTS = 8
+    MAX_COMPONENT_OUTPUTS = 8
 
 
 class TopMenuBarSettings:
@@ -108,10 +119,13 @@ class TopMenuBarSettings:
     FILE_LABEL = "FILE"
     EDIT_LABEL = "EDIT"
     VIEW_LABEL = "VIEW"
+    HELP_LABEL = "HELP"
     VIEW_TOGGLE_FULLSCREEN_LABEL = "TOGGLE FULLSCREEN"
     VIEW_TOGGLE_FULLSCREEN_SHORTCUT = "F11"
     VIEW_TOGGLE_CRT_LABEL = "TOGGLE CRT"
     VIEW_TOGGLE_CRT_SHORTCUT = "F10"
+    HELP_TUTORIAL_LABEL = "TUTORIAL"
+    HELP_DIAGRAMS_LABEL = "DIAGRAMS"
     FILE_HIGHLIGHT_BG = COLOR_MENU_HIGHLIGHT
     FILE_UNDERLINE_THICKNESS = 2
     FILE_UNDERLINE_BOTTOM_INSET = 6
@@ -408,6 +422,7 @@ class BankPopupButtonSettings:
     BODY_HOVER_COLOR = (90, 90, 90)
     BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     BORDER_THICKNESS = 1
+    BORDER_RADIUS = 6
     LABEL_COLOR = ColorSettings.WORD_COLORS["WHITE"]
     LABEL_PADDING_X = 12
     GAP_X = 8                  # horizontal gap between adjacent bank buttons
@@ -432,12 +447,13 @@ class BankToolboxButtonSettings:
     the legacy bottom-left MENU placeholder) so the bank button can
     evolve independently of the top FILE menu.
     """
-    LABEL = "TOOLBOX"
+    LABEL = "MENU"
     POPUP_WIDTH = 200
     # Stable IDs drive dispatch; labels are presentation-only.
     ITEMS = (
         ("save_component", "SAVE COMPONENT"),
         ("load_component", "LOAD COMPONENT"),
+        ("library", "LIBRARY"),
     )
     POPUP_HEIGHT = len(ITEMS) * BankPopupButtonSettings.ITEM_HEIGHT
 
