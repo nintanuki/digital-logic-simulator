@@ -58,6 +58,61 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 
 ---
 
+## 2026-05-06 12:57 UTC — Collapse no-section function docstrings to one line
+
+**File:** main.py
+**Date and Time:** 2026-05-06 12:57 UTC
+**Lines (at time of edit):** 175-213 (modified)
+**Before:**
+    def save_as_component(self) -> None:
+        """Open the SAVE AS COMPONENT dialog.
+        ...
+        """
+
+    def _clear_workspace(self) -> None:
+        """Reset the live workspace to an empty canvas.
+        ...
+        """
+**After:**
+    def save_as_component(self) -> None:
+        """Open the SAVE AS COMPONENT dialog."""
+
+    def _clear_workspace(self) -> None:
+        """Reset the live workspace to an empty canvas."""
+**Why:** Enforced the preferred docstring style where functions with no `Args:` and no `Returns:` use a single-line docstring.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-06 12:54 UTC — Normalize main.py docstring style
+
+**File:** main.py
+**Date and Time:** 2026-05-06 12:54 UTC
+**Lines (at time of edit):** 42-655 (modified)
+**Before:**
+    def __init__(self) -> None:
+        """Initialize pygame, core subsystems, and cross-system wiring.
+        Returns:
+            None
+        """
+
+    def _handle_mouse(self, event: pygame.event.Event) -> None:
+        """Pass mouse events to the component manager or components directly.
+        Args:
+            event: Pygame mouse event.
+        """
+**After:**
+    def __init__(self) -> None:
+        """Initialize pygame, core subsystems, and cross-system wiring."""
+
+    def _handle_mouse(self, event: pygame.event.Event) -> None:
+        """
+        Pass mouse events to the component manager or components directly.
+
+        Args:
+            event: Pygame mouse event.
+        """
+**Why:** Applied a consistent docstring style in `main.py` per project preference: single-line docstrings stay single-line when there are no sections, and sectioned docstrings use multiline triple-quote blocks. Removed redundant `Returns: None` sections because `-> None` already communicates return type.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-05 13:58 UTC — Move Fonts module from root into ui package
 
 **File:** ui/fonts.py
