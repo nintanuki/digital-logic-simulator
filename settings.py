@@ -785,13 +785,11 @@ class DiagramViewerSettings:
             "title": "THE NOT GATE (INVERTER)",
             "image_file": "not_gate_diagram.png",
             "description": (
-                "OUTPUTS THE OPPOSITE OF THE INPUT. IF THE INPUT IS "
-                "HIGH, THE OUTPUT IS LOW. "
-                "A NAND GATE ONLY OUTPUTS LOW IF BOTH INPUTS "
-                "ARE HIGH. BY CONNECTING (TYING) BOTH INPUT PINS OF A NAND "
-                "GATE TO THE SAME SINGLE WIRE, YOU FORCE BOTH INPUTS TO "
-                "ALWAYS BE IDENTICAL. THIS TURNS THE GATE INTO A SIMPLE "
-                "INVERTER."
+                "THE ULTIMATE CONTRARIAN. IT FLIPS ANY SIGNAL TO ITS "
+                "OPPOSITE. TO BUILD ONE, FEED A SINGLE SIGNAL INTO "
+                "BOTH INPUTS OF A NAND GATE SIMULTANEOUSLY. BY FORCING "
+                "THE INPUTS TO MATCH, THE NAND GATE ACTS AS A SIMPLE, "
+                "ELEGANT SIGNAL INVERTER."
             ),
         },
         {
@@ -800,10 +798,11 @@ class DiagramViewerSettings:
             "title": "THE AND GATE",
             "image_file": "and_gate_diagram.png",
             "description": (
-                "OUTPUT IS HIGH ONLY WHEN BOTH INPUTS ARE HIGH. "
-                "PLACE TWO INPUT SWITCHES ON THE LEFT, FEED "
-                "THEM INTO A NAND STAGE, THEN INVERT THE NAND OUTPUT WITH "
-                "ANOTHER NAND-WIRED-INVERTER."
+                "THE GATEKEEPER. OUTPUT ONLY GOES HIGH IF BOTH INPUTS "
+                "ARE ACTIVE. SINCE A NAND GATE IS NATURALLY 'NOT-AND', "
+                "ITS OUTPUT IS THE REVERSE OF WHAT WE WANT. TO FIX THIS, "
+                "RUN THE NAND'S OUTPUT THROUGH A SECOND NAND-INVERTER "
+                "TO FLIP THE LOGIC BACK TO STANDARD AND."
             ),
         },
         {
@@ -812,9 +811,24 @@ class DiagramViewerSettings:
             "title": "THE OR GATE",
             "image_file": "or_gate_diagram.png",
             "description": (
-                "OUTPUT IS HIGH WHEN AT LEAST ONE INPUT IS HIGH."
-                "INVERT EACH INPUT FIRST, FEED BOTH INTO A "
-                "NAND GATE, THEN USE DE MORGAN'S LAW TO GET OR BEHAVIOR."
+                "THE FLEXIBLE CHOICE. OUTPUTS HIGH IF EITHER INPUT (OR BOTH) "
+                "IS ACTIVE. TO ASSEMBLE THIS USING ONLY NAND, INVERT BOTH "
+                "INPUT SIGNALS INDIVIDUALLY BEFORE FEEDING THEM INTO A "
+                "FINAL NAND GATE. THIS THREE-GATE CONFIGURATION USES "
+                "LOGICAL REVERSALS TO DETECT IF ANY PATH IS ACTIVE."
+            ),
+        },
+        {
+            "id": "demorgans_laws",
+            "list_label": "DE MORGAN'S LAWS",
+            "title": "DE MORGAN'S LAWS",
+            "image_file": "demorgans_laws.png",
+            "description": (
+                "THE UNIVERSAL TRANSLATOR. THESE LAWS PROVE THAT ANY "
+                "LOGIC GATE CAN BE BUILT USING ONLY NAND GATES. THEY "
+                "SHOW THAT INVERTING THE INPUTS OF AN AND-STYLE GATE "
+                "TRANSFORMS ITS BEHAVIOR INTO OR-STYLE LOGIC. IT IS THE "
+                "SECRET TO COMPLEX CIRCUIT DESIGN."
             ),
         },
     )

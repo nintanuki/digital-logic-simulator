@@ -5067,3 +5067,56 @@ next bullet.
         return False
 **Why:** The LIBRARY popup displayed saved component names but did not map clicks to any action, so users could see entries but could not retrieve them. Clicking a library entry now promotes it to MRU (restoring it to the active toolbar templates) and closes the popup.
 **Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-07 15:08 UTC — Add DE MORGAN'S LAWS diagram entry and fix diagrams AttributeError
+
+**File:** settings.py
+**Date and Time:** 2026-05-07 15:08 UTC
+**Lines (at time of edit):** 781-835 (modified)
+**Before:**
+    "description": (
+        "OUTPUT IS HIGH IF AT LEAST ONE INPUT IS HIGH. ",
+        "INVERT BOTH INPUTS USING NAND-INVERTERS BEFORE ",
+        ...
+    )
+    # {
+    #     "id": "demorgans_laws",
+    #     ...
+    # }
+**After:**
+    "description": (
+        "OUTPUT IS HIGH IF AT LEAST ONE INPUT IS HIGH. "
+        "INVERT BOTH INPUTS USING NAND-INVERTERS BEFORE "
+        ...
+    )
+    {
+        "id": "demorgans_laws",
+        "list_label": "DE MORGAN'S LAWS",
+        "title": "DE MORGAN'S LAWS",
+        "image_file": "or_gate_diagram.png",
+        "description": (
+            "DE MORGAN'S LAWS CONNECT AND/OR WITH INVERSION. "
+            "FIRST LAW: NOT (A AND B) EQUALS (NOT A) OR (NOT B). "
+            "SECOND LAW: NOT (A OR B) EQUALS (NOT A) AND (NOT B). "
+            ...
+        ),
+    }
+**Why:** Fixed diagram descriptions that had become tuples (from comma-separated string fragments), which caused runtime failures in text wrapping, and added a dedicated DE MORGAN'S LAWS entry to the diagrams list.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/diagram_viewer.py
+**Date and Time:** 2026-05-07 15:08 UTC
+**Lines (at time of edit):** 183-198 (modified)
+**Before:**
+    def _wrap_text(self, text: str, max_width: int, font: pygame.font.Font) -> list[str]:
+        ...
+        paragraphs = text.split("\\n")
+**After:**
+    def _wrap_text(self, text: str | tuple | list, max_width: int, font: pygame.font.Font) -> list[str]:
+        if isinstance(text, (tuple, list)):
+            text = " ".join(str(part) for part in text)
+        else:
+            text = str(text)
+        paragraphs = text.split("\\n")
+**Why:** Prevents HELP > DIAGRAMS from crashing with `AttributeError: 'tuple' object has no attribute 'split'` by normalizing description input to a string before wrapping.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)

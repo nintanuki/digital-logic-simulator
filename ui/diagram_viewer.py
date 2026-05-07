@@ -180,7 +180,7 @@ class DiagramViewerScene:
             )
         return None
 
-    def _wrap_text(self, text: str, max_width: int, font: pygame.font.Font) -> list[str]:
+    def _wrap_text(self, text: str | tuple | list, max_width: int, font: pygame.font.Font) -> list[str]:
         """Wrap text to lines that fit within a pixel width.
 
         Args:
@@ -191,6 +191,11 @@ class DiagramViewerScene:
         Returns:
             List of wrapped lines.
         """
+        if isinstance(text, (tuple, list)):
+            text = " ".join(str(part) for part in text)
+        else:
+            text = str(text)
+
         wrapped_lines: list[str] = []
         paragraphs = text.split("\n")
         for paragraph in paragraphs:
