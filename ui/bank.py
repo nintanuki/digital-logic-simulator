@@ -528,7 +528,7 @@ class ComponentBank:
             )
 
     def _handle_library_popup_event(self, event):
-        """Handle click-to-close behavior for the text-only library popup.
+        """Handle library-popup clicks (select item, or close).
 
         Args:
             event (pygame.event.Event): Mouse-down event.
@@ -544,6 +544,15 @@ class ComponentBank:
             return False
         popup_rect = self._library_popup_rect(button)
         if popup_rect.collidepoint(event.pos):
+            labels = self._library_entries()
+            if not labels:
+                return True
+            item_rects = self._popup_item_rects(popup_rect, len(labels))
+            for label, rect in zip(labels, item_rects):
+                if rect.collidepoint(event.pos):
+                    self._mark_saved_component_used(label)
+                    self._close_library_popup()
+                    return True
             return True
         if button["rect"].collidepoint(event.pos):
             self._close_library_popup()

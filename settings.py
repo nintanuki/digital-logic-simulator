@@ -155,7 +155,8 @@ class ErrorBannerSettings:
 
 class AssetPaths:
     FONT = "assets/font/Pixeled.ttf"
-    TV = "assets/graphics/tv.png"
+    TV = "assets/graphics/effects/tv.png"
+    DIAGRAMS_DIR = "assets/graphics/diagrams"
 
 class ComponentSettings:
     # Default body size for a freshly spawned component, used by
@@ -739,6 +740,84 @@ class FileNotFoundWarningDialogSettings:
 
     BACKDROP_COLOR = (0, 0, 0)
     BACKDROP_ALPHA = 140
+
+
+class DiagramViewerSettings:
+    """Visual and content constants for the HELP > DIAGRAMS scene."""
+
+    BG_COLOR = (28, 44, 54)
+    PANEL_BG_COLOR = (48, 58, 64)
+    PANEL_BORDER_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    PANEL_BORDER_THICKNESS = 2
+
+    CONTENT_PADDING = 16
+    CONTENT_GAP = 14
+    CONTENT_TOP_GAP = 8
+    OUTER_MARGIN_BOTTOM = 12
+    TOP_MENU_GAP = 8
+
+    LIST_PANEL_WIDTH = 220
+    LIST_ITEM_HEIGHT = 54
+    LIST_ITEM_GAP = 8
+    LIST_ITEM_BG = (66, 74, 80)
+    LIST_ITEM_HOVER_BG = (84, 95, 102)
+    LIST_ITEM_SELECTED_BG = (90, 115, 78)
+    LIST_ITEM_TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+
+    IMAGE_SECTION_RATIO = 0.67
+    IMAGE_TITLE_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    IMAGE_BG_COLOR = (32, 36, 40)
+    IMAGE_PADDING = 12
+
+    DESCRIPTION_TEXT_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+    DESCRIPTION_LINE_GAP = 4
+
+    RETURN_LABEL = "RETURN"
+    RETURN_BUTTON_WIDTH = 148
+    RETURN_BUTTON_HEIGHT = BankPopupButtonSettings.HEIGHT
+    RETURN_CENTER_WITH_LIST = True
+    RETURN_X_OFFSET = 0
+
+    DIAGRAM_ENTRIES = (
+        {
+            "id": "not_gate",
+            "list_label": "NOT GATE",
+            "title": "THE NOT GATE (INVERTER)",
+            "image_file": "not_gate_diagram.png",
+            "description": (
+                "OUTPUTS THE OPPOSITE OF THE INPUT. IF THE INPUT IS "
+                "HIGH, THE OUTPUT IS LOW. "
+                "A NAND GATE ONLY OUTPUTS LOW IF BOTH INPUTS "
+                "ARE HIGH. BY CONNECTING (TYING) BOTH INPUT PINS OF A NAND "
+                "GATE TO THE SAME SINGLE WIRE, YOU FORCE BOTH INPUTS TO "
+                "ALWAYS BE IDENTICAL. THIS TURNS THE GATE INTO A SIMPLE "
+                "INVERTER."
+            ),
+        },
+        {
+            "id": "and_gate",
+            "list_label": "AND GATE",
+            "title": "THE AND GATE",
+            "image_file": "and_gate_diagram.png",
+            "description": (
+                "OUTPUT IS HIGH ONLY WHEN BOTH INPUTS ARE HIGH. "
+                "PLACE TWO INPUT SWITCHES ON THE LEFT, FEED "
+                "THEM INTO A NAND STAGE, THEN INVERT THE NAND OUTPUT WITH "
+                "ANOTHER NAND-WIRED-INVERTER."
+            ),
+        },
+        {
+            "id": "or_gate",
+            "list_label": "OR GATE",
+            "title": "THE OR GATE",
+            "image_file": "or_gate_diagram.png",
+            "description": (
+                "OUTPUT IS HIGH WHEN AT LEAST ONE INPUT IS HIGH."
+                "INVERT EACH INPUT FIRST, FEED BOTH INTO A "
+                "NAND GATE, THEN USE DE MORGAN'S LAW TO GET OR BEHAVIOR."
+            ),
+        },
+    )
 
 
 class AudioSettings:

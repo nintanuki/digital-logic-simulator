@@ -143,6 +143,18 @@ class TopMenuBar:
     def close_menu(self) -> None:
         """Close active top menu and return focus to workspace."""
         self._active_top_menu_id = None
+
+    def update_menu_actions(self, menu_id: str, actions: Dict[str, Optional[Callable]]) -> None:
+        """Replace action map for a menu and refresh cached item surfaces.
+
+        Args:
+            menu_id: Menu identifier to update.
+            actions: New action map keyed by item id.
+        """
+        if menu_id not in self.menu_defs:
+            return
+        self.menu_defs[menu_id]["actions"] = actions
+        self._build_surfaces()
     
     def is_menu_open(self) -> bool:
         """Return True if any menu is currently open."""
