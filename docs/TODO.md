@@ -202,6 +202,8 @@ Menu polish, keyboard shortcuts, visual design.
 
 Actual problems, listed by priority.
 
+- [ ] **Awkward hitbox on switches** Currently when trying to turn a switch on or off, users have to click multiple times and try clicking a different part of the switch to get it to activate. Either the hitbox is too small or moving.
+
 - [ ] **DIAGRAMS scene shows a thin 1px seam under the top menu.** Deferred for now.
   Recent attempts already made: added a dedicated top-gap constant, shifted the
   content top boundary, and explicitly painted the gap strip in the diagrams
@@ -230,7 +232,6 @@ Actual problems, listed by priority.
   dimensions. No clear solution yet—options: scaling/shrinking preview, clipping
   with scrollbar, expansion outside panel, limiting component complexity. Deferred
   pending classroom observation; may become critical depending on typical usage patterns.
-
 
 ## Architecture Notes
 
