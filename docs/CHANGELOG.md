@@ -1,8 +1,8 @@
 # Change Log
 
-This file is an append-only record of every code change made to Circuit Builder
-by a human, AI assistant, or copilot tool. Read it before making changes so you
-know the current state of the codebase.
+This file is an append-only record of every code change made to Digital Logic
+Simulator by a human, AI assistant, or copilot tool. Read it before making
+changes so you know the current state of the codebase.
 
 ## Format
 
@@ -4439,6 +4439,146 @@ reimplementing it. T was already calling `text_boxes.spawn_at(...)`,
 the same line the bank's text spawner runs, so it was left alone (a
 `bank.spawn_text_box` passthrough would add a middleman, not remove
 duplication).
+
+---
+
+## 2026-05-07 18:00 UTC — Documentation modernization pass
+
+**File:** README.md
+**Date and Time:** 2026-05-07 18:00 UTC
+**Lines (at time of edit):** 73-122 (modified)
+**Before:** Project Layout listed `fonts.py` at repo root and omitted
+`core/workspace_controller.py`, `core/project_manager.py`, `ui/top_menu_bar.py`,
+and `ui/save_as_component_handler.py`. Contributing section pointed only at
+`docs/TESTING.md`.
+**After:** Project Layout corrected (fonts.py is in `ui/`) and synced with the
+actual repo tree, including the new top-level `AGENTS.md` and `.editorconfig`.
+Added a top-level **Documentation** section listing the canonical read order
+(README → AGENTS.md → copilot-instructions → TODO → ARCHITECTURE → TESTING →
+CHANGELOG). Contributing section rewritten to point at the documentation set.
+**Why:** Bring the project's documentation up to a professional standard so
+contributors (human or AI) land in a coherent system. The README's old layout
+listing was out of sync with the codebase and silently misled readers.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** .github/copilot-instructions.md
+**Date and Time:** 2026-05-07 18:00 UTC
+**Lines (at time of edit):** 1-100 (rewritten)
+**Before:** Short rule list with a thin testing checklist. Did not specify a
+required reading order, did not mandate ARCHITECTURE/TODO updates after
+changes, and did not document the section-banner code convention.
+**After:** Full rewrite modeled on the documentation standard set by
+`example/mimic-dice/`. Sections: Required reading order, Required actions
+after any change, Code style, Architecture rules (with the "GameManager is an
+orchestrator, not a feature container" rule front and center), File and
+function layout (including the section-banner convention), Comments and
+docstrings, UI text (ALL CAPS rule), and an expanded mental testing checklist
+that now covers undo/redo, save-as-component round-trip, project save/load,
+SR latch state retention, text boxes, and the top menu bar.
+**Why:** Strict, rule-heavy guardrails for AI agents that aren't as smart as
+the most capable models, and explicit reading order so every editor lands on
+the same canonical docs in the same order.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** docs/ARCHITECTURE.md
+**Date and Time:** 2026-05-07 18:00 UTC
+**Lines (at time of edit):** (new file)
+**Before:** (file did not exist)
+**After:** New architecture document modeled on
+`example/mimic-dice/docs/ARCHITECTURE.md`. Sections: shape of the program
+(ASCII diagram with GameManager at center), frame loop, simulation core (Port,
+Component, Switch, LED, SavedComponent, SignalManager's two-phase
+propagation, WireManager, commands.py, workspace_controller.py), workspace UI
+(bank, top_menu_bar, text_boxes, save_as_component_handler, dialogs, crt,
+fonts), project persistence (embedded sub-circuit definitions, port ordering
+by Y-coordinate, case normalization, schema versioning as planned for Pass
+3), settings as the only knob panel, input model and accessibility, code
+conventions worth knowing, what's not here yet, and a glossary appendix.
+**Why:** The simulator had no architecture document. New contributors and AI
+agents had no canonical explanation of *why* the code is shaped the way it is
+(two-phase propagation for SR latches, embed-don't-reference for portability,
+GameManager as orchestrator). The glossary appendix lets the rest of the docs
+stay terse without ambiguity.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-07 18:00 UTC
+**Lines (at time of edit):** various, throughout
+**Before:** Sections had a single descriptive sentence under each header.
+No Documentation-maintenance footer.
+**After:** Each top-level section opens with a `**Goal:**` line in the style
+used by `example/mimic-dice/docs/TODO.md`. Added a Documentation
+Maintenance footer pointing every pass at ARCHITECTURE / CHANGELOG / TODO /
+TESTING obligations. **All existing items preserved verbatim** — nothing was
+moved, deleted, or rewritten.
+**Why:** Match the documentation standard so each section's purpose is
+immediately legible, and so the documentation-update obligations are visible
+from inside the roadmap itself.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** docs/TESTING.md
+**Date and Time:** 2026-05-07 18:00 UTC
+**Lines (at time of edit):** 1-end (rewritten)
+**Before:** Two flat headings (`Testing Checklist` and `Refactoring Rules`) with
+bullet lists mashed together. No "how to test changes" workflow. Manual
+checklist was six lines long and did not cover undo/redo, save-as-component,
+project save/load, or SR latch state.
+**After:** Three sections: **How to test changes** (workflow + abstraction
+loop end-to-end exercise), **Manual testing checklist** (expanded into
+Launch & lifecycle / Workspace interaction / Wiring / Simulation / Undo-redo /
+Save-as-component / Project save-load / Text boxes / Top menu bar / Hygiene
+subsections), and **Refactoring rules** (existing rules preserved verbatim,
+regrouped under Process / Code style / Architecture & responsibilities /
+Names / Constants / Docstrings & comments / File and function layout / UI text
+sub-headers).
+**Why:** Make the canonical home for refactoring rules legible at a glance
+and give the manual checklist enough coverage to catch the regressions the
+project actually cares about.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** AGENTS.md
+**Date and Time:** 2026-05-07 18:00 UTC
+**Lines (at time of edit):** (new file)
+**Before:** (file did not exist)
+**After:** Short pointer file at repo root that delegates to
+`.github/copilot-instructions.md` as the single source of truth for editor
+rules. Lists the canonical reading order and notes that questions about
+*why* code is written a certain way are explanation requests, not change
+requests.
+**Why:** Several AI tools (Claude Code, Cursor, Codex CLI, Aider, others)
+look for a top-level `AGENTS.md` by convention. Without it, those tools have
+no on-ramp into the project's rules. The file is intentionally a pointer,
+not a duplicate of the rules — duplicated rules drift.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** .editorconfig
+**Date and Time:** 2026-05-07 18:00 UTC
+**Lines (at time of edit):** (new file)
+**Before:** (file did not exist)
+**After:** Project-wide formatting baseline. UTF-8, LF line endings, final
+newline, trim trailing whitespace, 4-space indent for Python, 2-space indent
+for Markdown / JSON / YAML. Trailing-whitespace trim is disabled for `*.md`
+because Markdown line-break syntax depends on trailing spaces.
+**Why:** Edits from any tool or OS now produce consistent files without
+needing the repo's contributors to remember per-tool settings. Standard,
+foolproofing measure.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** docs/CHANGELOG.md
+**Date and Time:** 2026-05-07 18:00 UTC
+**Lines (at time of edit):** 3 (modified)
+**Before:**
+    This file is an append-only record of every code change made to Circuit Builder
+**After:**
+    This file is an append-only record of every code change made to Digital Logic
+    Simulator
+**Why:** Project name correction. The repo is
+`digital-logic-simulator`; "Circuit Builder" was an early working name that
+never shipped. The TODO has had "Rename the program" listed as an open
+question for a while; this header phrase was the last orphaned reference. No
+other historical changelog entries were modified.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
 
 **File:** ui.py
 **Lines (at time of edit):** 200-228 (new `spawn_component` method on

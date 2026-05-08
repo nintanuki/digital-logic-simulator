@@ -1,12 +1,13 @@
 # Roadmap
 
-A living task list for Digital Logic Simulator, organized by practical feature areas
-rather than abstract passes. The project cycles through the codebase; each pass leaves
-it more usable and polished than the last.
+A living task list for Digital Logic Simulator, organized by practical feature
+areas rather than abstract milestones. The project cycles through the codebase
+in **passes**; each pass leaves it more usable and polished than the last. There
+is no deadline — this is a classroom enrichment project, not a product.
 
 **Before starting any item:**
-- Read `docs/TESTING.md` and skim recent entries in `docs/CHANGELOG.md`
-- Full descriptions of completed work live in the changelog
+- Read [docs/TESTING.md](TESTING.md) and skim recent entries in [docs/CHANGELOG.md](CHANGELOG.md).
+- Full descriptions of completed work live in the changelog; this file tracks intent.
 
 **Design principle:** fully usable with the mouse alone. Keyboard shortcuts exist
 alongside, never instead of, a clickable equivalent.
@@ -19,6 +20,8 @@ entire pedagogical point.
 
 ## Next Up
 
+**Goal:** finish what is currently in flight before opening new work.
+
 Items currently in progress or immediate priority.
 
 - [ ] **Finalize Pass 3 refactoring (architecture).** Clean up GameManager bloat by
@@ -30,7 +33,8 @@ Items currently in progress or immediate priority.
 
 ## Core Features
 
-The essential teaching loop and foundational user workflows.
+**Goal:** the essential teaching loop and foundational user workflows. Everything
+in this section directly supports build → save → reuse.
 
 ### Foundation (Completed)
 
@@ -126,7 +130,8 @@ The essential teaching loop and foundational user workflows.
 
 ## Teaching Features
 
-Tutorials, encyclopedia, puzzles, and curriculum design.
+**Goal:** turn the simulator from a sandbox into a guided classroom tool.
+Tutorials, encyclopedia, puzzles, and curriculum design live here.
 
 ### Tutorial System (Planned)
 
@@ -165,6 +170,7 @@ Tutorials, encyclopedia, puzzles, and curriculum design.
 
 ## UI/UX Improvements
 
+**Goal:** make the existing surface feel polished and forgiving.
 Menu polish, keyboard shortcuts, visual design.
 
 ### Pass 2 Remaining Items
@@ -200,7 +206,8 @@ Menu polish, keyboard shortcuts, visual design.
 
 ## Bugs / Issues
 
-Actual problems, listed by priority.
+**Goal:** track every actual problem and prevent quiet rot.
+Real user-visible problems, listed by priority.
 
 - [ ] **Wires only go in straight lines, can't be bent or curved.** If a user wants
   to connect two components with another component in between, or create a loop,
@@ -227,7 +234,9 @@ Actual problems, listed by priority.
 
 ## Architecture Notes
 
-Design decisions and architectural concerns worth preserving and monitoring.
+**Goal:** preserve hard-won design decisions so future passes don't reopen
+settled questions. Design decisions and architectural concerns worth
+preserving and monitoring.
 
 - [ ] **Keep GameManager light.** Offload responsibilities to dedicated handlers
   rather than embedding all logic in the main event loop. By May 5, menu rendering,
@@ -283,6 +292,7 @@ Design decisions and architectural concerns worth preserving and monitoring.
 
 ## Tech Debt / Polish
 
+**Goal:** keep code quality from drifting between feature passes.
 Code-quality items worth fixing the next time surrounding code is touched. Not bugs.
 
 - [ ] **Add unit tests for logic-only modules.** Pygame is hard to test, but
@@ -298,7 +308,9 @@ Code-quality items worth fixing the next time surrounding code is touched. Not b
 
 ## Open Questions / Decisions
 
-Design decisions pending before (or as part of) work that depends on them.
+**Goal:** make the unresolved tradeoffs visible so they get decided
+deliberately, not by accident. Design decisions pending before (or as part of)
+work that depends on them.
 
 - [ ] **CRT + font toggle: one switch or two?** Should "Pixelated font" and "CRT
   effect" become a single "Retro mode" master switch, or stay as two independent
@@ -323,7 +335,8 @@ Design decisions pending before (or as part of) work that depends on them.
 
 ## Ideas / Later
 
-Stretch goals for future passes or deferred until proven necessary.
+**Goal:** capture stretch goals without committing to them.
+Deferred until proven necessary or until a future pass picks them up.
 
 - [ ] **Sound design.** Subtle click on placement, faint hum on HIGH signal, small
   "snap" when wire commits. CRT scanlines already set toy-computer mood; audio would
@@ -336,3 +349,18 @@ Stretch goals for future passes or deferred until proven necessary.
 - [ ] **Component library sharing.** Export a saved component as shareable file
   students can email or hand off. Pairs with embed-don't-reference save-file
   decision in Pass 3. (Pass 7+)
+
+
+---
+
+## Documentation maintenance
+
+Every pass that lands code must:
+
+1. Update [docs/ARCHITECTURE.md](ARCHITECTURE.md) to reflect any system that
+   changed shape. Out-of-date architecture docs are worse than none.
+2. Append entries to [docs/CHANGELOG.md](CHANGELOG.md) per the format defined
+   at the top of that file.
+3. Move completed items here from `[ ]` to `[x]` (do not delete — leave them as a record).
+4. Run the manual checklist in [docs/TESTING.md](TESTING.md) for any subsystem
+   you touched.
