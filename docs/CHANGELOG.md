@@ -4858,6 +4858,128 @@ and records the design call (N routed through the bank, T left direct
 because it was already honest). With this entry the entire "Now" section
 is complete; the next session should pick up at "Next — Bottom-left popup
 menu (file ops)".
+
+## 2026-05-07 22:30 EDT — Sync docs with DIAGRAMS scene + scene system
+
+**File:** README.md
+**Date and Time:** 2026-05-07 22:30 EDT
+**Lines (at time of edit):** classroom-use paragraph, controls table, project layout tree
+**Before:**
+    | Access VIEW menu | `V` (mnemonic) |
+    | Return to main menu / Quit in-game | `Esc` |
+
+    │   ├── top_menu_bar.py           # TopMenuBar: FILE / EDIT / VIEW menu rendering and interaction
+    [no diagram_viewer.py listed]
+    ├── assets/              # Fonts and graphics
+**After:**
+    | Access VIEW menu | `V` (mnemonic) |
+    | Access HELP menu | `H` (mnemonic) |
+    | Close DIAGRAMS scene | `Esc` |
+    | Return to main menu / Quit in-game | `Esc` |
+
+    │   ├── top_menu_bar.py           # TopMenuBar: FILE / EDIT / VIEW / HELP menu rendering and interaction
+    │   ├── diagram_viewer.py         # DiagramViewerScene: HELP > DIAGRAMS reference (NOT/AND/OR/De Morgan)
+    ├── assets/              # Fonts and graphics
+    │   ├── font/                     # Pixeled.ttf and other faces
+    │   └── graphics/
+    │       ├── diagrams/             # NOT / AND / OR gate diagrams + De Morgan's laws (HELP > DIAGRAMS)
+    │       └── effects/              # CRT scanline overlay (tv.png)
+**Why:** Brings the README in line with code committed earlier today
+(74f9c4e "Add diagrams" and ea6340c "Add demorgans laws") that I missed
+because I started the documentation pass before pulling. Adds a
+classroom-use paragraph mentioning HELP > DIAGRAMS, surfaces the new
+`H` mnemonic and the Esc-closes-DIAGRAMS shortcut, lists `ui/diagram_viewer.py`
+in the project layout, and documents the new `assets/graphics/diagrams/` and
+`assets/graphics/effects/` (formerly bare `assets/graphics/tv.png`) sub-trees.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** docs/ARCHITECTURE.md
+**Date and Time:** 2026-05-07 22:30 EDT
+**Lines (at time of edit):** §1 (added Scenes paragraph), §2 frame loop (event drain + render rewritten), §4.2 retitled FILE / EDIT / VIEW / HELP and added action-map paragraph, new §4.7 DiagramViewerScene, §9 (encyclopedia scaffold removed), §10 glossary (added DIAGRAMS scene + Scene)
+**Before:**
+    `GameManager` is intentionally an orchestrator. ... [no scene paragraph]
+    ### 4.2 `top_menu_bar.py` — FILE / EDIT / VIEW
+    [no §4.7]
+    - **Encyclopedia system scaffold** for gates and circuits reference (Pass 3 minimal, Pass 6 content).
+    [glossary missing DIAGRAMS scene + Scene]
+**After:**
+    [section 1 ends with new "Scenes." paragraph explaining `_active_scene`
+     and per-scene action maps via `TopMenuBar.update_menu_actions`]
+    [section 2 frame-loop event drain forks on `_active_scene`; render branches per scene]
+    ### 4.2 `top_menu_bar.py` — FILE / EDIT / VIEW / HELP
+    [scene-aware action map paragraph]
+    ### 4.7 `diagram_viewer.py` — the DIAGRAMS scene
+    [content + layout + DIAGRAM_ENTRIES + scene rules]
+    [glossary entries for DIAGRAMS scene and Scene; encyclopedia scaffold removed
+     from §9 because it shipped]
+**Why:** Documents the new scene system (`_active_scene` flag, per-scene
+top-menu action maps, `TopMenuBar.update_menu_actions`) and the
+`DiagramViewerScene` UI subsystem so the architecture doc reflects what
+the code actually does. Also notes that DIAGRAMS is the realised form of
+the originally-planned "Encyclopedia system scaffold" so a future reader
+isn't confused about why the encyclopedia bullet disappeared from §9.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-07 22:30 EDT
+**Lines (at time of edit):** Encyclopedia System block (~150-160)
+**Before:**
+    ### Encyclopedia System (Planned)
+    - [ ] **Encyclopedia system scaffold** (for Pass 3). ... ENCYCLOPEDIA option in
+      in-game FILE menu ...
+**After:**
+    ### Encyclopedia System (Scaffold Shipped)
+    - [x] **Encyclopedia system scaffold** (Pass 3). Shipped as the **DIAGRAMS scene**
+      under HELP > DIAGRAMS rather than ENCYCLOPEDIA under FILE. Owned by
+      `DiagramViewerScene` (`ui/diagram_viewer.py`). ...
+**Why:** The encyclopedia scaffold roadmap item is functionally
+satisfied by HELP > DIAGRAMS — list panel, image, description, navigation
+by click and arrow keys, exit via RETURN button or Esc, content pulled
+from `DiagramViewerSettings.DIAGRAM_ENTRIES`. Marking `[x]` per the
+"do not delete completed items" rule and noting the placement difference
+(HELP not FILE) so future content-expansion work knows where to look.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** docs/TESTING.md
+**Date and Time:** 2026-05-07 22:30 EDT
+**Lines (at time of edit):** Top menu bar checklist (added HELP mnemonic + new DIAGRAMS scene checklist block immediately after)
+**Before:**
+    ### Top menu bar
+    - [ ] FILE / EDIT / VIEW open with both clicks and mnemonics (`F`, `E`, `V`).
+    [no DIAGRAMS scene block]
+**After:**
+    ### Top menu bar
+    - [ ] FILE / EDIT / VIEW / HELP open with both clicks and mnemonics (`F`, `E`, `V`, `H`).
+    ...
+    ### DIAGRAMS scene (HELP > DIAGRAMS)
+    - [ ] HELP > DIAGRAMS opens the diagrams reference scene; the workspace
+      grid, components, wires, and toolbox are no longer drawn.
+    - [ ] All four entries (NOT / AND / OR / DE MORGAN'S LAWS) ...
+    - [ ] Up / down arrow keys cycle the selection; clicking a list item
+      selects it directly.
+    - [ ] RETURN button and Esc both exit the scene back to the workspace ...
+    - [ ] While DIAGRAMS is active, EDIT and HELP entries are disabled,
+      FILE > NEW / LOAD exit the scene, FILE > QUIT routes to quit-confirm.
+**Why:** Manual checklist needs to cover the new scene so the next
+person testing a change touching menus, scenes, or rendering catches a
+regression instead of shipping it. Mirrors the `H` mnemonic into the
+menu-open check.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
+
+**File:** .github/copilot-instructions.md
+**Date and Time:** 2026-05-07 22:30 EDT
+**Lines (at time of edit):** Mental testing checklist (top menu bar item + new DIAGRAMS line)
+**Before:**
+    - The top menu bar (FILE / EDIT / VIEW) responds to both clicks and mnemonics.
+    - No new magic numbers leaked outside `settings.py`.
+**After:**
+    - The top menu bar (FILE / EDIT / VIEW / HELP) responds to both clicks and mnemonics.
+    - HELP > DIAGRAMS opens the DIAGRAMS reference scene; arrow keys / clicks change selection; RETURN button or Esc exits back to the workspace.
+    - No new magic numbers leaked outside `settings.py`.
+**Why:** Keeps the agent-facing checklist in sync with the testing
+manual checklist; missing this would mean future agents skip the
+DIAGRAMS check after their changes.
+**Editor:** Claude (Opus 4.7) via GitHub Copilot
 **Editor:** Claude (Opus 4.7)
 
 ## 2026-05-02 — Add MENU button slot to bottom-left of toolbox bank
@@ -5260,3 +5382,4 @@ next bullet.
         paragraphs = text.split("\\n")
 **Why:** Prevents HELP > DIAGRAMS from crashing with `AttributeError: 'tuple' object has no attribute 'split'` by normalizing description input to a string before wrapping.
 **Editor:** GitHub Copilot (GPT-5.3-Codex)
+

@@ -148,13 +148,15 @@ Tutorials, encyclopedia, puzzles, and curriculum design live here.
   gate from a NAND," "build an AND gate from two NANDs." Each tutorial highlights
   relevant toolbox template and verifies truth table on completion.
 
-### Encyclopedia System (Planned)
+### Encyclopedia System (Scaffold Shipped)
 
-- [ ] **Encyclopedia system scaffold** (for Pass 3). Extensible reference system
-  for gates, circuits, concepts. Start minimal: navigation between entries + exit
-  path. Design for future expansion with diagrams, worked examples. Launchable from:
-  - ENCYCLOPEDIA option in in-game FILE menu
-  - Can exit anytime via Esc, returns to workspace
+- [x] **Encyclopedia system scaffold** (Pass 3). Shipped as the **DIAGRAMS scene**
+  under HELP > DIAGRAMS rather than ENCYCLOPEDIA under FILE. Owned by
+  `DiagramViewerScene` (`ui/diagram_viewer.py`). List + image + description
+  layout with NOT, AND, OR, and De Morgan's laws entries; navigation by click
+  or arrow keys; exit via RETURN button or `Esc`. Content is data, not code:
+  diagrams are configured in `DiagramViewerSettings.DIAGRAM_ENTRIES` in
+  `settings.py`.
 
 - [ ] **Encyclopedia content expansion** (for Pass 6). Built-in glossary students
   can flip open: each gate, each common circuit (latch, flip-flop, adder,

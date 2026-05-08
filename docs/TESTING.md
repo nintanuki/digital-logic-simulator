@@ -96,10 +96,25 @@ pass complete.
 - [ ] Clicking outside an editing text box stops editing.
 
 ### Top menu bar
-- [ ] FILE / EDIT / VIEW open with both clicks and mnemonics (`F`, `E`, `V`).
+- [ ] FILE / EDIT / VIEW / HELP open with both clicks and mnemonics (`F`, `E`, `V`, `H`).
 - [ ] Menu items run their actions when clicked.
 - [ ] Clicking outside an open menu closes it without spurious workspace
   side effects.
+
+### DIAGRAMS scene (HELP > DIAGRAMS)
+- [ ] HELP > DIAGRAMS opens the diagrams reference scene; the workspace
+  grid, components, wires, and toolbox are no longer drawn.
+- [ ] All four entries (NOT GATE, AND GATE, OR GATE, DE MORGAN'S LAWS)
+  appear in the left list with their image and description rendering for
+  the selected entry.
+- [ ] Up / down arrow keys cycle the selection; clicking a list item
+  selects it directly.
+- [ ] RETURN button and `Esc` both exit the scene back to the workspace
+  with state preserved (components, wires, text boxes still there).
+- [ ] While DIAGRAMS is active the top menu bar still draws; EDIT and
+  HELP entries are disabled, FILE > NEW PROJECT and FILE > LOAD PROJECT
+  exit the scene as part of their action, FILE > QUIT still routes to
+  the quit-confirm dialog.
 
 ### Hygiene
 - [ ] No new magic numbers leaked outside `settings.py`.

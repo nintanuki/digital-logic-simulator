@@ -17,6 +17,8 @@ Used in computer science class and during IT and coding enrichment to teach how 
 
 The point is abstraction: once a circuit works, students stop worrying about its internals and start treating it as a part.
 
+A built-in **DIAGRAMS** reference (HELP > DIAGRAMS) shows worked NAND-only constructions of NOT, AND, and OR, plus a one-page summary of De Morgan's Laws — the rule that makes the whole "NAND can build everything" claim work. Students can flip it open mid-build without leaving the workspace.
+
 ## Current Status
 
 Working prototype with Pass 1 and Pass 2 complete. The full abstraction loop is functional: build a circuit from NANDs, save it as a named component, drop it back into the toolbox, and build with it. Undo/redo, multi-segment wiring, visual polish (Switch redesign, LED redesign, random colors for saved components), and error recovery are all in place.
@@ -57,6 +59,8 @@ The program is designed to be fully usable with the mouse alone. Keyboard shortc
 | Access FILE menu | `F` (mnemonic) |
 | Access EDIT menu | `E` (mnemonic) |
 | Access VIEW menu | `V` (mnemonic) |
+| Access HELP menu | `H` (mnemonic) |
+| Close DIAGRAMS scene | `Esc` |
 | Return to main menu / Quit in-game | `Esc` |
 
 ## Requirements
@@ -85,7 +89,8 @@ digital-logic-simulator/
 ├── ui/                  # User interface
 │   ├── fonts.py                  # Fonts: shared Font instances cached at boot
 │   ├── bank.py                   # ComponentBank (the toolbox)
-│   ├── top_menu_bar.py           # TopMenuBar: FILE / EDIT / VIEW menu rendering and interaction
+│   ├── top_menu_bar.py           # TopMenuBar: FILE / EDIT / VIEW / HELP menu rendering and interaction
+│   ├── diagram_viewer.py         # DiagramViewerScene: HELP > DIAGRAMS reference (NOT/AND/OR/De Morgan)
 │   ├── save_as_component_handler.py  # Save-as-component workflow + workspace snapshot
 │   ├── text_boxes.py             # TextBox + TextBoxManager (annotation labels)
 │   ├── project_dialogs.py        # Load / Save project dialogs
@@ -93,6 +98,10 @@ digital-logic-simulator/
 │   ├── quit_confirm_dialog.py    # Quit confirmation dialog
 │   └── crt.py                    # CRT scanline / flicker overlay
 ├── assets/              # Fonts and graphics
+│   ├── font/                     # Pixeled.ttf and other faces
+│   └── graphics/
+│       ├── diagrams/             # NOT / AND / OR gate diagrams + De Morgan's laws (HELP > DIAGRAMS)
+│       └── effects/              # CRT scanline overlay (tv.png)
 ├── projects/            # Saved project files (created at runtime)
 ├── docs/
 │   ├── ARCHITECTURE.md  # How the code actually works

@@ -86,5 +86,6 @@ If a question is asked about *why* code was written a certain way, that is a req
 - Project save / load round-trips: save a workspace, restart, load it, verify wires and components are intact.
 - An SR latch built from saved NAND-derived gates still holds state across frames.
 - Text boxes can be created, edited, escape-committed, and deleted.
-- The top menu bar (FILE / EDIT / VIEW) responds to both clicks and mnemonics.
+- The top menu bar (FILE / EDIT / VIEW / HELP) responds to both clicks and mnemonics.
+- HELP > DIAGRAMS opens the DIAGRAMS reference scene; arrow keys / clicks change selection; RETURN button or Esc exits back to the workspace.
 - No new magic numbers leaked outside `settings.py`.
