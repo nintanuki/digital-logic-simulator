@@ -17,6 +17,8 @@ Used in computer science class and during IT and coding enrichment to teach how 
 
 The point is abstraction: once a circuit works, students stop worrying about its internals and start treating it as a part.
 
+A built-in **DIAGRAMS** reference (HELP > DIAGRAMS) shows worked NAND-only constructions of NOT, AND, and OR, plus a one-page summary of De Morgan's Laws — the rule that makes the whole "NAND can build everything" claim work. Students can flip it open mid-build without leaving the workspace.
+
 ## Current Status
 
 Working prototype with Pass 1 and Pass 2 complete. The full abstraction loop is functional: build a circuit from NANDs, save it as a named component, drop it back into the toolbox, and build with it. Undo/redo, multi-segment wiring, visual polish (Switch redesign, LED redesign, random colors for saved components), and error recovery are all in place.
@@ -57,6 +59,8 @@ The program is designed to be fully usable with the mouse alone. Keyboard shortc
 | Access FILE menu | `F` (mnemonic) |
 | Access EDIT menu | `E` (mnemonic) |
 | Access VIEW menu | `V` (mnemonic) |
+| Access HELP menu | `H` (mnemonic) |
+| Close DIAGRAMS scene | `Esc` |
 | Return to main menu / Quit in-game | `Esc` |
 
 ## Requirements
@@ -74,32 +78,57 @@ python main.py
 ```
 digital-logic-simulator/
 ├── main.py              # GameManager: event loop, lifecycle, rendering
-├── fonts.py             # Fonts: shared Font instances cached at boot
 ├── settings.py          # All constants (colors, sizes, paths, input)
 ├── core/                # Simulation and logic
-│   ├── elements.py      # Port, Component (default = NAND), Switch, LED, SavedComponent
-│   ├── wires.py         # Wire + WireManager (drag-to-connect, hit-test delete, multi-segment)
-│   ├── signals.py       # SignalManager: per-frame two-phase signal propagation
-│   └── commands.py      # History and undo/redo command system
+│   ├── elements.py              # Port, Component (default = NAND), Switch, LED, SavedComponent
+│   ├── wires.py                 # Wire + WireManager (drag-to-connect, multi-segment, hit-test delete)
+│   ├── signals.py               # SignalManager: per-frame two-phase signal propagation
+│   ├── commands.py              # History + undo/redo command pattern
+│   ├── workspace_controller.py  # WorkspaceInteractionController: selection, group drag, marquee
+│   └── project_manager.py       # ProjectManager: JSON save/load with embedded sub-circuit definitions
 ├── ui/                  # User interface
-│   ├── bank.py          # ComponentBank (the toolbox)
-│   ├── crt.py           # CRT scanline / flicker overlay
-│   ├── text_boxes.py    # TextBox + TextBoxManager (annotation labels)
-│   ├── project_dialogs.py   # Load/Save project dialogs
-│   ├── save_component_dialog.py  # Save as component dialog
+│   ├── fonts.py                  # Fonts: shared Font instances cached at boot
+│   ├── bank.py                   # ComponentBank (the toolbox)
+│   ├── top_menu_bar.py           # TopMenuBar: FILE / EDIT / VIEW / HELP menu rendering and interaction
+│   ├── diagram_viewer.py         # DiagramViewerScene: HELP > DIAGRAMS reference (NOT/AND/OR/De Morgan)
+│   ├── save_as_component_handler.py  # Save-as-component workflow + workspace snapshot
+│   ├── text_boxes.py             # TextBox + TextBoxManager (annotation labels)
+│   ├── project_dialogs.py        # Load / Save project dialogs
+│   ├── save_component_dialog.py  # Save-as-component dialog
 │   ├── quit_confirm_dialog.py    # Quit confirmation dialog
-│   └── __init__.py
+│   └── crt.py                    # CRT scanline / flicker overlay
 ├── assets/              # Fonts and graphics
-│   ├── font/
+│   ├── font/                     # Pixeled.ttf and other faces
 │   └── graphics/
+│       ├── diagrams/             # NOT / AND / OR gate diagrams + De Morgan's laws (HELP > DIAGRAMS)
+│       └── effects/              # CRT scanline overlay (tv.png)
 ├── projects/            # Saved project files (created at runtime)
 ├── docs/
+│   ├── ARCHITECTURE.md  # How the code actually works
+│   ├── TESTING.md       # How to test changes + manual checklist + refactoring rules
 │   ├── TODO.md          # Roadmap (organized by pass)
-│   ├── TESTING.md       # Manual test checklist + refactoring rules
-│   └── CHANGELOG.md     # Append-only history of changes
+│   └── CHANGELOG.md     # Append-only history of every change
+├── .github/
+│   └── copilot-instructions.md   # Required reading for every editor, human or AI
+├── AGENTS.md            # Agent pointer (delegates to copilot-instructions.md)
+├── .editorconfig        # Project-wide formatting baseline
 └── README.md            # This file
 ```
 
+## Documentation
+
+Read these in order before contributing. The same order applies whether you are a human contributor or an AI agent:
+
+1. **[README.md](README.md)** — *(this file)* what the project is and how to run it.
+2. **[AGENTS.md](AGENTS.md)** — entry point for AI agents; delegates to the rules file below.
+3. **[.github/copilot-instructions.md](.github/copilot-instructions.md)** — required reading rules for every editor.
+4. **[docs/TODO.md](docs/TODO.md)** — pass-based roadmap and known issues.
+5. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the code is put together and why.
+6. **[docs/TESTING.md](docs/TESTING.md)** — how to test changes, manual checklist, refactoring rules.
+7. **[docs/CHANGELOG.md](docs/CHANGELOG.md)** — append-only history of every code change.
+
 ## Contributing
 
-Read `docs/TESTING.md` before making changes. It defines the manual test checklist and the refactoring rules this project follows (PEP-8, constants in `settings.py`, no magic numbers, docstrings everywhere, etc.). Then skim recent entries in `docs/CHANGELOG.md` so you know the current state of the codebase. Pick the next item from `docs/TODO.md` (top of the file = highest priority).
+Read the documentation set above before making changes — `.github/copilot-instructions.md` and `docs/TESTING.md` are the canonical source for project rules (PEP-8, constants live in `settings.py`, no magic numbers, docstrings everywhere, `GameManager` stays light, etc.). Skim recent entries in `docs/CHANGELOG.md` so you know the current state of the codebase. Pick the next item from `docs/TODO.md` (top of each section = highest priority within that section).
+
+Every code change must append an entry to `docs/CHANGELOG.md` following the format defined at the top of that file.

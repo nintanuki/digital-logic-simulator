@@ -1,0 +1,22 @@
+# EditorConfig: project-wide formatting baseline so edits from any tool / OS
+# stay consistent. https://editorconfig.org
+#
+# Most editors (and most AI agents) honor this file automatically. It is the
+# only place line-ending and indent conventions for this repo are stated.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{md,json,yml,yaml}]
+indent_size = 2
+
+# Markdown: trailing spaces are sometimes meaningful (line break). Keep them.
+[*.md]
+trim_trailing_whitespace = false
