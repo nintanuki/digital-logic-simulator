@@ -15,6 +15,7 @@ from ui.bank import ComponentBank
 from ui.crt import CRT
 from ui.project_dialogs import FileNotFoundWarningDialog, LoadProjectDialog, SaveProjectDialog
 from ui.quit_confirm_dialog import QuitConfirmDialog
+from ui.diagram_viewer import DiagramViewerScene
 from ui.save_as_component_handler import SaveAsComponentHandler
 from ui.save_component_dialog import SaveComponentDialog
 from ui.text_boxes import TextBoxManager
@@ -51,6 +52,11 @@ class GameManager:
         self.clock = pygame.time.Clock()
         self.crt = CRT(self.screen)
         self._crt_enabled = ScreenSettings.CRT_ENABLED_DEFAULT
+        self._active_scene = "workspace"
+        self.diagram_viewer = DiagramViewerScene(
+            self.screen,
+            on_return=self._open_workspace_scene,
+        )
 
         # -------- UI state --------
         self.text_boxes = TextBoxManager()
@@ -163,11 +169,80 @@ class GameManager:
                 ),
                 "actions": {
                     "tutorial": None,
-                    "diagrams": None,
+                    "diagrams": self._open_diagrams_scene,
                 },
             },
         }
         self.top_menu_bar = TopMenuBar(self.screen, menu_defs)
+        self._workspace_menu_actions = {
+            "file": dict(file_actions),
+            "edit": {
+                "undo": self.history.undo,
+                "redo": self.history.redo,
+            },
+            "view": {
+                "toggle_fullscreen": pygame.display.toggle_fullscreen,
+                "toggle_crt": self._toggle_crt,
+            },
+            "help": {
+                "tutorial": None,
+                "diagrams": self._open_diagrams_scene,
+            },
+        }
+        self._diagrams_menu_actions = {
+            "file": {
+                "new_project": self._new_project_from_diagrams,
+                "load_project": self._load_project_from_diagrams,
+                "save_project": None,
+                "save_project_as": None,
+                "quit": self.close_game,
+            },
+            "edit": {
+                "undo": None,
+                "redo": None,
+            },
+            "view": {
+                "toggle_fullscreen": pygame.display.toggle_fullscreen,
+                "toggle_crt": self._toggle_crt,
+            },
+            "help": {
+                "tutorial": None,
+                "diagrams": None,
+            },
+        }
+        self._apply_scene_menu_actions()
+
+    def _new_project_from_diagrams(self) -> None:
+        """Create a new project and return to workspace from diagrams scene."""
+        self._new_project()
+        self._open_workspace_scene()
+
+    def _load_project_from_diagrams(self) -> None:
+        """Open load-project dialog and return to workspace from diagrams scene."""
+        self._open_workspace_scene()
+        self._open_load_project_dialog()
+
+    def _apply_scene_menu_actions(self) -> None:
+        """Apply menu enabled/disabled state for the active scene."""
+        action_sets = (
+            self._workspace_menu_actions
+            if self._active_scene == "workspace"
+            else self._diagrams_menu_actions
+        )
+        for menu_id, actions in action_sets.items():
+            self.top_menu_bar.update_menu_actions(menu_id, actions)
+
+    def _open_diagrams_scene(self) -> None:
+        """Switch to the diagrams reference scene."""
+        self._active_scene = "diagrams"
+        self.top_menu_bar.close_menu()
+        self._apply_scene_menu_actions()
+
+    def _open_workspace_scene(self) -> None:
+        """Switch back to the interactive workspace scene."""
+        self._active_scene = "workspace"
+        self.top_menu_bar.close_menu()
+        self._apply_scene_menu_actions()
 
     def _toggle_crt(self) -> None:
         """Toggle whether the CRT overlay is drawn each frame."""
@@ -392,6 +467,19 @@ class GameManager:
                 self.dialog.handle_event(event)
                 continue
 
+            if self._active_scene == "diagrams":
+                if event.type == pygame.KEYDOWN:
+                    self._handle_keydown(event)
+                    continue
+                if event.type in (
+                    pygame.MOUSEBUTTONDOWN,
+                    pygame.MOUSEBUTTONUP,
+                    pygame.MOUSEMOTION,
+                ):
+                    self._handle_mouse(event)
+                    continue
+                continue
+
             # Text boxes consume events first so typing does not trigger tools.
             if self.text_boxes.handle_event(event):
                 continue
@@ -410,6 +498,17 @@ class GameManager:
         """
         self.workspace_interaction.prune_selection()
         mods = pygame.key.get_mods()
+        if self._active_scene == "diagrams":
+            if event.key == pygame.K_ESCAPE:
+                self._open_workspace_scene()
+                return
+            if event.key == pygame.K_DOWN:
+                self.diagram_viewer.move_selection(1)
+                return
+            if event.key == pygame.K_UP:
+                self.diagram_viewer.move_selection(-1)
+                return
+
         if self.top_menu_bar.is_menu_open():
             if event.key == pygame.K_DOWN:
                 self.top_menu_bar.move_selection(1)
@@ -472,13 +571,6 @@ class GameManager:
             event: Pygame mouse event.
         """
         self.workspace_interaction.prune_selection()
-        workspace_rect = pygame.Rect(
-            0,
-            TopMenuBarSettings.HEIGHT,
-            ScreenSettings.WIDTH,
-            UISettings.BANK_RECT.top - TopMenuBarSettings.HEIGHT,
-        )
-
         if event.type == pygame.MOUSEMOTION:
             self.top_menu_bar.sync_hover_with_mouse(event.pos)
 
@@ -497,6 +589,17 @@ class GameManager:
                     return
                 self.top_menu_bar.close_menu()
                 return
+
+        if self._active_scene == "diagrams":
+            self.diagram_viewer.handle_event(event)
+            return
+
+        workspace_rect = pygame.Rect(
+            0,
+            TopMenuBarSettings.HEIGHT,
+            ScreenSettings.WIDTH,
+            UISettings.BANK_RECT.top - TopMenuBarSettings.HEIGHT,
+        )
 
         if event.type == pygame.MOUSEMOTION:
             self.workspace_interaction.update_port_hover(event.pos, self.bank.templates)
@@ -550,12 +653,15 @@ class GameManager:
 
     def _draw(self) -> None:
         """Draw all workspace layers in back-to-front order."""
-        for comp in self.components:
-            comp.draw(self.screen)
-        self.wires.draw(self.screen)
-        self.text_boxes.draw(self.screen)
-        self.workspace_interaction.draw_selection_marquee(self.screen)
-        self.bank.draw(self.screen)
+        if self._active_scene == "diagrams":
+            self.diagram_viewer.draw()
+        else:
+            for comp in self.components:
+                comp.draw(self.screen)
+            self.wires.draw(self.screen)
+            self.text_boxes.draw(self.screen)
+            self.workspace_interaction.draw_selection_marquee(self.screen)
+            self.bank.draw(self.screen)
         if self.dialog is not None:
             self.dialog.draw(self.screen)
 
@@ -598,7 +704,8 @@ class GameManager:
     def _render_frame(self) -> None:
         """Clear the screen and draw all render layers for this frame."""
         self.screen.fill(ScreenSettings.BG_COLOR)
-        self._draw_grid()
+        if self._active_scene == "workspace":
+            self._draw_grid()
         self._draw()
         self.top_menu_bar.draw()
         if self._crt_enabled:

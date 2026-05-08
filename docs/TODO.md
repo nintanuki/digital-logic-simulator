@@ -209,6 +209,13 @@ Menu polish, keyboard shortcuts, visual design.
 **Goal:** track every actual problem and prevent quiet rot.
 Real user-visible problems, listed by priority.
 
+- [ ] **DIAGRAMS scene shows a thin 1px seam under the top menu.** Deferred for now.
+  Recent attempts already made: added a dedicated top-gap constant, shifted the
+  content top boundary, and explicitly painted the gap strip in the diagrams
+  scene. The line is still visible on some frames and is likely from the menu
+  underline/border layer rather than workspace bleed. Revisit with a scene-aware
+  top-menu border/underline draw rule.
+
 - [ ] **Wires only go in straight lines, can't be bent or curved.** If a user wants
   to connect two components with another component in between, or create a loop,
   the result is ugly straight lines crossing through other components. Proposed

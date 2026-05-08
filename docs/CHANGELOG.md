@@ -519,6 +519,73 @@ no `@` separator, no slashes); it is unambiguous and sortable as plain text.
 **Why:** Added an explicit lifecycle API so GameManager clears wiring state via WireManager, keeping state ownership with the subsystem.
 **Editor:** GitHub Copilot (GPT-5.3-Codex)
 
+## 2026-05-07 14:26 UTC — Add HELP > DIAGRAMS viewer scene with list, title, image, and description
+
+**File:** settings.py
+**Date and Time:** 2026-05-07 14:26 UTC
+**Lines (at time of edit):** 159 (modified), 745-813 (added)
+**Before:**
+    class AssetPaths:
+        FONT = "assets/font/Pixeled.ttf"
+        TV = "assets/graphics/effects/tv.png"
+
+    class AudioSettings:
+        pass
+**After:**
+    class AssetPaths:
+        FONT = "assets/font/Pixeled.ttf"
+        TV = "assets/graphics/effects/tv.png"
+        DIAGRAMS_DIR = "assets/graphics/diagrams"
+
+    class DiagramViewerSettings:
+        BG_COLOR = (28, 44, 54)
+        LIST_PANEL_WIDTH = 220
+        IMAGE_SECTION_RATIO = 0.67
+        DIAGRAM_ENTRIES = (...)
+**Why:** Centralized the new diagrams scene layout values, colors, and all-caps diagram metadata in settings so there are no magic numbers in rendering code.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/diagram_viewer.py
+**Date and Time:** 2026-05-07 14:26 UTC
+**Lines (at time of edit):** (new file)
+**Before:**
+    (file did not exist)
+**After:**
+    class DiagramViewerScene:
+        def handle_event(self, event): ...
+        def draw(self): ...
+        def _wrap_text(self, text, max_width, font): ...
+        def _fit_size(self, image_size, container_size): ...
+**Why:** Added a dedicated scene responsible for rendering a thin left diagram list and a wide right column with title, image, and wrapped description text.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-07 14:26 UTC
+**Lines (at time of edit):** 18, 55-56, 169-181, 406-418, 437-446, 510-513, 592-594, 643-644 (modified)
+**Before:**
+    from ui.quit_confirm_dialog import QuitConfirmDialog
+    ...
+    self._crt_enabled = ScreenSettings.CRT_ENABLED_DEFAULT
+    ...
+    "diagrams": None,
+    ...
+    self.screen.fill(ScreenSettings.BG_COLOR)
+    self._draw_grid()
+**After:**
+    from ui.quit_confirm_dialog import QuitConfirmDialog
+    from ui.diagram_viewer import DiagramViewerScene
+    ...
+    self._crt_enabled = ScreenSettings.CRT_ENABLED_DEFAULT
+    self._active_scene = "workspace"
+    self.diagram_viewer = DiagramViewerScene(self.screen)
+    ...
+    "diagrams": self._open_diagrams_scene,
+    ...
+    if self._active_scene == "workspace":
+        self._draw_grid()
+**Why:** Wired HELP > DIAGRAMS to switch scenes, routed diagrams-scene input separately from workspace input, and rendered the dedicated diagram viewer layout when active.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 ## 2026-05-06 23:01 UTC — Add toolbox divider, pin TEXT/NAND templates, and compact large saved-template previews
 
 **File:** settings.py
@@ -3730,6 +3797,23 @@ future live-signal phase" line from PORT_HIGHLIGHT_COLOR's comment since
 this commit is that future.
 **Editor:** Claude (Opus 4.7)
 
+## 2026-05-07 15:00 UTC — Track DIAGRAMS 1px seam as deferred TODO with attempted fixes
+
+**File:** docs/TODO.md
+**Date and Time:** 2026-05-07 15:00 UTC
+**Lines (at time of edit):** 205-210 (modified)
+**Before:**
+    (no TODO entry for the remaining DIAGRAMS 1px seam under the top menu)
+**After:**
+    - [ ] **DIAGRAMS scene shows a thin 1px seam under the top menu.** Deferred for now.
+      Recent attempts already made: added a dedicated top-gap constant, shifted the
+      content top boundary, and explicitly painted the gap strip in the diagrams
+      scene. The line is still visible on some frames and is likely from the menu
+      underline/border layer rather than workspace bleed. Revisit with a scene-aware
+      top-menu border/underline draw rule.
+**Why:** User requested deferring this visual issue for now while preserving context on what was already tried, so future work can resume without repeating the same attempts.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
 **File:** elements.py
 **Lines (at time of edit):** 5-13 (imports), 43-49 (Port.__init__),
 73-93 (Port.draw), 146-150 (Component.__init__),
@@ -4610,6 +4694,143 @@ collapsing the two would force collision logic into both call paths.
 **Lines (at time of edit):** 93-98 (K_n handler in `_handle_keydown`)
 **Before:**
     # Centralized place to spawn components
+
+## 2026-05-07 14:35 UTC — Polish DIAGRAMS scene layout, add RETURN button, and enable scene-aware top menu actions
+
+**File:** settings.py
+**Date and Time:** 2026-05-07 14:35 UTC
+**Lines (at time of edit):** 755, 773-775 (modified)
+**Before:**
+    CONTENT_GAP = 14
+    DESCRIPTION_TITLE = "DESCRIPTION"
+    DESCRIPTION_TITLE_COLOR = ColorSettings.WORD_COLORS["WHITE"]
+**After:**
+    CONTENT_GAP = 14
+    OUTER_MARGIN_BOTTOM = 12
+    RETURN_LABEL = "RETURN"
+    RETURN_BUTTON_WIDTH = 148
+    RETURN_BUTTON_HEIGHT = BankPopupButtonSettings.HEIGHT
+**Why:** Added constants needed for the new bottom-left RETURN button and removed the dedicated DESCRIPTION header configuration so the description panel can use the full vertical space.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/diagram_viewer.py
+**Date and Time:** 2026-05-07 14:35 UTC
+**Lines (at time of edit):** 11, 26-33, 84-111, 338-386 (modified)
+**Before:**
+    def __init__(self, screen: pygame.Surface) -> None:
+        ...
+    top = TopMenuBarSettings.HEIGHT + DiagramViewerSettings.CONTENT_PADDING
+    ...
+    description_title = text_font.render(...)
+**After:**
+    def __init__(self, screen: pygame.Surface, on_return=None) -> None:
+        ...
+    top = TopMenuBarSettings.HEIGHT
+    bottom = self._return_button_rect().top - DiagramViewerSettings.CONTENT_GAP
+    ...
+    # DESCRIPTION heading removed; description text starts immediately.
+    # Added rounded RETURN button drawing and click handling.
+**Why:** Closed the top gap under the menu bar, removed wasted DESCRIPTION label space, and added a clearly styled RETURN button at bottom-left with hover and click behavior.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/top_menu_bar.py
+**Date and Time:** 2026-05-07 14:35 UTC
+**Lines (at time of edit):** 147-158 (added)
+**Before:**
+    # No public API to swap per-menu enabled actions at runtime.
+**After:**
+    def update_menu_actions(self, menu_id: str, actions: Dict[str, Optional[Callable]]) -> None:
+        ...
+        self._build_surfaces()
+**Why:** Added a scene-aware action update API so menu items can be enabled/disabled (including gray-out) when entering or leaving the DIAGRAMS scene.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** main.py
+**Date and Time:** 2026-05-07 14:35 UTC
+**Lines (at time of edit):** 56-60, 177-245, 470-501, 575-602, 656-663 (modified)
+**Before:**
+    self.diagram_viewer = DiagramViewerScene(self.screen)
+    ...
+    if self._active_scene == "diagrams":
+        self.diagram_viewer.handle_event(event)
+        return
+    ...
+    if self._active_scene == "diagrams":
+        self.diagram_viewer.draw()
+        return
+**After:**
+    self.diagram_viewer = DiagramViewerScene(self.screen, on_return=self._open_workspace_scene)
+    self._workspace_menu_actions = {...}
+    self._diagrams_menu_actions = {...}
+    self._apply_scene_menu_actions()
+    ...
+    # Top menu handling now runs before diagram-scene local click handling.
+    ...
+    if self._active_scene == "diagrams":
+        self.diagram_viewer.draw()
+    else:
+
+## 2026-05-07T10:54:17-04:00 — Center RETURN under list panel and add top window gap tuning
+
+**File:** settings.py
+**Date and Time:** 2026-05-07T10:54:17-04:00
+**Lines (at time of edit):** 755 (modified)
+**Before:**
+    CONTENT_PADDING = 16
+    CONTENT_GAP = 14
+    OUTER_MARGIN_BOTTOM = 12
+**After:**
+    CONTENT_PADDING = 16
+    CONTENT_GAP = 14
+    CONTENT_TOP_GAP = 8
+    OUTER_MARGIN_BOTTOM = 12
+**Why:** Added a dedicated top-gap constant so spacing under the top menu can be tuned without touching scene geometry code.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/diagram_viewer.py
+**Date and Time:** 2026-05-07T10:54:17-04:00
+**Lines (at time of edit):** 99-106, 110-120 (modified)
+**Before:**
+    top = TopMenuBarSettings.HEIGHT
+    ...
+    return pygame.Rect(
+        DiagramViewerSettings.CONTENT_PADDING,
+        ...
+    )
+**After:**
+    top = TopMenuBarSettings.HEIGHT + DiagramViewerSettings.CONTENT_TOP_GAP
+    ...
+    left_x = (
+        DiagramViewerSettings.CONTENT_PADDING
+        + (DiagramViewerSettings.LIST_PANEL_WIDTH - DiagramViewerSettings.RETURN_BUTTON_WIDTH) // 2
+    )
+    return pygame.Rect(
+        left_x,
+        ...
+
+## 2026-05-07T10:58:48-04:00 — Center DIAGRAMS button labels and clean top-gap seam
+
+**File:** ui/diagram_viewer.py
+**Date and Time:** 2026-05-07T10:58:48-04:00
+**Lines (at time of edit):** 110-124, 225-232, 301, 400 (modified)
+**Before:**
+    self.screen.blit(label_surface, (item_rect.left + 8, item_rect.centery - label_surface.get_height() // 2))
+    ...
+    self.screen.blit(return_label, (return_rect.left + BankPopupButtonSettings.LABEL_PADDING_X, return_rect.centery - return_label.get_height() // 2))
+**After:**
+    self.screen.blit(label_surface, (item_rect.centerx - label_surface.get_width() // 2, item_rect.centery - label_surface.get_height() // 2))
+    ...
+    self.screen.blit(return_label, (return_rect.centerx - return_label.get_width() // 2, return_rect.centery - return_label.get_height() // 2))
+**Why:** Centers text for gate list buttons and RETURN so labels are visually balanced, respects return alignment flags (`RETURN_CENTER_WITH_LIST`, `RETURN_X_OFFSET`), and paints the top-gap strip explicitly to prevent seam artifacts at the top of the DIAGRAMS layout.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+    )
+**Why:** Makes the DIAGRAMS windows slightly shorter from the top edge (creating visual breathing room below the menu) and horizontally centers RETURN relative to the left gate list panel.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+        ...
+    if self.dialog is not None:
+        self.dialog.draw(self.screen)
+**Why:** Made top menu usable from DIAGRAMS view, enabled only scene-appropriate entries (FILE: NEW/LOAD/QUIT, VIEW toggles), grayed out others, and ensured dialogs can still render while in DIAGRAMS mode.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
     if event.key == pygame.K_n:
         self.components.append(Component(50, 50))
 **After:**
@@ -4946,4 +5167,96 @@ next bullet.
     saved_components.clear()
     bank.reset_to_default_templates()
 **Why:** Switched project load reset logic to the bank's public API so saved-component MRU/library state resets consistently without mutating bank internals.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-07 13:57 UTC — Enable selecting saved components from LIBRARY popup
+
+**File:** ui/bank.py
+**Date and Time:** 2026-05-07 13:57 UTC
+**Lines (at time of edit):** 530-561 (modified)
+**Before:**
+    def _handle_library_popup_event(self, event):
+        """Handle click-to-close behavior for the text-only library popup.
+        ...
+        if popup_rect.collidepoint(event.pos):
+            return True
+        if button["rect"].collidepoint(event.pos):
+            self._close_library_popup()
+            return True
+        self._close_library_popup()
+        return False
+**After:**
+    def _handle_library_popup_event(self, event):
+        """Handle library-popup clicks (select item, or close).
+        ...
+        if popup_rect.collidepoint(event.pos):
+            labels = self._library_entries()
+            if not labels:
+                return True
+            item_rects = self._popup_item_rects(popup_rect, len(labels))
+            for label, rect in zip(labels, item_rects):
+                if rect.collidepoint(event.pos):
+                    self._mark_saved_component_used(label)
+                    self._close_library_popup()
+                    return True
+            return True
+        if button["rect"].collidepoint(event.pos):
+            self._close_library_popup()
+            return True
+        self._close_library_popup()
+        return False
+**Why:** The LIBRARY popup displayed saved component names but did not map clicks to any action, so users could see entries but could not retrieve them. Clicking a library entry now promotes it to MRU (restoring it to the active toolbar templates) and closes the popup.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+## 2026-05-07 15:08 UTC — Add DE MORGAN'S LAWS diagram entry and fix diagrams AttributeError
+
+**File:** settings.py
+**Date and Time:** 2026-05-07 15:08 UTC
+**Lines (at time of edit):** 781-835 (modified)
+**Before:**
+    "description": (
+        "OUTPUT IS HIGH IF AT LEAST ONE INPUT IS HIGH. ",
+        "INVERT BOTH INPUTS USING NAND-INVERTERS BEFORE ",
+        ...
+    )
+    # {
+    #     "id": "demorgans_laws",
+    #     ...
+    # }
+**After:**
+    "description": (
+        "OUTPUT IS HIGH IF AT LEAST ONE INPUT IS HIGH. "
+        "INVERT BOTH INPUTS USING NAND-INVERTERS BEFORE "
+        ...
+    )
+    {
+        "id": "demorgans_laws",
+        "list_label": "DE MORGAN'S LAWS",
+        "title": "DE MORGAN'S LAWS",
+        "image_file": "or_gate_diagram.png",
+        "description": (
+            "DE MORGAN'S LAWS CONNECT AND/OR WITH INVERSION. "
+            "FIRST LAW: NOT (A AND B) EQUALS (NOT A) OR (NOT B). "
+            "SECOND LAW: NOT (A OR B) EQUALS (NOT A) AND (NOT B). "
+            ...
+        ),
+    }
+**Why:** Fixed diagram descriptions that had become tuples (from comma-separated string fragments), which caused runtime failures in text wrapping, and added a dedicated DE MORGAN'S LAWS entry to the diagrams list.
+**Editor:** GitHub Copilot (GPT-5.3-Codex)
+
+**File:** ui/diagram_viewer.py
+**Date and Time:** 2026-05-07 15:08 UTC
+**Lines (at time of edit):** 183-198 (modified)
+**Before:**
+    def _wrap_text(self, text: str, max_width: int, font: pygame.font.Font) -> list[str]:
+        ...
+        paragraphs = text.split("\\n")
+**After:**
+    def _wrap_text(self, text: str | tuple | list, max_width: int, font: pygame.font.Font) -> list[str]:
+        if isinstance(text, (tuple, list)):
+            text = " ".join(str(part) for part in text)
+        else:
+            text = str(text)
+        paragraphs = text.split("\\n")
+**Why:** Prevents HELP > DIAGRAMS from crashing with `AttributeError: 'tuple' object has no attribute 'split'` by normalizing description input to a string before wrapping.
 **Editor:** GitHub Copilot (GPT-5.3-Codex)
